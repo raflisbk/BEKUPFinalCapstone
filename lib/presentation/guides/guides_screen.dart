@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import 'guide_detail_screen.dart';
 
 class GuidesScreen extends StatelessWidget {
   const GuidesScreen({super.key});
@@ -93,7 +94,19 @@ class _GuideCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GuideDetailScreen(
+                name: name,
+                expertise: expertise,
+                rating: rating,
+                price: price,
+              ),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(20),

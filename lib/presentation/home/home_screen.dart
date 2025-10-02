@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../destinations/destination_detail_screen.dart';
+import '../search/search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -221,27 +223,36 @@ class HomeScreen extends StatelessWidget {
 class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border, width: 1.5),
-      ),
-      child: TextField(
-        decoration: InputDecoration(
-          hintText: 'Search destinations, guides...',
-          hintStyle: AppTextStyles.bodyMedium.copyWith(
-            color: AppColors.textTertiary,
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SearchScreen(),
           ),
-          prefixIcon: const Icon(
-            Icons.search,
-            color: AppColors.textTertiary,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 18,
-          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.search,
+              color: AppColors.textTertiary,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Search destinations, guides...',
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -318,7 +329,18 @@ class _DestinationCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () {},
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DestinationDetailScreen(
+                title: title,
+                location: location,
+                guides: guides,
+              ),
+            ),
+          );
+        },
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(24),

@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Location Permissions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ReLink needs your location to show nearby travelers and guides</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>ReLink needs your location to show nearby travelers and guides</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ReLink needs your location to show nearby travelers and guides</string>
 </dict>
 </plist>
