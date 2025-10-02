@@ -59,5 +59,6 @@ lib/firebase_options.dart
 # Ignore all markdown files EXCEPT README.md
 *.md
 !README.md
+
 *.pdf
 .pdf

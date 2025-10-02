@@ -135,6 +135,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void dispose() {
     _mapController?.dispose();
+    _markers.clear();
     super.dispose();
   }
 
@@ -160,6 +161,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
               zoomControlsEnabled: false,
               mapToolbarEnabled: false,
               compassEnabled: true,
+              // Performance optimizations
+              liteModeEnabled: false,
+              tiltGesturesEnabled: false,
+              rotateGesturesEnabled: false,
+              buildingsEnabled: false,
+              trafficEnabled: false,
             ),
 
             // Header
