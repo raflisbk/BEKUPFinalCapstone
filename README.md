@@ -180,8 +180,6 @@ Lihat [firebase_config.dart](lib/core/config/firebase_config.dart) untuk detail 
 This project is created for BEKUP Create: Upskilling Bootcamp 2025
 
 ## 🙏 Acknowledgments
-
-- Design inspiration: [OpenAI](https://openai.com)
 - BEKUP Team for guidance and support
 - Flutter & Firebase communities
 
