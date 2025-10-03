@@ -21,15 +21,6 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - **UMKM Tour Packages** - Paket wisata berbasis UMKM lokal
 - **Guest Mode** - Jelajah aplikasi tanpa perlu akun
 
-## Design Philosophy
-
-ReLink mengadopsi desain **minimalis black & white** yang terinspirasi dari OpenAI dengan prinsip:
-
-- Pure black & white color scheme
-- Generous white space untuk breathing room
-- Large typography dengan negative letter-spacing
-- Subtle borders, minimal shadows
-- Smooth animations untuk delightful UX
 
 ## Quick Start
 
