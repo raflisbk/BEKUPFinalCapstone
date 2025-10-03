@@ -3,6 +3,7 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -12,6 +13,8 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
+  static const String _tag = 'OnboardingScreen';
+
   final PageController _pageController = PageController();
   int _currentPage = 0;
 
@@ -34,7 +37,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Onboarding screen initialized', {
+      'totalPages': _pages.length,
+    });
+  }
+
+  @override
   void dispose() {
+    AppLogger.debug(_tag, 'Disposing onboarding screen resources');
     _pageController.dispose();
     super.dispose();
   }
@@ -52,7 +64,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Align(
                 alignment: Alignment.topRight,
                 child: TextButton(
-                  onPressed: () => _navigateToAuth(),
+                  onPressed: () {
+                    AppLogger.action('User tapped "Skip" button', {
+                      'skippedPage': _currentPage + 1,
+                    });
+                    _navigateToAuth();
+                  },
                   child: Text(
                     'Skip',
                     style: AppTextStyles.labelLarge.copyWith(
@@ -70,6 +87,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 onPageChanged: (index) {
                   setState(() {
                     _currentPage = index;
+                  });
+                  AppLogger.action('User swiped to onboarding page ${index + 1}', {
+                    'page': index + 1,
+                    'title': _pages[index].title.replaceAll('\n', ' '),
                   });
                 },
                 itemCount: _pages.length,
@@ -107,8 +128,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: ElevatedButton(
                       onPressed: () {
                         if (_currentPage == _pages.length - 1) {
+                          AppLogger.action('User tapped "Get Started" button');
                           _navigateToAuth();
                         } else {
+                          AppLogger.action('User tapped "Next" button', {
+                            'currentPage': _currentPage + 1,
+                            'nextPage': _currentPage + 2,
+                          });
                           _pageController.nextPage(
                             duration: const Duration(milliseconds: 400),
                             curve: Curves.easeInOut,
@@ -130,6 +156,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _navigateToAuth() {
+    AppLogger.navigation(_tag, '/auth', {'completedOnboarding': true});
     Navigator.pushReplacementNamed(context, '/auth');
   }
 }

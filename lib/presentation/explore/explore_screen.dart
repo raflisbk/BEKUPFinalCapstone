@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 import '../../services/location_service.dart';
 
 class ExploreScreen extends StatefulWidget {
@@ -13,6 +14,8 @@ class ExploreScreen extends StatefulWidget {
 }
 
 class _ExploreScreenState extends State<ExploreScreen> {
+  static const String _tag = 'ExploreScreen';
+
   GoogleMapController? _mapController;
   final LocationService _locationService = LocationService();
 
@@ -27,14 +30,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   void initState() {
     super.initState();
+    AppLogger.debug(_tag, 'Explore screen initialized');
     _initializeLocation();
   }
 
   Future<void> _initializeLocation() async {
     try {
+      AppLogger.debug(_tag, 'Initializing location and map');
+
       Position? position = await _locationService.getCurrentLocation();
 
       if (position != null) {
+        AppLogger.success(_tag, 'Location initialized', {
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        });
+
         setState(() {
           _currentPosition = position;
           _isLoading = false;
@@ -44,6 +55,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
         _addCurrentLocationMarker(position);
 
         // Move camera to current location
+        AppLogger.debug(_tag, 'Moving camera to current location');
         _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(
             LatLng(position.latitude, position.longitude),
@@ -54,12 +66,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
         // Add nearby travelers (dummy data for now)
         _addNearbyTravelersMarkers(position);
       } else {
+        AppLogger.warning(_tag, 'Unable to get location - position is null');
         setState(() {
           _isLoading = false;
           _errorMessage = 'Unable to get location';
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to initialize location', e, stackTrace);
       setState(() {
         _isLoading = false;
         _errorMessage = e.toString();
@@ -68,6 +82,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _addCurrentLocationMarker(Position position) {
+    AppLogger.debug(_tag, 'Adding current location marker');
+
     setState(() {
       _markers.add(
         Marker(
@@ -78,9 +94,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
         ),
       );
     });
+
+    AppLogger.info(_tag, 'Current location marker added', {
+      'latitude': position.latitude,
+      'longitude': position.longitude,
+    });
   }
 
   void _addNearbyTravelersMarkers(Position currentPosition) {
+    AppLogger.debug(_tag, 'Adding nearby travelers markers (dummy data)');
+
     // Dummy nearby travelers (replace with real data from Firebase later)
     final List<Map<String, dynamic>> nearbyTravelers = [
       {
@@ -115,27 +138,42 @@ class _ExploreScreenState extends State<ExploreScreen> {
         );
       }
     });
+
+    AppLogger.success(_tag, 'Nearby travelers markers added', {
+      'count': nearbyTravelers.length,
+      'travelers': nearbyTravelers.map((t) => t['name']).toList(),
+    });
   }
 
   void _onMapCreated(GoogleMapController controller) {
+    AppLogger.debug(_tag, 'Google Map created');
     _mapController = controller;
+    AppLogger.info(_tag, 'Map controller initialized');
   }
 
   Future<void> _goToCurrentLocation() async {
+    AppLogger.action('User tapped "My Location" button');
+
     if (_currentPosition != null) {
+      AppLogger.debug(_tag, 'Animating camera to current location');
       _mapController?.animateCamera(
         CameraUpdate.newLatLngZoom(
           LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
           15,
         ),
       );
+      AppLogger.info(_tag, 'Camera moved to current location');
+    } else {
+      AppLogger.warning(_tag, 'Cannot go to current location - position is null');
     }
   }
 
   @override
   void dispose() {
+    AppLogger.debug(_tag, 'Disposing explore screen resources');
     _mapController?.dispose();
     _markers.clear();
+    AppLogger.info(_tag, 'Map controller disposed and markers cleared');
     super.dispose();
   }
 

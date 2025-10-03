@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 import '../destinations/destination_detail_screen.dart';
 import '../guides/guide_detail_screen.dart';
 
@@ -13,9 +14,92 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  static const String _tag = 'SearchScreen';
+
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedFilter = 'All'; // All, Destinations, Guides
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Search screen initialized');
+  }
+
+  void _handleSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+    });
+    AppLogger.action('User searched', {
+      'query': query,
+      'filter': _selectedFilter,
+      'resultsCount': _filteredResults.length,
+    });
+  }
+
+  void _handleFilterChange(String filter) {
+    setState(() {
+      _selectedFilter = filter;
+    });
+    AppLogger.action('User changed filter', {
+      'filter': filter,
+      'searchQuery': _searchQuery,
+      'resultsCount': _filteredResults.length,
+    });
+  }
+
+  void _handleClearSearch() {
+    AppLogger.action('User cleared search');
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+    });
+  }
+
+  void _handleRecentSearch(String search) {
+    AppLogger.action('User tapped recent search', {'search': search});
+    setState(() {
+      _searchController.text = search;
+      _searchQuery = search;
+    });
+  }
+
+  void _navigateToDestination(BuildContext context, String title, String location, String guides) {
+    AppLogger.action('User tapped search result (destination)', {
+      'title': title,
+      'location': location,
+    });
+    AppLogger.navigation(_tag, '/destination-detail', {'title': title});
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DestinationDetailScreen(
+          title: title,
+          location: location,
+          guides: guides,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToGuide(BuildContext context, String name, String expertise, String rating, String price) {
+    AppLogger.action('User tapped search result (guide)', {
+      'name': name,
+      'expertise': expertise,
+    });
+    AppLogger.navigation(_tag, '/guide-detail', {'name': name});
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GuideDetailScreen(
+          name: name,
+          expertise: expertise,
+          rating: rating,
+          price: price,
+        ),
+      ),
+    );
+  }
 
   // Dummy data
   final List<Map<String, String>> _destinations = [
@@ -111,6 +195,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    AppLogger.debug(_tag, 'Disposing search screen resources');
     _searchController.dispose();
     super.dispose();
   }
@@ -171,12 +256,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   Icons.clear,
                                   color: AppColors.textTertiary,
                                 ),
-                                onPressed: () {
-                                  setState(() {
-                                    _searchController.clear();
-                                    _searchQuery = '';
-                                  });
-                                },
+                                onPressed: _handleClearSearch,
                               )
                             : null,
                         border: InputBorder.none,
@@ -185,11 +265,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           vertical: 18,
                         ),
                       ),
-                      onChanged: (value) {
-                        setState(() {
-                          _searchQuery = value;
-                        });
-                      },
+                      onChanged: _handleSearch,
                     ),
                   ),
                 ),
@@ -204,31 +280,19 @@ class _SearchScreenState extends State<SearchScreen> {
                       _FilterChip(
                         label: 'All',
                         isSelected: _selectedFilter == 'All',
-                        onTap: () {
-                          setState(() {
-                            _selectedFilter = 'All';
-                          });
-                        },
+                        onTap: () => _handleFilterChange('All'),
                       ),
                       const SizedBox(width: 12),
                       _FilterChip(
                         label: 'Destinations',
                         isSelected: _selectedFilter == 'Destinations',
-                        onTap: () {
-                          setState(() {
-                            _selectedFilter = 'Destinations';
-                          });
-                        },
+                        onTap: () => _handleFilterChange('Destinations'),
                       ),
                       const SizedBox(width: 12),
                       _FilterChip(
                         label: 'Guides',
                         isSelected: _selectedFilter == 'Guides',
-                        onTap: () {
-                          setState(() {
-                            _selectedFilter = 'Guides';
-                          });
-                        },
+                        onTap: () => _handleFilterChange('Guides'),
                       ),
                     ],
                   ),
@@ -262,32 +326,17 @@ class _SearchScreenState extends State<SearchScreen> {
           _RecentSearchItem(
             icon: Icons.history,
             text: 'Bali Rice Terraces',
-            onTap: () {
-              setState(() {
-                _searchController.text = 'Bali Rice Terraces';
-                _searchQuery = 'Bali Rice Terraces';
-              });
-            },
+            onTap: () => _handleRecentSearch('Bali Rice Terraces'),
           ),
           _RecentSearchItem(
             icon: Icons.history,
             text: 'Cultural Tours',
-            onTap: () {
-              setState(() {
-                _searchController.text = 'Cultural Tours';
-                _searchQuery = 'Cultural Tours';
-              });
-            },
+            onTap: () => _handleRecentSearch('Cultural Tours'),
           ),
           _RecentSearchItem(
             icon: Icons.history,
             text: 'Mount Bromo',
-            onTap: () {
-              setState(() {
-                _searchController.text = 'Mount Bromo';
-                _searchQuery = 'Mount Bromo';
-              });
-            },
+            onTap: () => _handleRecentSearch('Mount Bromo'),
           ),
         ],
       ),
@@ -337,12 +386,14 @@ class _SearchScreenState extends State<SearchScreen> {
                   title: item['title']!,
                   location: item['location']!,
                   guides: item['guides']!,
+                  onTap: () => _navigateToDestination(context, item['title']!, item['location']!, item['guides']!),
                 )
               : _GuideSearchResultCard(
                   name: item['name']!,
                   expertise: item['expertise']!,
                   rating: item['rating']!,
                   price: item['price']!,
+                  onTap: () => _navigateToGuide(context, item['name']!, item['expertise']!, item['rating']!, item['price']!),
                 ),
         );
       },
@@ -429,11 +480,13 @@ class _DestinationSearchResultCard extends StatelessWidget {
   final String title;
   final String location;
   final String guides;
+  final VoidCallback onTap;
 
   const _DestinationSearchResultCard({
     required this.title,
     required this.location,
     required this.guides,
+    required this.onTap,
   });
 
   @override
@@ -441,18 +494,7 @@ class _DestinationSearchResultCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DestinationDetailScreen(
-                title: title,
-                location: location,
-                guides: guides,
-              ),
-            ),
-          );
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(20),
@@ -524,12 +566,14 @@ class _GuideSearchResultCard extends StatelessWidget {
   final String expertise;
   final String rating;
   final String price;
+  final VoidCallback onTap;
 
   const _GuideSearchResultCard({
     required this.name,
     required this.expertise,
     required this.rating,
     required this.price,
+    required this.onTap,
   });
 
   @override
@@ -537,19 +581,7 @@ class _GuideSearchResultCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => GuideDetailScreen(
-                name: name,
-                expertise: expertise,
-                rating: rating,
-                price: price,
-              ),
-            ),
-          );
-        },
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(20),

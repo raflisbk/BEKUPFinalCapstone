@@ -2,11 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 import '../destinations/destination_detail_screen.dart';
 import '../search/search_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  static const String _tag = 'HomeScreen';
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Home screen initialized');
+  }
+
+  void _navigateToSearch(BuildContext context) {
+    AppLogger.action('User tapped search bar');
+    AppLogger.navigation(_tag, '/search');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const SearchScreen()),
+    );
+  }
+
+  void _handleQuickAction(String action) {
+    AppLogger.action('User tapped quick action', {'action': action});
+    // TODO: Navigate to respective screen
+    AppLogger.warning(_tag, 'Quick action "$action" not implemented yet');
+  }
+
+  void _handleViewAllDestinations() {
+    AppLogger.action('User tapped "View all" destinations');
+    // TODO: Navigate to all destinations screen
+    AppLogger.warning(_tag, 'View all destinations not implemented yet');
+  }
+
+  void _navigateToDestination(BuildContext context, String title, String location, String guides) {
+    AppLogger.action('User tapped destination card', {
+      'title': title,
+      'location': location,
+    });
+    AppLogger.navigation(_tag, '/destination-detail', {
+      'title': title,
+      'location': location,
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DestinationDetailScreen(
+          title: title,
+          location: location,
+          guides: guides,
+        ),
+      ),
+    );
+  }
+
+  void _handleNotification() {
+    AppLogger.action('User tapped notification icon');
+    // TODO: Navigate to notifications screen
+    AppLogger.warning(_tag, 'Notifications not implemented yet');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +107,7 @@ class HomeScreen extends StatelessWidget {
 
                     // Notification Icon
                     IconButton(
-                      onPressed: () {},
+                      onPressed: _handleNotification,
                       icon: const Icon(Icons.notifications_outlined),
                       color: AppColors.black,
                     ),
@@ -126,7 +188,7 @@ class HomeScreen extends StatelessWidget {
                             child: _QuickActionCard(
                               icon: Icons.people_outline,
                               title: 'Find\nTravelers',
-                              onTap: () {},
+                              actionName: 'Find Travelers',
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -134,7 +196,7 @@ class HomeScreen extends StatelessWidget {
                             child: _QuickActionCard(
                               icon: Icons.explore_outlined,
                               title: 'Local\nGuides',
-                              onTap: () {},
+                              actionName: 'Local Guides',
                             ),
                           ),
                         ],
@@ -162,7 +224,7 @@ class HomeScreen extends StatelessWidget {
                         style: AppTextStyles.titleLarge,
                       ),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: () => context.findAncestorStateOfType<_HomeScreenState>()?._handleViewAllDestinations(),
                         child: const Text('View all'),
                       ),
                     ],
@@ -223,15 +285,9 @@ class HomeScreen extends StatelessWidget {
 class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const SearchScreen(),
-          ),
-        );
-      },
+      onTap: () => homeState?._navigateToSearch(context),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
@@ -262,18 +318,19 @@ class _SearchBar extends StatelessWidget {
 class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String title;
-  final VoidCallback onTap;
+  final String actionName;
 
   const _QuickActionCard({
     required this.icon,
     required this.title,
-    required this.onTap,
+    required this.actionName,
   });
 
   @override
   Widget build(BuildContext context) {
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
     return InkWell(
-      onTap: onTap,
+      onTap: () => homeState?._handleQuickAction(actionName),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         height: 160,
@@ -326,21 +383,11 @@ class _DestinationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DestinationDetailScreen(
-                title: title,
-                location: location,
-                guides: guides,
-              ),
-            ),
-          );
-        },
+        onTap: () => homeState?._navigateToDestination(context, title, location, guides),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(24),

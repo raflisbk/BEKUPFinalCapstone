@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 
-class GuideDetailScreen extends StatelessWidget {
+class GuideDetailScreen extends StatefulWidget {
   final String name;
   final String expertise;
   final String rating;
@@ -18,6 +19,111 @@ class GuideDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<GuideDetailScreen> createState() => _GuideDetailScreenState();
+}
+
+class _GuideDetailScreenState extends State<GuideDetailScreen> {
+  static const String _tag = 'GuideDetailScreen';
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Guide detail screen initialized', {
+      'name': widget.name,
+      'expertise': widget.expertise,
+      'price': widget.price,
+    });
+  }
+
+  void _handleShare() {
+    AppLogger.action('User tapped share button', {'guide': widget.name});
+    // TODO: Implement share functionality
+    AppLogger.warning(_tag, 'Share functionality not implemented yet');
+  }
+
+  void _handleViewAllReviews() {
+    AppLogger.action('User tapped view all reviews', {'guide': widget.name});
+    // TODO: Navigate to reviews screen
+    AppLogger.warning(_tag, 'View all reviews not implemented yet');
+  }
+
+  void _handleBooking() {
+    AppLogger.action('User tapped book button', {
+      'guide': widget.name,
+      'price': widget.price,
+    });
+    _showBookingDialog(context);
+  }
+
+  void _showBookingDialog(BuildContext context) {
+    AppLogger.debug(_tag, 'Showing booking dialog', {'guide': widget.name});
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.white,
+        title: Text(
+          'Book Guide',
+          style: AppTextStyles.headlineSmall,
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Select your tour date',
+              style: AppTextStyles.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: InputDecoration(
+                hintText: 'Select date',
+                suffixIcon: Icon(Icons.calendar_today_outlined),
+              ),
+              readOnly: true,
+              onTap: () {
+                AppLogger.action('User tapped date picker', {'guide': widget.name});
+                // Show date picker
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AppLogger.action('User cancelled booking', {'guide': widget.name});
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              AppLogger.action('User confirmed booking', {
+                'guide': widget.name,
+                'price': widget.price,
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Booking request sent!'),
+                  backgroundColor: AppColors.black,
+                ),
+              );
+              AppLogger.success(_tag, 'Booking request sent', {'guide': widget.name});
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    AppLogger.debug(_tag, 'Disposing guide detail screen');
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -30,7 +136,7 @@ class GuideDetailScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined, color: AppColors.black),
-            onPressed: () {},
+            onPressed: _handleShare,
           ),
         ],
       ),
@@ -62,12 +168,12 @@ class GuideDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        name,
+                        widget.name,
                         style: AppTextStyles.headlineMedium,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        expertise,
+                        widget.expertise,
                         style: AppTextStyles.bodyLarge.copyWith(
                           color: AppColors.textSecondary,
                         ),
@@ -89,7 +195,7 @@ class GuideDetailScreen extends StatelessWidget {
                             const Icon(Icons.star, size: 18, color: AppColors.black),
                             const SizedBox(width: 6),
                             Text(
-                              '$rating (156 reviews)',
+                              '${widget.rating} (156 reviews)',
                               style: AppTextStyles.labelLarge.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -134,7 +240,7 @@ class GuideDetailScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Hello! I\'m $name, a passionate local guide with over 5 years of experience. I specialize in $expertise and love sharing the rich culture and hidden gems of my hometown with travelers from around the world.',
+                      'Hello! I\'m ${widget.name}, a passionate local guide with over 5 years of experience. I specialize in ${widget.expertise} and love sharing the rich culture and hidden gems of my hometown with travelers from around the world.',
                       style: AppTextStyles.bodyLarge.copyWith(
                         height: 1.8,
                       ),
@@ -215,19 +321,19 @@ class GuideDetailScreen extends StatelessWidget {
                           style: AppTextStyles.titleLarge,
                         ),
                         TextButton(
-                          onPressed: () {},
+                          onPressed: _handleViewAllReviews,
                           child: const Text('View all'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _ReviewCard(
+                    const _ReviewCard(
                       name: 'John Smith',
                       rating: 5,
                       comment: 'Amazing experience! Very knowledgeable and friendly.',
                     ),
                     const SizedBox(height: 12),
-                    _ReviewCard(
+                    const _ReviewCard(
                       name: 'Sarah Lee',
                       rating: 5,
                       comment: 'Best guide ever! Highly recommended.',
@@ -266,7 +372,7 @@ class GuideDetailScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    price,
+                    widget.price,
                     style: AppTextStyles.titleLarge,
                   ),
                 ],
@@ -276,9 +382,7 @@ class GuideDetailScreen extends StatelessWidget {
                 child: SizedBox(
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: () {
-                      _showBookingDialog(context);
-                    },
+                    onPressed: _handleBooking,
                     child: const Text('Book Now'),
                   ),
                 ),
@@ -286,58 +390,6 @@ class GuideDetailScreen extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _showBookingDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.white,
-        title: Text(
-          'Book Guide',
-          style: AppTextStyles.headlineSmall,
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Select your tour date',
-              style: AppTextStyles.bodyMedium,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Select date',
-                suffixIcon: Icon(Icons.calendar_today_outlined),
-              ),
-              readOnly: true,
-              onTap: () {
-                // Show date picker
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Booking request sent!'),
-                  backgroundColor: AppColors.black,
-                ),
-              );
-            },
-            child: const Text('Confirm'),
-          ),
-        ],
       ),
     );
   }

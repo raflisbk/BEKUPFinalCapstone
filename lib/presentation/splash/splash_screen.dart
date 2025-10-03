@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -11,12 +12,15 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  static const String _tag = 'SplashScreen';
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    AppLogger.debug(_tag, 'Splash screen initialized');
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -27,10 +31,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     );
 
     _animationController.forward();
+    AppLogger.debug(_tag, 'Splash animation started');
 
     // Navigate to onboarding after 3 seconds
     Future.delayed(const Duration(seconds: 3), () {
       if (mounted) {
+        AppLogger.navigation(_tag, '/onboarding');
         Navigator.pushReplacementNamed(context, '/onboarding');
       }
     });
@@ -38,6 +44,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    AppLogger.debug(_tag, 'Disposing splash screen resources');
     _animationController.dispose();
     super.dispose();
   }

@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 
-class DestinationDetailScreen extends StatelessWidget {
+class DestinationDetailScreen extends StatefulWidget {
   final String title;
   final String location;
   final String guides;
@@ -14,6 +15,59 @@ class DestinationDetailScreen extends StatelessWidget {
     required this.location,
     required this.guides,
   });
+
+  @override
+  State<DestinationDetailScreen> createState() => _DestinationDetailScreenState();
+}
+
+class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
+  static const String _tag = 'DestinationDetailScreen';
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Destination detail screen initialized', {
+      'title': widget.title,
+      'location': widget.location,
+      'guides': widget.guides,
+    });
+  }
+
+  void _handleBookmark() {
+    AppLogger.action('User tapped bookmark button', {'destination': widget.title});
+    // TODO: Implement bookmark functionality
+    AppLogger.warning(_tag, 'Bookmark functionality not implemented yet');
+  }
+
+  void _handleViewAllGuides() {
+    AppLogger.action('User tapped view all guides', {'destination': widget.title});
+    // TODO: Navigate to guides list screen
+    AppLogger.warning(_tag, 'View all guides not implemented yet');
+  }
+
+  void _handleBookGuide() {
+    AppLogger.action('User tapped book guide button', {
+      'destination': widget.title,
+      'location': widget.location,
+    });
+    // TODO: Navigate to guide booking screen
+    AppLogger.warning(_tag, 'Book guide functionality not implemented yet');
+  }
+
+  void _handleGuideCardTap(String guideName) {
+    AppLogger.action('User tapped guide preview card', {
+      'guide': guideName,
+      'destination': widget.title,
+    });
+    // TODO: Navigate to guide detail screen
+    AppLogger.warning(_tag, 'Guide card navigation not implemented yet');
+  }
+
+  @override
+  void dispose() {
+    AppLogger.debug(_tag, 'Disposing destination detail screen');
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +106,7 @@ class DestinationDetailScreen extends StatelessWidget {
                   ),
                   child: IconButton(
                     icon: const Icon(Icons.bookmark_outline, color: AppColors.black),
-                    onPressed: () {},
+                    onPressed: _handleBookmark,
                   ),
                 ),
               ),
@@ -109,7 +163,7 @@ class DestinationDetailScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            title,
+                            widget.title,
                             style: AppTextStyles.headlineMedium,
                           ),
                           const SizedBox(height: 12),
@@ -122,7 +176,7 @@ class DestinationDetailScreen extends StatelessWidget {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                location,
+                                widget.location,
                                 style: AppTextStyles.bodyLarge.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -149,7 +203,7 @@ class DestinationDetailScreen extends StatelessWidget {
                           const SizedBox(width: 16),
                           _StatCard(
                             icon: Icons.people_outline,
-                            value: guides,
+                            value: widget.guides,
                             label: 'Guides',
                           ),
                           const SizedBox(width: 16),
@@ -177,7 +231,7 @@ class DestinationDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'Discover the breathtaking beauty of $title, a must-visit destination in $location. Experience authentic local culture, stunning landscapes, and unforgettable moments with our verified local guides.',
+                            'Discover the breathtaking beauty of ${widget.title}, a must-visit destination in ${widget.location}. Experience authentic local culture, stunning landscapes, and unforgettable moments with our verified local guides.',
                             style: AppTextStyles.bodyLarge.copyWith(
                               height: 1.8,
                             ),
@@ -203,7 +257,7 @@ class DestinationDetailScreen extends StatelessWidget {
                                 style: AppTextStyles.titleLarge,
                               ),
                               TextButton(
-                                onPressed: () {},
+                                onPressed: _handleViewAllGuides,
                                 child: const Text('View all'),
                               ),
                             ],
@@ -238,7 +292,7 @@ class DestinationDetailScreen extends StatelessWidget {
           child: SizedBox(
             height: 56,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _handleBookGuide,
               child: const Text('Book a Guide'),
             ),
           ),

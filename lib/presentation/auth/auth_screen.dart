@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -11,7 +12,54 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
+  static const String _tag = 'AuthScreen';
   bool _isLogin = true;
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogger.debug(_tag, 'Auth screen initialized', {'mode': _isLogin ? 'login' : 'signup'});
+  }
+
+  void _toggleAuthMode() {
+    setState(() {
+      _isLogin = !_isLogin;
+    });
+    AppLogger.action('User toggled auth mode', {'newMode': _isLogin ? 'login' : 'signup'});
+  }
+
+  void _handleGuestMode(BuildContext context) {
+    AppLogger.action('User selected guest mode');
+    AppLogger.navigation(_tag, '/main', {'mode': 'guest'});
+    Navigator.pushReplacementNamed(context, '/main');
+  }
+
+  void _handleAuth(BuildContext context) {
+    final mode = _isLogin ? 'login' : 'signup';
+    AppLogger.action('User tapped $mode button');
+    // TODO: Implement actual authentication logic
+    AppLogger.info(_tag, 'Navigating to main screen after $mode');
+    AppLogger.navigation(_tag, '/main', {'authMode': mode});
+    Navigator.pushReplacementNamed(context, '/main');
+  }
+
+  void _handleGoogleSignIn() {
+    AppLogger.action('User tapped Google Sign-In button');
+    // TODO: Implement Google Sign-In logic
+    AppLogger.warning(_tag, 'Google Sign-In not implemented yet');
+  }
+
+  void _handleForgotPassword() {
+    AppLogger.action('User tapped forgot password');
+    // TODO: Implement forgot password logic
+    AppLogger.warning(_tag, 'Forgot password not implemented yet');
+  }
+
+  @override
+  void dispose() {
+    AppLogger.debug(_tag, 'Disposing auth screen resources');
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   duration: const Duration(milliseconds: 600),
                   delay: const Duration(milliseconds: 300),
                   child: _GuestModeCard(
-                    onTap: () => Navigator.pushReplacementNamed(context, '/main'),
+                    onTap: () => _handleGuestMode(context),
                   ),
                 ),
 
@@ -167,7 +215,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: _handleForgotPassword,
                         child: const Text('Forgot password?'),
                       ),
                     ),
@@ -184,7 +232,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.pushReplacementNamed(context, '/main'),
+                      onPressed: () => _handleAuth(context),
                       child: Text(_isLogin ? 'Sign In' : 'Create Account'),
                     ),
                   ),
@@ -200,7 +248,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     width: double.infinity,
                     height: 56,
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: _handleGoogleSignIn,
                       icon: const Icon(Icons.g_mobiledata, size: 28),
                       label: const Text('Continue with Google'),
                     ),
@@ -215,11 +263,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   delay: Duration(milliseconds: _isLogin ? 1000 : 1000),
                   child: Center(
                     child: TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _isLogin = !_isLogin;
-                        });
-                      },
+                      onPressed: _toggleAuthMode,
                       child: RichText(
                         text: TextSpan(
                           text: _isLogin ? "Don't have an account? " : "Already have an account? ",
