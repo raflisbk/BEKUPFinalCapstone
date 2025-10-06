@@ -39,7 +39,7 @@ class _AuthScreenState extends State<AuthScreen> {
     AppLogger.action('User toggled auth mode', {'newMode': _isLogin ? 'login' : 'signup'});
   }
 
-  void _handleGuestMode(BuildContext context) async {
+  Future<void> _handleGuestMode(BuildContext context) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     AppLogger.action('User selected guest mode');
 

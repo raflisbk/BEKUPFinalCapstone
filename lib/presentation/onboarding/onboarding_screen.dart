@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -155,9 +156,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  void _navigateToAuth() {
+  Future<void> _navigateToAuth() async {
+    // Set flag that user has seen onboarding
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('has_seen_onboarding', true);
+
     AppLogger.navigation(_tag, '/auth', {'completedOnboarding': true});
-    Navigator.pushReplacementNamed(context, '/auth');
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/auth');
+    }
   }
 }
 

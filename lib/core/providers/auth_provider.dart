@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
@@ -8,12 +9,14 @@ class AuthProvider with ChangeNotifier {
   static const String _tag = 'AuthProvider';
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   User? _user;
   bool _isLoading = false;
   String? _errorMessage;
   bool _isAuthenticated = false;
+  bool _isInitialized = false;
 
   // Getters
   User? get user => _user;
@@ -21,6 +24,7 @@ class AuthProvider with ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _isAuthenticated;
   bool get isGuest => _user == null && _isAuthenticated;
+  bool get isInitialized => _isInitialized;
 
   AuthProvider() {
     _initAuth();
@@ -28,14 +32,31 @@ class AuthProvider with ChangeNotifier {
 
   // Initialize auth state listener
   Future<void> _initAuth() async {
-    AppLogger.debug(_tag, 'Initializing auth provider');
+    AppLogger.debug(_tag, 'Starting auth provider initialization');
+
+    // Get current user immediately (Firebase persists auth)
+    _user = _auth.currentUser;
+    _isAuthenticated = _user != null;
+
+    if (_user != null) {
+      AppLogger.info(_tag, 'Restored authenticated session from Firebase cache', {
+        'userId': _user!.uid,
+        'email': _user!.email ?? 'No email',
+      });
+    } else {
+      AppLogger.info(_tag, 'No cached authentication session found');
+    }
 
     // Listen to auth state changes
     _auth.authStateChanges().listen((User? user) {
-      AppLogger.debug(_tag, 'Auth state changed', {
-        'userId': user?.uid ?? 'null',
-        'email': user?.email ?? 'null',
-      });
+      if (user != null) {
+        AppLogger.info(_tag, 'Authentication state changed to authenticated', {
+          'userId': user.uid,
+          'email': user.email ?? 'No email',
+        });
+      } else {
+        AppLogger.info(_tag, 'Authentication state changed to unauthenticated');
+      }
 
       _user = user;
       _isAuthenticated = user != null;
@@ -44,6 +65,15 @@ class AuthProvider with ChangeNotifier {
 
     // Check for persistent login
     await _checkPersistentLogin();
+
+    // Mark as initialized
+    _isInitialized = true;
+    notifyListeners();
+
+    AppLogger.info(_tag, 'Auth provider initialization completed', {
+      'isAuthenticated': _isAuthenticated,
+      'userId': _user?.uid ?? 'None',
+    });
   }
 
   // Check if user was logged in before
@@ -53,15 +83,14 @@ class AuthProvider with ChangeNotifier {
       final wasLoggedIn = prefs.getBool('was_logged_in') ?? false;
 
       if (wasLoggedIn && _user == null) {
-        AppLogger.warning(_tag, 'User was logged in but session expired');
+        AppLogger.warning(_tag, 'Previous login session detected but Firebase session has expired');
+      } else if (wasLoggedIn && _user != null) {
+        AppLogger.info(_tag, 'Previous login session verified and active');
+      } else {
+        AppLogger.debug(_tag, 'No previous login session found');
       }
-
-      AppLogger.debug(_tag, 'Persistent login check complete', {
-        'wasLoggedIn': wasLoggedIn,
-        'currentUser': _user != null,
-      });
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to check persistent login', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to check persistent login state', e, stackTrace);
     }
   }
 
@@ -100,6 +129,11 @@ class AuthProvider with ChangeNotifier {
 
       // Update display name
       await credential.user?.updateDisplayName(name);
+
+      // Create Firestore user document
+      if (credential.user != null) {
+        await _createUserDocument(credential.user!, name);
+      }
 
       // Send email verification
       await credential.user?.sendEmailVerification();
@@ -193,6 +227,14 @@ class AuthProvider with ChangeNotifier {
       // Sign in to Firebase
       final userCredential = await _auth.signInWithCredential(credential);
 
+      // Create Firestore document if new user
+      if (userCredential.user != null && userCredential.additionalUserInfo?.isNewUser == true) {
+        await _createUserDocument(
+          userCredential.user!,
+          userCredential.user!.displayName ?? 'User',
+        );
+      }
+
       // Save login state
       await _savePersistentLogin();
 
@@ -217,7 +259,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   // Sign in as guest
-  Future<void> signInAsGuest() async {
+  Future<bool> signInAsGuest() async {
     try {
       AppLogger.action('User signed in as guest');
       _isAuthenticated = true;
@@ -228,8 +270,11 @@ class AuthProvider with ChangeNotifier {
       await prefs.setBool('is_guest', true);
 
       notifyListeners();
+      return true;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to set guest mode', e, stackTrace);
+      _setError('Failed to continue as guest');
+      return false;
     }
   }
 
@@ -296,6 +341,39 @@ class AuthProvider with ChangeNotifier {
       AppLogger.debug(_tag, 'Persistent login saved');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to save persistent login', e, stackTrace);
+    }
+  }
+
+  // Create user document in Firestore
+  Future<void> _createUserDocument(User user, String displayName) async {
+    try {
+      AppLogger.debug(_tag, 'Creating user document in Firestore', {
+        'userId': user.uid,
+        'email': user.email,
+      });
+
+      await _firestore.collection('users').doc(user.uid).set({
+        'uid': user.uid,
+        'email': user.email ?? '',
+        'displayName': displayName,
+        'photoURL': user.photoURL,
+        'bio': '',
+        'location': '',
+        'isGuide': false,
+        'guideVerified': false,
+        'isLocationShared': false,
+        'latitude': null,
+        'longitude': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      AppLogger.success(_tag, 'User document created successfully', {
+        'userId': user.uid,
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to create user document', e, stackTrace);
+      // Don't throw, just log - user is already created in Auth
     }
   }
 

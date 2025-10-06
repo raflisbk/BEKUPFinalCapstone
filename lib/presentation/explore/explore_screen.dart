@@ -5,8 +5,22 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/marker_generator.dart';
 import '../../core/providers/location_provider.dart';
 import '../../core/providers/auth_provider.dart';
+
+// Data class for optimized map rebuilds
+class _MapData {
+  final Position? currentPosition;
+  final List<Map<String, dynamic>> nearbyTravelers;
+  final bool isLocationSharing;
+
+  const _MapData({
+    required this.currentPosition,
+    required this.nearbyTravelers,
+    required this.isLocationSharing,
+  });
+}
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -93,57 +107,83 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
   }
 
-  void _updateMarkers() {
+  Future<void> _updateMarkers() async {
+    if (!mounted) return;
+
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final currentPosition = locationProvider.currentPosition;
     final nearbyTravelers = locationProvider.nearbyTravelers;
 
-    Set<Marker> newMarkers = {};
+    AppLogger.debug(_tag, 'Starting marker update', {
+      'hasPosition': currentPosition != null,
+      'travelersCount': nearbyTravelers.length,
+    });
+
+    // Generate all markers in parallel for better performance
+    final List<Future<Marker?>> markerFutures = [];
 
     // Add current location marker
     if (currentPosition != null) {
-      AppLogger.debug(_tag, 'Adding current location marker');
-      newMarkers.add(
-        Marker(
-          markerId: const MarkerId('current_location'),
-          position: LatLng(currentPosition.latitude, currentPosition.longitude),
-          infoWindow: const InfoWindow(title: 'You are here'),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        ),
+      markerFutures.add(
+        MarkerGenerator.createSimpleMarker(
+          color: AppColors.black,
+          emoji: '📍',
+        ).then((icon) {
+          return Marker(
+            markerId: const MarkerId('current_location'),
+            position: LatLng(currentPosition.latitude, currentPosition.longitude),
+            icon: icon,
+            anchor: const Offset(0.5, 0.5),
+          ) as Marker?;
+        }).catchError((e) {
+          AppLogger.warning(_tag, 'Failed to create current location marker');
+          return null as Marker?;
+        }),
       );
     }
 
-    // Add nearby travelers markers from real Firebase data
-    for (var traveler in nearbyTravelers) {
+    // Add nearby travelers markers - limit to max 50 for performance
+    final travelersToShow = nearbyTravelers.take(50).toList();
+    for (var traveler in travelersToShow) {
       final lat = traveler['latitude'] as double?;
       final lon = traveler['longitude'] as double?;
-      final name = traveler['displayName'] as String? ?? 'Traveler';
       final uid = traveler['uid'] as String;
-      final distance = traveler['distance'] as double?;
+      final photoUrl = traveler['photoUrl'] as String?;
 
       if (lat != null && lon != null) {
-        newMarkers.add(
-          Marker(
-            markerId: MarkerId(uid),
-            position: LatLng(lat, lon),
-            infoWindow: InfoWindow(
-              title: name,
-              snippet: distance != null
-                  ? locationProvider.getFormattedDistance(distance)
-                  : null,
-            ),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          ),
+        markerFutures.add(
+          MarkerGenerator.createMarkerFromPhoto(
+            photoUrl: photoUrl,
+            isCurrentUser: false,
+          ).then((icon) {
+            return Marker(
+              markerId: MarkerId(uid),
+              position: LatLng(lat, lon),
+              icon: icon,
+              anchor: const Offset(0.5, 0.5),
+            ) as Marker?;
+          }).catchError((e) {
+            AppLogger.warning(_tag, 'Failed to create marker for traveler', {'uid': uid});
+            return null as Marker?;
+          }),
         );
       }
     }
+
+    // Wait for all markers to be generated in parallel
+    final markers = await Future.wait(markerFutures);
+
+    if (!mounted) return;
+
+    // Filter out null markers and convert to set
+    final newMarkers = markers.whereType<Marker>().toSet();
 
     setState(() {
       _markers = newMarkers;
     });
 
-    AppLogger.success(_tag, 'Markers updated', {
-      'total': newMarkers.length,
+    AppLogger.info(_tag, 'Markers updated successfully', {
+      'markersGenerated': newMarkers.length,
       'nearbyTravelers': nearbyTravelers.length,
     });
   }
@@ -254,16 +294,33 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<LocationProvider>(
-      builder: (context, locationProvider, child) {
-        // Update markers when location changes
-        if (locationProvider.currentPosition != null && !_isLoading) {
+    return Selector<LocationProvider, _MapData>(
+      selector: (_, provider) => _MapData(
+        currentPosition: provider.currentPosition,
+        nearbyTravelers: provider.nearbyTravelers,
+        isLocationSharing: provider.isLocationSharing,
+      ),
+      shouldRebuild: (previous, next) {
+        // Only rebuild if data actually changed
+        final shouldRebuild = previous.currentPosition != next.currentPosition ||
+            previous.nearbyTravelers.length != next.nearbyTravelers.length ||
+            previous.isLocationSharing != next.isLocationSharing;
+
+        if (shouldRebuild) {
+          AppLogger.debug(_tag, 'Map data changed, triggering rebuild');
+        }
+
+        return shouldRebuild;
+      },
+      builder: (context, mapData, child) {
+        // Update markers when location data changes
+        if (mapData.currentPosition != null && !_isLoading) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _updateMarkers();
           });
         }
 
-        final nearbyCount = locationProvider.nearbyTravelers.length;
+        final nearbyCount = mapData.nearbyTravelers.length;
 
         return Scaffold(
           backgroundColor: AppColors.white,
@@ -274,10 +331,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 GoogleMap(
                   onMapCreated: _onMapCreated,
                   initialCameraPosition: CameraPosition(
-                    target: locationProvider.currentPosition != null
+                    target: mapData.currentPosition != null
                         ? LatLng(
-                            locationProvider.currentPosition!.latitude,
-                            locationProvider.currentPosition!.longitude,
+                            mapData.currentPosition!.latitude,
+                            mapData.currentPosition!.longitude,
                           )
                         : _defaultLocation,
                     zoom: 15,
@@ -491,7 +548,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           const SizedBox(height: 16),
                           const Divider(color: AppColors.divider),
                           const SizedBox(height: 12),
-                          ...locationProvider.nearbyTravelers.take(3).map((traveler) {
+                          ...mapData.nearbyTravelers.take(3).map((traveler) {
+                            final distance = traveler['distance'] as double? ?? 0;
+                            final formattedDistance = distance < 1
+                                ? '${(distance * 1000).toStringAsFixed(0)}m away'
+                                : '${distance.toStringAsFixed(1)}km away';
+
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: Row(
@@ -522,9 +584,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                           style: AppTextStyles.titleSmall,
                                         ),
                                         Text(
-                                          locationProvider.getFormattedDistance(
-                                            traveler['distance'] ?? 0,
-                                          ),
+                                          formattedDistance,
                                           style: AppTextStyles.bodySmall.copyWith(
                                             color: AppColors.textTertiary,
                                           ),

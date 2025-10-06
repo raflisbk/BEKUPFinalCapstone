@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -5,6 +6,8 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
+import '../../core/constants/default_avatars.dart';
+import '../../services/photo_upload_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -59,71 +62,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showEditProfileDialog(BuildContext context, UserProvider userProvider) {
-    final nameController = TextEditingController(text: userProvider.currentUser?.displayName);
-    final bioController = TextEditingController(text: userProvider.currentUser?.bio);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Profile'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                hintText: 'Enter your name',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: bioController,
-              decoration: const InputDecoration(
-                labelText: 'Bio',
-                hintText: 'Tell us about yourself',
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedUser = userProvider.currentUser!.copyWith(
-                displayName: nameController.text.trim(),
-                bio: bioController.text.trim(),
-              );
-
-              final success = await userProvider.updateProfile(updatedUser);
-
-              if (context.mounted) {
-                Navigator.pop(context);
-
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Profile updated successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(userProvider.errorMessage ?? 'Failed to update profile'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => _EditProfileScreen(userProvider: userProvider),
       ),
     );
   }
@@ -278,21 +220,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 100,
                           decoration: BoxDecoration(
                             color: AppColors.grey100,
-                            shape: BoxShape.circle,
+                            borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: AppColors.border, width: 2),
                           ),
                           child: user?.photoUrl != null
-                              ? ClipOval(
-                                  child: Image.network(
-                                    user!.photoUrl!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Icon(
-                                      Icons.person_outline,
-                                      color: AppColors.grey400,
-                                      size: 48,
-                                    ),
-                                  ),
-                                )
+                              ? (user!.photoUrl!.startsWith('avatar:')
+                                  ? Center(
+                                      child: Text(
+                                        user.photoUrl!.replaceFirst('avatar:', ''),
+                                        style: const TextStyle(fontSize: 56),
+                                      ),
+                                    )
+                                  : ClipRRect(
+                                      borderRadius: BorderRadius.circular(18),
+                                      child: Image.network(
+                                        user.photoUrl!,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Icon(
+                                          Icons.person_outline,
+                                          color: AppColors.grey400,
+                                          size: 48,
+                                        ),
+                                      ),
+                                    ))
                               : const Icon(
                                   Icons.person_outline,
                                   color: AppColors.grey400,
@@ -494,6 +444,514 @@ class _MenuItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// Edit Profile Full Screen
+class _EditProfileScreen extends StatefulWidget {
+  final UserProvider userProvider;
+
+  const _EditProfileScreen({required this.userProvider});
+
+  @override
+  State<_EditProfileScreen> createState() => _EditProfileScreenState();
+}
+
+class _EditProfileScreenState extends State<_EditProfileScreen> {
+  static const String _tag = 'EditProfileScreen';
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _bioController;
+  final PhotoUploadService _photoService = PhotoUploadService();
+  File? _selectedImage;
+  String? _newPhotoUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.userProvider.currentUser?.displayName);
+    _bioController = TextEditingController(text: widget.userProvider.currentUser?.bio);
+    AppLogger.debug(_tag, 'Edit profile screen initialized');
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _bioController.dispose();
+    AppLogger.debug(_tag, 'Edit profile screen disposed');
+    super.dispose();
+  }
+
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Choose Profile Photo',
+                style: AppTextStyles.headlineSmall,
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library),
+                ),
+                title: const Text('Gallery'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await _photoService.pickImageFromGallery();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt),
+                ),
+                title: const Text('Camera'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final image = await _photoService.pickImageFromCamera();
+                  if (image != null) {
+                    setState(() {
+                      _selectedImage = image;
+                    });
+                  }
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.pets),
+                ),
+                title: const Text('Choose Avatar'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAvatarPicker();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAvatarPicker() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+            maxWidth: MediaQuery.of(context).size.width * 0.9,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Choose Your Avatar',
+                      style: AppTextStyles.headlineSmall,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Select an animal that represents you',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                  child: GridView.builder(
+                    shrinkWrap: true,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 5,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                      childAspectRatio: 1,
+                    ),
+                    itemCount: DefaultAvatars.count,
+                    itemBuilder: (context, index) {
+                      final avatar = DefaultAvatars.getAvatarByIndex(index);
+                      final isSelected = _newPhotoUrl == 'avatar:$avatar';
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _newPhotoUrl = 'avatar:$avatar';
+                            _selectedImage = null;
+                          });
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Avatar selected'),
+                              backgroundColor: AppColors.black,
+                              duration: const Duration(seconds: 1),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.grey50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? AppColors.black : AppColors.border,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              avatar,
+                              style: const TextStyle(fontSize: 28),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSave() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    AppLogger.action('User saving profile changes');
+
+    try {
+      String? photoUrl = widget.userProvider.currentUser?.photoUrl;
+
+      // Upload new photo if selected
+      if (_selectedImage != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Uploading photo...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        final uploadedUrl = await _photoService.uploadProfilePhoto(_selectedImage!);
+        if (uploadedUrl != null) {
+          photoUrl = uploadedUrl;
+        } else {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload photo'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      } else if (_newPhotoUrl != null) {
+        photoUrl = _newPhotoUrl;
+      }
+
+      final updatedUser = widget.userProvider.currentUser!.copyWith(
+        displayName: _nameController.text.trim(),
+        bio: _bioController.text.trim(),
+        photoUrl: photoUrl,
+      );
+
+      final success = await widget.userProvider.updateProfile(updatedUser);
+
+      if (!mounted) return;
+
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profile updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.userProvider.errorMessage ?? 'Failed to update profile'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to save profile', e, stackTrace);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('An error occurred while saving'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<UserProvider>(
+      builder: (context, userProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            surfaceTintColor: Colors.transparent,
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text(
+              'Edit Profile',
+              style: AppTextStyles.headlineSmall,
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(
+                color: AppColors.divider,
+                height: 1,
+              ),
+            ),
+          ),
+          body: SafeArea(
+            child: Form(
+              key: _formKey,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Profile Picture Section
+                    Center(
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: AppColors.grey100,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppColors.border, width: 2),
+                            ),
+                            child: _selectedImage != null
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Image.file(
+                                      _selectedImage!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  )
+                                : _newPhotoUrl != null && _newPhotoUrl!.startsWith('avatar:')
+                                    ? Center(
+                                        child: Text(
+                                          _newPhotoUrl!.replaceFirst('avatar:', ''),
+                                          style: const TextStyle(fontSize: 56),
+                                        ),
+                                      )
+                                    : userProvider.currentUser?.photoUrl != null
+                                        ? (userProvider.currentUser!.photoUrl!.startsWith('avatar:')
+                                            ? Center(
+                                                child: Text(
+                                                  userProvider.currentUser!.photoUrl!.replaceFirst('avatar:', ''),
+                                                  style: const TextStyle(fontSize: 56),
+                                                ),
+                                              )
+                                            : ClipRRect(
+                                                borderRadius: BorderRadius.circular(14),
+                                                child: Image.network(
+                                                  userProvider.currentUser!.photoUrl!,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (_, __, ___) => const Icon(
+                                                    Icons.person_outline,
+                                                    color: AppColors.grey400,
+                                                    size: 48,
+                                                  ),
+                                                ),
+                                              ))
+                                        : const Icon(
+                                            Icons.person_outline,
+                                            color: AppColors.grey400,
+                                            size: 48,
+                                          ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: userProvider.isLoading ? null : _showPhotoOptions,
+                            icon: const Icon(Icons.camera_alt_outlined, size: 20),
+                            label: const Text('Change Photo'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Full Name Field
+                    Text(
+                      'Full Name',
+                      style: AppTextStyles.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _nameController,
+                      decoration: InputDecoration(
+                        hintText: 'Enter your full name',
+                        hintStyle: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.grey50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.black, width: 2),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.error),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: AppTextStyles.bodyMedium,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'Please enter your name';
+                        }
+                        if (value.trim().length < 2) {
+                          return 'Name must be at least 2 characters';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Bio Field
+                    Text(
+                      'Bio',
+                      style: AppTextStyles.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _bioController,
+                      decoration: InputDecoration(
+                        hintText: 'Tell us about yourself...',
+                        hintStyle: AppTextStyles.bodyMedium.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.grey50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.black, width: 2),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.error),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: AppTextStyles.bodyMedium,
+                      maxLines: 5,
+                      maxLength: 200,
+                      textInputAction: TextInputAction.newline,
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Save Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: userProvider.isLoading ? null : _handleSave,
+                        child: userProvider.isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text('Save Changes'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

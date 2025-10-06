@@ -4,18 +4,21 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../utils/logger.dart';
+import '../../services/location_isolate_service.dart';
 
 class LocationProvider with ChangeNotifier {
   static const String _tag = 'LocationProvider';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final LocationIsolateService _isolateService = LocationIsolateService();
 
   Position? _currentPosition;
   bool _isLocationSharing = false;
   bool _isLoading = false;
   String? _errorMessage;
   StreamSubscription<Position>? _positionStreamSubscription;
+  StreamSubscription<List<Map<String, dynamic>>>? _nearbyTravelersSubscription;
 
   // Nearby travelers
   List<Map<String, dynamic>> _nearbyTravelers = [];
@@ -97,7 +100,7 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
-  // Start location streaming
+  // Start location streaming (using isolate for better performance)
   Future<void> startLocationStream() async {
     try {
       final userId = _auth.currentUser?.uid;
@@ -110,20 +113,15 @@ class LocationProvider with ChangeNotifier {
       _isLocationSharing = true;
       notifyListeners();
 
-      // Configure location settings
-      const LocationSettings locationSettings = LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 10, // Update every 10 meters
-      );
+      // Start isolate service for location tracking
+      await _isolateService.startLocationTracking();
 
-      // Start listening to position stream
-      _positionStreamSubscription = Geolocator.getPositionStream(
-        locationSettings: locationSettings,
-      ).listen(
+      // Listen to location updates from isolate
+      _positionStreamSubscription = _isolateService.locationStream.listen(
         (Position position) async {
           _currentPosition = position;
 
-          AppLogger.debug(_tag, 'Location updated', {
+          AppLogger.debug(_tag, 'Location updated from isolate', {
             'latitude': position.latitude,
             'longitude': position.longitude,
             'accuracy': '${position.accuracy}m',
@@ -132,7 +130,7 @@ class LocationProvider with ChangeNotifier {
           // Update Firestore with new location
           await _updateLocationInFirestore(position);
 
-          // Fetch nearby travelers
+          // Fetch nearby travelers (calculation done in isolate)
           await _fetchNearbyTravelers(position);
 
           notifyListeners();
@@ -143,7 +141,18 @@ class LocationProvider with ChangeNotifier {
         },
       );
 
-      AppLogger.success(_tag, 'Location stream started');
+      // Listen to nearby travelers updates from isolate
+      _nearbyTravelersSubscription = _isolateService.nearbyTravelersStream.listen(
+        (travelers) {
+          _nearbyTravelers = travelers;
+          AppLogger.debug(_tag, 'Nearby travelers updated from isolate', {
+            'count': travelers.length,
+          });
+          notifyListeners();
+        },
+      );
+
+      AppLogger.success(_tag, 'Location stream started in isolate');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to start location stream', e, stackTrace);
       _setError('Failed to start location tracking');
@@ -155,8 +164,14 @@ class LocationProvider with ChangeNotifier {
     try {
       AppLogger.action('User stopped location sharing');
 
+      // Stop isolate service
+      await _isolateService.stopLocationTracking();
+
+      // Cancel subscriptions
       await _positionStreamSubscription?.cancel();
+      await _nearbyTravelersSubscription?.cancel();
       _positionStreamSubscription = null;
+      _nearbyTravelersSubscription = null;
       _isLocationSharing = false;
 
       // Clear location from Firestore
@@ -197,7 +212,7 @@ class LocationProvider with ChangeNotifier {
     }
   }
 
-  // Fetch nearby travelers
+  // Fetch nearby travelers (calculation offloaded to isolate)
   Future<void> _fetchNearbyTravelers(Position currentPosition) async {
     try {
       final userId = _auth.currentUser?.uid;
@@ -209,46 +224,27 @@ class LocationProvider with ChangeNotifier {
           .where('isLocationShared', isEqualTo: true)
           .get();
 
-      _nearbyTravelers = [];
-
+      // Prepare user data for isolate calculation
+      final allUsers = <Map<String, dynamic>>[];
       for (var doc in snapshot.docs) {
         if (doc.id == userId) continue; // Skip current user
 
         final data = doc.data();
-        final lat = data['latitude'];
-        final lon = data['longitude'];
-
-        if (lat == null || lon == null) continue;
-
-        // Calculate distance
-        final distance = Geolocator.distanceBetween(
-          currentPosition.latitude,
-          currentPosition.longitude,
-          lat,
-          lon,
-        );
-
-        // If within radius, add to nearby travelers
-        if (distance <= _nearbyRadius) {
-          _nearbyTravelers.add({
-            'uid': doc.id,
-            'displayName': data['displayName'] ?? 'Unknown',
-            'photoUrl': data['photoUrl'],
-            'latitude': lat,
-            'longitude': lon,
-            'distance': distance,
-          });
-        }
+        allUsers.add({
+          'uid': doc.id,
+          'displayName': data['displayName'] ?? 'Unknown',
+          'photoUrl': data['photoUrl'],
+          'latitude': data['latitude'],
+          'longitude': data['longitude'],
+        });
       }
 
-      // Sort by distance
-      _nearbyTravelers.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
+      // Offload distance calculation to isolate
+      _isolateService.updateNearbyTravelers(allUsers, currentPosition);
 
-      AppLogger.debug(_tag, 'Nearby travelers fetched', {
-        'count': _nearbyTravelers.length,
+      AppLogger.debug(_tag, 'Nearby travelers calculation delegated to isolate', {
+        'totalUsers': allUsers.length,
       });
-
-      notifyListeners();
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to fetch nearby travelers', e, stackTrace);
     }
@@ -288,6 +284,8 @@ class LocationProvider with ChangeNotifier {
   void dispose() {
     AppLogger.debug(_tag, 'Disposing location provider');
     _positionStreamSubscription?.cancel();
+    _nearbyTravelersSubscription?.cancel();
+    _isolateService.dispose();
     super.dispose();
   }
 }

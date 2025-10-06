@@ -116,27 +116,6 @@ class _GuidesScreenState extends State<GuidesScreen> {
       ),
     );
   }
-
-  static final List<Map<String, String>> _guides = [
-    {
-      'name': 'Made Wijaya',
-      'expertise': 'Cultural & History Tours',
-      'rating': '4.9',
-      'price': 'Rp 500k/day',
-    },
-    {
-      'name': 'Siti Rahayu',
-      'expertise': 'Culinary Adventures',
-      'rating': '4.8',
-      'price': 'Rp 400k/day',
-    },
-    {
-      'name': 'Budi Santoso',
-      'expertise': 'Nature & Hiking',
-      'rating': '4.7',
-      'price': 'Rp 600k/day',
-    },
-  ];
 }
 
 class _GuideCard extends StatelessWidget {

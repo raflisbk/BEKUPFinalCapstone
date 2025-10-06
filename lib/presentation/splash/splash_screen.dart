@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
+import '../../core/providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -33,13 +36,68 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     _animationController.forward();
     AppLogger.debug(_tag, 'Splash animation started');
 
-    // Navigate to onboarding after 3 seconds
-    Future.delayed(const Duration(seconds: 3), () {
-      if (mounted) {
-        AppLogger.navigation(_tag, '/onboarding');
+    // Navigate based on app state
+    _navigateToNextScreen();
+  }
+
+  Future<void> _navigateToNextScreen() async {
+    if (!mounted) return;
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+      AppLogger.debug(_tag, 'Waiting for authentication provider initialization');
+
+      // Wait for auth to initialize (max 5 seconds)
+      int waitCount = 0;
+      while (!authProvider.isInitialized && waitCount < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+      }
+
+      if (waitCount >= 50) {
+        AppLogger.warning(_tag, 'Authentication initialization timeout after 5000ms');
+      } else {
+        AppLogger.info(_tag, 'Authentication provider initialized in ${waitCount * 100}ms');
+      }
+
+      // Minimum splash duration
+      await Future.delayed(const Duration(seconds: 2));
+
+      if (!mounted) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+      final isAuthenticated = authProvider.isAuthenticated;
+      final currentUser = authProvider.user;
+
+      AppLogger.debug(_tag, 'Evaluating navigation route', {
+        'hasSeenOnboarding': hasSeenOnboarding,
+        'isAuthenticated': isAuthenticated,
+        'hasUser': currentUser != null,
+      });
+
+      if (!mounted) return;
+
+      if (isAuthenticated && currentUser != null) {
+        AppLogger.info(_tag, 'Navigating to main screen for authenticated user', {
+          'userId': currentUser.uid,
+        });
+        Navigator.pushReplacementNamed(context, '/main');
+      } else if (hasSeenOnboarding) {
+        AppLogger.info(_tag, 'Navigating to authentication screen for returning user');
+        Navigator.pushReplacementNamed(context, '/auth');
+      } else {
+        AppLogger.info(_tag, 'Navigating to onboarding screen for first-time user');
         Navigator.pushReplacementNamed(context, '/onboarding');
       }
-    });
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Navigation failed with exception', e, stackTrace);
+      AppLogger.warning(_tag, 'Falling back to onboarding screen due to error');
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      }
+    }
   }
 
   @override

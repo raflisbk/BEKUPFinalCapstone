@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "888790734949",
+    "project_id": "relink-f4647",
+    "storage_bucket": "relink-f4647.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:888790734949:android:05f8cf7544655f241c8e8c",
+        "android_client_info": {
+          "package_name": "com.example.relink"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "888790734949-o9155at1ov539usm1uvkm79sss25cpn0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHAgN5kAcekdHfB0G0cSoDKb2llxm005Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "888790734949-o9155at1ov539usm1uvkm79sss25cpn0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
