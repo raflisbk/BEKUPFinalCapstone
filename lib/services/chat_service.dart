@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image/image.dart' as img;
 import '../core/models/chat_models.dart';
 import '../core/utils/logger.dart';
 
@@ -135,6 +138,130 @@ class ChatService {
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to send message', e, stackTrace);
       return false;
+    }
+  }
+
+  /// Send an image message with optimization
+  Future<String?> sendImageMessage({
+    required String conversationId,
+    required String senderId,
+    required String senderName,
+    String? senderPhotoUrl,
+    required File imageFile,
+    required String recipientId,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Sending image message', {
+        'conversationId': conversationId,
+        'fileSize': imageFile.lengthSync(),
+      });
+
+      // Optimize image before upload (max 1280x1280, 80% quality)
+      final optimizedImage = await _optimizeImage(imageFile);
+
+      if (optimizedImage == null) {
+        AppLogger.error(_tag, 'Failed to optimize image');
+        return null;
+      }
+
+      // Upload to Firebase Storage
+      final fileName = 'chat_images/${conversationId}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final storageRef = FirebaseStorage.instance.ref().child(fileName);
+
+      AppLogger.debug(_tag, 'Uploading image', {'path': fileName});
+
+      final uploadTask = await storageRef.putFile(
+        optimizedImage,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final imageUrl = await uploadTask.ref.getDownloadURL();
+
+      AppLogger.info(_tag, 'Image uploaded successfully', {
+        'url': imageUrl,
+        'optimizedSize': optimizedImage.lengthSync(),
+      });
+
+      // Create image message
+      final now = DateTime.now();
+      final message = ChatMessage(
+        id: '',
+        conversationId: conversationId,
+        senderId: senderId,
+        senderName: senderName,
+        senderPhotoUrl: senderPhotoUrl,
+        text: imageUrl,
+        type: MessageType.image,
+        sentAt: now,
+      );
+
+      // Add message to messages collection
+      await _messagesCollection.add(message.toFirestore());
+
+      // Update conversation with last message
+      await _conversationsCollection.doc(conversationId).update({
+        'lastMessage': '[Image]',
+        'lastMessageTime': Timestamp.fromDate(now),
+        'lastMessageSenderId': senderId,
+        'updatedAt': Timestamp.fromDate(now),
+        'unreadCount.$recipientId': FieldValue.increment(1),
+      });
+
+      AppLogger.success(_tag, 'Image message sent successfully');
+
+      // Clean up optimized file
+      await optimizedImage.delete();
+
+      return imageUrl;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send image message', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// Optimize image for chat (reduce size and quality)
+  Future<File?> _optimizeImage(File imageFile) async {
+    try {
+      AppLogger.debug(_tag, 'Optimizing image', {
+        'originalSize': imageFile.lengthSync(),
+      });
+
+      // Read image
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+
+      if (image == null) {
+        AppLogger.error(_tag, 'Failed to decode image');
+        return null;
+      }
+
+      // Resize if needed (max 1280x1280)
+      final resized = image.width > 1280 || image.height > 1280
+          ? img.copyResize(
+              image,
+              width: image.width > image.height ? 1280 : null,
+              height: image.height > image.width ? 1280 : null,
+            )
+          : image;
+
+      // Compress to JPEG with 80% quality
+      final compressed = img.encodeJpg(resized, quality: 80);
+
+      // Write to temporary file
+      final tempDir = await Directory.systemTemp.createTemp('chat_image_');
+      final tempFile = File('${tempDir.path}/optimized.jpg');
+      await tempFile.writeAsBytes(compressed);
+
+      AppLogger.info(_tag, 'Image optimized', {
+        'originalSize': imageFile.lengthSync(),
+        'optimizedSize': tempFile.lengthSync(),
+        'reduction': '${((1 - tempFile.lengthSync() / imageFile.lengthSync()) * 100).toStringAsFixed(1)}%',
+      });
+
+      return tempFile;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to optimize image', e, stackTrace);
+      return null;
     }
   }
 

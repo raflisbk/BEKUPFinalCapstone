@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/providers/chat_provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
@@ -9,6 +12,7 @@ import '../../services/chat_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/haptic_helper.dart';
 
 class ChatScreen extends StatefulWidget {
   final ChatConversation conversation;
@@ -32,6 +36,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
+  final ImagePicker _imagePicker = ImagePicker();
+  bool _isSendingImage = false;
 
   @override
   void initState() {
@@ -114,7 +120,89 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _pickAndSendImage() async {
+    await HapticHelper.lightImpact();
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+    if (authProvider.user == null) return;
+
+    final currentUserId = authProvider.user!.uid;
+    final otherUserId = widget.conversation.participantIds
+        .firstWhere((id) => id != currentUserId);
+
+    AppLogger.action('User picking image to send');
+
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+
+      if (image == null) {
+        AppLogger.debug(_tag, 'Image picker cancelled');
+        return;
+      }
+
+      setState(() => _isSendingImage = true);
+
+      AppLogger.info(_tag, 'Image selected, sending...', {
+        'path': image.path,
+      });
+
+      final imageUrl = await _chatService.sendImageMessage(
+        conversationId: widget.conversation.id,
+        senderId: currentUserId,
+        senderName: userProvider.currentUser?.name ?? 'Unknown',
+        senderPhotoUrl: userProvider.currentUser?.photoUrl,
+        imageFile: File(image.path),
+        recipientId: otherUserId,
+      );
+
+      if (imageUrl != null) {
+        AppLogger.info(_tag, 'Image message sent successfully');
+        await HapticHelper.success();
+        // Scroll to bottom after sending
+        Future.delayed(const Duration(milliseconds: 100), _scrollToBottom);
+      } else {
+        AppLogger.warning(_tag, 'Failed to send image');
+        await HapticHelper.error();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to send image'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Error picking or sending image', e, stackTrace);
+      await HapticHelper.error();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error sending image'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSendingImage = false);
+      }
+    }
+  }
+
   Widget _buildMessageBubble(ChatMessage message, bool isCurrentUser) {
+    // Handle image messages
+    if (message.type == MessageType.image) {
+      return _buildImageMessageBubble(message, isCurrentUser);
+    }
+
+    // Handle text messages
     return Align(
       alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
@@ -167,6 +255,127 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ],
               ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageMessageBubble(ChatMessage message, bool isCurrentUser) {
+    return Align(
+      alignment: isCurrentUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Column(
+          crossAxisAlignment:
+              isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () {
+                HapticHelper.lightImpact();
+                _viewFullImage(message.text);
+              },
+              child: ClipRRect(
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(isCurrentUser ? 16 : 4),
+                  bottomRight: Radius.circular(isCurrentUser ? 4 : 16),
+                ),
+                child: CachedNetworkImage(
+                  imageUrl: message.text,
+                  width: 220,
+                  height: 220,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    width: 220,
+                    height: 220,
+                    color: AppColors.grey50,
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.black),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    width: 220,
+                    height: 220,
+                    color: AppColors.grey50,
+                    child: const Center(
+                      child: Icon(Icons.error, color: AppColors.textSecondary),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    DateFormat('HH:mm').format(message.sentAt),
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  if (isCurrentUser) ...[
+                    const SizedBox(width: 4),
+                    Text(
+                      message.isRead ? '✓✓' : '✓',
+                      style: TextStyle(
+                        color: message.isRead
+                            ? Colors.blue[300]
+                            : AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _viewFullImage(String imageUrl) {
+    AppLogger.action('User viewing full image');
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            Center(
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.contain,
+                placeholder: (context, url) => const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                errorWidget: (context, url, error) => const Center(
+                  child: Icon(Icons.error, color: Colors.white, size: 48),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 32),
+                onPressed: () {
+                  HapticHelper.lightImpact();
+                  Navigator.pop(context);
+                },
+              ),
             ),
           ],
         ),
@@ -397,6 +606,40 @@ class _ChatScreenState extends State<ChatScreen> {
             child: SafeArea(
               child: Row(
                 children: [
+                  // Image picker button
+                  GestureDetector(
+                    onTap: _isSendingImage ? null : _pickAndSendImage,
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: _isSendingImage
+                            ? AppColors.grey50
+                            : AppColors.grey100,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.border, width: 1),
+                      ),
+                      child: _isSendingImage
+                          ? const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.black),
+                                ),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.image,
+                              color: AppColors.black,
+                              size: 24,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
                   // Text input
                   Expanded(
                     child: Container(
