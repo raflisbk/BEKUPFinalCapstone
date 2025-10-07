@@ -197,6 +197,11 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message, bool isCurrentUser) {
+    // Handle system messages
+    if (message.type == MessageType.system) {
+      return _buildSystemMessageBubble(message);
+    }
+
     // Handle image messages
     if (message.type == MessageType.image) {
       return _buildImageMessageBubble(message, isCurrentUser);
@@ -378,6 +383,29 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSystemMessageBubble(ChatMessage message) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.grey50,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            message.text,
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     );

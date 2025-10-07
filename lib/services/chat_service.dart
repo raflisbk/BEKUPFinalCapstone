@@ -438,4 +438,328 @@ class ChatService {
       return 0;
     }
   }
+
+  /// Create a group chat
+  Future<ChatConversation?> createGroupChat({
+    required String adminId,
+    required String adminName,
+    String? adminPhotoUrl,
+    required List<String> participantIds,
+    required Map<String, Map<String, dynamic>> participantData,
+    required String groupName,
+    String? groupPhotoUrl,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Creating group chat', {
+        'adminId': adminId,
+        'participantCount': participantIds.length,
+        'groupName': groupName,
+      });
+
+      final now = DateTime.now();
+
+      // Initialize unread count for all participants
+      final unreadCount = <String, int>{};
+      for (var id in participantIds) {
+        unreadCount[id] = 0;
+      }
+
+      final conversationData = {
+        'participantIds': participantIds,
+        'participantData': participantData,
+        'lastMessage': null,
+        'lastMessageTime': null,
+        'lastMessageSenderId': null,
+        'unreadCount': unreadCount,
+        'createdAt': Timestamp.fromDate(now),
+        'updatedAt': Timestamp.fromDate(now),
+        'isGroupChat': true,
+        'groupName': groupName,
+        'groupPhotoUrl': groupPhotoUrl,
+        'adminId': adminId,
+      };
+
+      final docRef = await _conversationsCollection.add(conversationData);
+
+      AppLogger.info(_tag, 'Group chat created successfully', {
+        'conversationId': docRef.id,
+        'participantCount': participantIds.length,
+      });
+
+      // Send system message
+      await _sendSystemMessage(
+        conversationId: docRef.id,
+        text: '$adminName created the group',
+      );
+
+      return ChatConversation.fromFirestore(await docRef.get());
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to create group chat', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// Send a system message (for group notifications)
+  Future<void> _sendSystemMessage({
+    required String conversationId,
+    required String text,
+  }) async {
+    try {
+      final now = DateTime.now();
+
+      final message = ChatMessage(
+        id: '',
+        conversationId: conversationId,
+        senderId: 'system',
+        senderName: 'System',
+        text: text,
+        type: MessageType.system,
+        sentAt: now,
+      );
+
+      await _messagesCollection.add(message.toFirestore());
+
+      await _conversationsCollection.doc(conversationId).update({
+        'lastMessage': text,
+        'lastMessageTime': Timestamp.fromDate(now),
+        'lastMessageSenderId': 'system',
+        'updatedAt': Timestamp.fromDate(now),
+      });
+
+      AppLogger.debug(_tag, 'System message sent', {'text': text});
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send system message', e, stackTrace);
+    }
+  }
+
+  /// Add participants to group chat
+  Future<bool> addParticipantsToGroup({
+    required String conversationId,
+    required String adminId,
+    required String adminName,
+    required List<String> newParticipantIds,
+    required Map<String, Map<String, dynamic>> newParticipantData,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Adding participants to group', {
+        'conversationId': conversationId,
+        'newParticipantCount': newParticipantIds.length,
+      });
+
+      final doc = await _conversationsCollection.doc(conversationId).get();
+      if (!doc.exists) {
+        AppLogger.warning(_tag, 'Conversation not found');
+        return false;
+      }
+
+      final conversation = ChatConversation.fromFirestore(doc);
+
+      // Check if user is admin
+      if (conversation.adminId != adminId) {
+        AppLogger.warning(_tag, 'User is not admin');
+        return false;
+      }
+
+      // Update participant lists
+      final updatedParticipantIds = [...conversation.participantIds, ...newParticipantIds];
+      final updatedParticipantData = {...conversation.participantData, ...newParticipantData};
+      final updatedUnreadCount = {...conversation.unreadCount};
+
+      // Initialize unread count for new participants
+      for (var id in newParticipantIds) {
+        updatedUnreadCount[id] = 0;
+      }
+
+      await _conversationsCollection.doc(conversationId).update({
+        'participantIds': updatedParticipantIds,
+        'participantData': updatedParticipantData,
+        'unreadCount': updatedUnreadCount,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // Send system message
+      final names = newParticipantData.values.map((d) => d['name']).join(', ');
+      await _sendSystemMessage(
+        conversationId: conversationId,
+        text: '$adminName added $names',
+      );
+
+      AppLogger.info(_tag, 'Participants added successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to add participants', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Remove participant from group chat
+  Future<bool> removeParticipantFromGroup({
+    required String conversationId,
+    required String adminId,
+    required String adminName,
+    required String participantIdToRemove,
+    required String participantNameToRemove,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Removing participant from group', {
+        'conversationId': conversationId,
+        'participantId': participantIdToRemove,
+      });
+
+      final doc = await _conversationsCollection.doc(conversationId).get();
+      if (!doc.exists) {
+        AppLogger.warning(_tag, 'Conversation not found');
+        return false;
+      }
+
+      final conversation = ChatConversation.fromFirestore(doc);
+
+      // Check if user is admin
+      if (conversation.adminId != adminId) {
+        AppLogger.warning(_tag, 'User is not admin');
+        return false;
+      }
+
+      // Update participant lists
+      final updatedParticipantIds = conversation.participantIds
+          .where((id) => id != participantIdToRemove)
+          .toList();
+      final updatedParticipantData = {...conversation.participantData};
+      updatedParticipantData.remove(participantIdToRemove);
+      final updatedUnreadCount = {...conversation.unreadCount};
+      updatedUnreadCount.remove(participantIdToRemove);
+
+      await _conversationsCollection.doc(conversationId).update({
+        'participantIds': updatedParticipantIds,
+        'participantData': updatedParticipantData,
+        'unreadCount': updatedUnreadCount,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // Send system message
+      await _sendSystemMessage(
+        conversationId: conversationId,
+        text: '$adminName removed $participantNameToRemove',
+      );
+
+      AppLogger.info(_tag, 'Participant removed successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to remove participant', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Leave group chat
+  Future<bool> leaveGroupChat({
+    required String conversationId,
+    required String userId,
+    required String userName,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'User leaving group', {
+        'conversationId': conversationId,
+        'userId': userId,
+      });
+
+      final doc = await _conversationsCollection.doc(conversationId).get();
+      if (!doc.exists) {
+        AppLogger.warning(_tag, 'Conversation not found');
+        return false;
+      }
+
+      final conversation = ChatConversation.fromFirestore(doc);
+
+      // If user is admin and there are other participants, transfer admin rights
+      if (conversation.adminId == userId && conversation.participantIds.length > 1) {
+        final newAdminId = conversation.participantIds.firstWhere((id) => id != userId);
+        await _conversationsCollection.doc(conversationId).update({
+          'adminId': newAdminId,
+        });
+      }
+
+      // Remove user from participant lists
+      final updatedParticipantIds = conversation.participantIds
+          .where((id) => id != userId)
+          .toList();
+
+      // If no participants left, delete conversation
+      if (updatedParticipantIds.isEmpty) {
+        await deleteConversation(conversationId);
+        return true;
+      }
+
+      final updatedParticipantData = {...conversation.participantData};
+      updatedParticipantData.remove(userId);
+      final updatedUnreadCount = {...conversation.unreadCount};
+      updatedUnreadCount.remove(userId);
+
+      await _conversationsCollection.doc(conversationId).update({
+        'participantIds': updatedParticipantIds,
+        'participantData': updatedParticipantData,
+        'unreadCount': updatedUnreadCount,
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      });
+
+      // Send system message
+      await _sendSystemMessage(
+        conversationId: conversationId,
+        text: '$userName left the group',
+      );
+
+      AppLogger.info(_tag, 'User left group successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to leave group', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Update group chat info
+  Future<bool> updateGroupInfo({
+    required String conversationId,
+    required String adminId,
+    String? groupName,
+    String? groupPhotoUrl,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Updating group info', {
+        'conversationId': conversationId,
+      });
+
+      final doc = await _conversationsCollection.doc(conversationId).get();
+      if (!doc.exists) {
+        AppLogger.warning(_tag, 'Conversation not found');
+        return false;
+      }
+
+      final conversation = ChatConversation.fromFirestore(doc);
+
+      // Check if user is admin
+      if (conversation.adminId != adminId) {
+        AppLogger.warning(_tag, 'User is not admin');
+        return false;
+      }
+
+      final updates = <String, dynamic>{
+        'updatedAt': Timestamp.fromDate(DateTime.now()),
+      };
+
+      if (groupName != null) {
+        updates['groupName'] = groupName;
+      }
+
+      if (groupPhotoUrl != null) {
+        updates['groupPhotoUrl'] = groupPhotoUrl;
+      }
+
+      await _conversationsCollection.doc(conversationId).update(updates);
+
+      AppLogger.info(_tag, 'Group info updated successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update group info', e, stackTrace);
+      return false;
+    }
+  }
 }

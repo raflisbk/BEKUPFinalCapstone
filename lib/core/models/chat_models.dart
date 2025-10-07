@@ -12,6 +12,12 @@ class ChatConversation {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // Group chat fields
+  final bool isGroupChat;
+  final String? groupName;
+  final String? groupPhotoUrl;
+  final String? adminId;
+
   ChatConversation({
     required this.id,
     required this.participantIds,
@@ -22,6 +28,10 @@ class ChatConversation {
     required this.unreadCount,
     required this.createdAt,
     required this.updatedAt,
+    this.isGroupChat = false,
+    this.groupName,
+    this.groupPhotoUrl,
+    this.adminId,
   });
 
   /// Create from Firestore document
@@ -38,6 +48,10 @@ class ChatConversation {
       unreadCount: Map<String, int>.from(data['unreadCount'] ?? {}),
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
+      isGroupChat: data['isGroupChat'] ?? false,
+      groupName: data['groupName'],
+      groupPhotoUrl: data['groupPhotoUrl'],
+      adminId: data['adminId'],
     );
   }
 
@@ -54,6 +68,10 @@ class ChatConversation {
       'unreadCount': unreadCount,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'isGroupChat': isGroupChat,
+      'groupName': groupName,
+      'groupPhotoUrl': groupPhotoUrl,
+      'adminId': adminId,
     };
   }
 
@@ -73,6 +91,36 @@ class ChatConversation {
   int getUnreadCount(String userId) {
     return unreadCount[userId] ?? 0;
   }
+
+  /// Get display name for conversation
+  String getDisplayName(String currentUserId) {
+    if (isGroupChat) {
+      return groupName ?? 'Group Chat';
+    }
+
+    // For 1-on-1 chats, return other participant's name
+    final otherParticipant = getOtherParticipant(currentUserId);
+    return otherParticipant?['name'] ?? 'Unknown';
+  }
+
+  /// Get display photo URL for conversation
+  String? getDisplayPhotoUrl(String currentUserId) {
+    if (isGroupChat) {
+      return groupPhotoUrl;
+    }
+
+    // For 1-on-1 chats, return other participant's photo
+    final otherParticipant = getOtherParticipant(currentUserId);
+    return otherParticipant?['photoUrl'];
+  }
+
+  /// Check if user is group admin
+  bool isAdmin(String userId) {
+    return isGroupChat && adminId == userId;
+  }
+
+  /// Get participant count
+  int get participantCount => participantIds.length;
 }
 
 /// Chat message model
