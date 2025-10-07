@@ -190,22 +190,24 @@ class ChatService {
         'conversationId': conversationId,
       });
 
-      // Get unread messages
+      // Get unread messages (optimized: single where clause + client-side filter)
       final snapshot = await _messagesCollection
           .where('conversationId', isEqualTo: conversationId)
-          .where('senderId', isNotEqualTo: currentUserId)
           .where('isRead', isEqualTo: false)
           .get();
 
-      // Mark as read
+      // Mark as read (filter out own messages on client side)
       final batch = _firestore.batch();
       final now = DateTime.now();
 
       for (var doc in snapshot.docs) {
-        batch.update(doc.reference, {
-          'isRead': true,
-          'readAt': Timestamp.fromDate(now),
-        });
+        final data = doc.data() as Map<String, dynamic>;
+        if (data['senderId'] != currentUserId) {
+          batch.update(doc.reference, {
+            'isRead': true,
+            'readAt': Timestamp.fromDate(now),
+          });
+        }
       }
 
       await batch.commit();
