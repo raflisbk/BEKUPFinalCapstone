@@ -99,18 +99,24 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
   }
 
   Future<void> _deletePhoto() async {
+    await HapticHelper.warning();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Photo'),
-        content: const Text('Are you sure you want to delete this photo?'),
+        content: const Text('Are you sure you want to delete this photo? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () async {
+              await HapticHelper.heavyImpact();
+              if (!context.mounted) return;
+              Navigator.pop(context, true);
+            },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Delete'),
           ),
@@ -120,7 +126,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
     if (confirmed != true) return;
 
-    await HapticHelper.delete();
+    AppLogger.debug(_tag, 'Deleting photo', {'photoId': _currentPhoto.id});
 
     final success = await _galleryService.deletePhoto(
       _currentPhoto.id,
@@ -130,14 +136,20 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
     if (!mounted) return;
 
     if (success) {
+      await HapticHelper.success();
+      AppLogger.success(_tag, 'Photo deleted successfully');
+
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Photo deleted'),
+          content: Text('Photo deleted successfully'),
           backgroundColor: AppColors.success,
         ),
       );
     } else {
+      await HapticHelper.error();
+      AppLogger.error(_tag, 'Failed to delete photo');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete photo'),
