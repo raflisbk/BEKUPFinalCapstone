@@ -1,0 +1,598 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/models/trip_model.dart';
+import '../../services/trip_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_text_styles.dart';
+import '../../core/utils/logger.dart';
+
+class TripDetailScreen extends StatefulWidget {
+  final Trip trip;
+
+  const TripDetailScreen({
+    super.key,
+    required this.trip,
+  });
+
+  @override
+  State<TripDetailScreen> createState() => _TripDetailScreenState();
+}
+
+class _TripDetailScreenState extends State<TripDetailScreen> {
+  static const String _tag = 'TripDetailScreen';
+
+  final TripService _tripService = TripService();
+
+  Future<void> _joinTrip(String userId, String userName, String? photoUrl) async {
+    AppLogger.debug(_tag, 'Joining trip', {'tripId': widget.trip.id});
+
+    final success = await _tripService.joinTrip(
+      tripId: widget.trip.id,
+      userId: userId,
+      userName: userName,
+      userPhotoUrl: photoUrl,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Joined trip successfully!' : 'Failed to join trip'),
+        backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
+  }
+
+  Future<void> _leaveTrip(String userId) async {
+    // Confirm before leaving
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Leave Trip'),
+        content: const Text('Are you sure you want to leave this trip?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Leave'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    AppLogger.debug(_tag, 'Leaving trip', {'tripId': widget.trip.id});
+
+    final success = await _tripService.leaveTrip(
+      tripId: widget.trip.id,
+      userId: userId,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context); // Go back to trip list
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Left trip successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to leave trip'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteTrip() async {
+    // Confirm before deleting
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Trip'),
+        content: const Text('Are you sure you want to delete this trip? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    AppLogger.debug(_tag, 'Deleting trip', {'tripId': widget.trip.id});
+
+    final success = await _tripService.deleteTrip(widget.trip.id);
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.pop(context); // Go back to trip list
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Trip deleted successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete trip'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _showOptionsMenu(BuildContext context, String currentUserId, bool isOwner) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isOwner) ...[
+                ListTile(
+                  leading: const Icon(Icons.edit, color: AppColors.black),
+                  title: const Text('Edit Trip'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    // TODO: Navigate to edit screen
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Edit feature coming soon'),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.delete, color: AppColors.error),
+                  title: const Text('Delete Trip', style: TextStyle(color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _deleteTrip();
+                  },
+                ),
+              ] else ...[
+                ListTile(
+                  leading: const Icon(Icons.exit_to_app, color: AppColors.error),
+                  title: const Text('Leave Trip', style: TextStyle(color: AppColors.error)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _leaveTrip(currentUserId);
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: TripStatusHelper.getColor(widget.trip.status),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              TripStatusHelper.getLabel(widget.trip.status),
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Title
+          Text(
+            widget.trip.title,
+            style: AppTextStyles.headlineMedium,
+          ),
+          const SizedBox(height: 12),
+
+          // Description
+          Text(
+            widget.trip.description,
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Dates
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                '${DateFormat('dd MMM').format(widget.trip.startDate)} - ${DateFormat('dd MMM yyyy').format(widget.trip.endDate)}',
+                style: AppTextStyles.bodyMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Duration
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                '${widget.trip.durationInDays} days',
+                style: AppTextStyles.bodyMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Privacy
+          Row(
+            children: [
+              Icon(
+                widget.trip.isPublic ? Icons.public : Icons.lock,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.trip.isPublic ? 'Public Trip' : 'Private Trip',
+                style: AppTextStyles.bodyMedium,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDestinationsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Destinations',
+                style: AppTextStyles.headlineSmall,
+              ),
+              Text(
+                '${widget.trip.destinations.length}',
+                style: AppTextStyles.headlineSmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          if (widget.trip.destinations.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  children: [
+                    const Text('📍', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 8),
+                    Text(
+                      'No destinations added yet',
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: widget.trip.destinations.length,
+              separatorBuilder: (context, index) => const Divider(height: 24),
+              itemBuilder: (context, index) {
+                final destination = widget.trip.destinations[index];
+                return Row(
+                  children: [
+                    // Order number
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: AppColors.grey100,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${index + 1}',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+
+                    // Destination info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            destination.name,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (destination.scheduledDate != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              DateFormat('EEE, dd MMM yyyy').format(destination.scheduledDate!),
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                          if (destination.notes != null && destination.notes!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              destination.notes!,
+                              style: AppTextStyles.bodySmall.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildParticipantsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Travelers',
+                style: AppTextStyles.headlineSmall,
+              ),
+              Text(
+                '${widget.trip.participantIds.length}',
+                style: AppTextStyles.headlineSmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: widget.trip.participantIds.length,
+            separatorBuilder: (context, index) => const Divider(height: 20),
+            itemBuilder: (context, index) {
+              final participantId = widget.trip.participantIds[index];
+              final participant = widget.trip.participants[participantId];
+              final isOwner = participantId == widget.trip.userId;
+
+              return Row(
+                children: [
+                  // Avatar
+                  CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.grey300,
+                    backgroundImage: participant?.photoUrl != null
+                        ? NetworkImage(participant!.photoUrl!)
+                        : null,
+                    child: participant?.photoUrl == null
+                        ? Text(
+                            (participant?.name ?? 'U')[0].toUpperCase(),
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Name and role
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              participant?.name ?? 'Unknown',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (isOwner) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.black,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  'Owner',
+                                  style: AppTextStyles.bodySmall.copyWith(
+                                    color: AppColors.white,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (participant != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            'Joined ${DateFormat('dd MMM yyyy').format(participant.joinedAt)}',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, child) {
+        final currentUserId = authProvider.user?.uid;
+        final isOwner = currentUserId == widget.trip.userId;
+        final isParticipant = currentUserId != null &&
+            widget.trip.participantIds.contains(currentUserId);
+
+        return Scaffold(
+          backgroundColor: AppColors.grey50,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.black),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: Text('Trip Details', style: AppTextStyles.headlineSmall),
+            actions: [
+              if (isParticipant && currentUserId != null)
+                IconButton(
+                  icon: const Icon(Icons.more_vert, color: AppColors.black),
+                  onPressed: () => _showOptionsMenu(context, currentUserId, isOwner),
+                ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(
+                color: AppColors.divider,
+                height: 1,
+              ),
+            ),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              _buildInfoSection(),
+              const SizedBox(height: 16),
+              _buildDestinationsSection(),
+              const SizedBox(height: 16),
+              _buildParticipantsSection(),
+              const SizedBox(height: 80), // Space for bottom button
+            ],
+          ),
+          bottomSheet: currentUserId != null && !isParticipant && widget.trip.isPublic
+              ? Container(
+                  color: AppColors.white,
+                  padding: const EdgeInsets.all(16),
+                  child: SafeArea(
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () => _joinTrip(
+                          currentUserId,
+                          authProvider.user!.displayName ?? 'Anonymous',
+                          authProvider.user!.photoURL,
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.black,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: const Text(
+                          'Join Trip',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
