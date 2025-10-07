@@ -8,6 +8,9 @@ import 'core/utils/logger.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
+import 'core/providers/chat_provider.dart';
+import 'core/providers/theme_provider.dart';
+import 'services/marker_pregeneration_service.dart';
 import 'presentation/splash/splash_screen.dart';
 import 'presentation/onboarding/onboarding_screen.dart';
 import 'presentation/auth/auth_screen.dart';
@@ -20,7 +23,7 @@ void main() async {
   // Initialize Flutter bindings
   WidgetsFlutterBinding.ensureInitialized();
   AppLogger.divider();
-  AppLogger.info(tag, '🚀 ReLink App Starting...');
+  AppLogger.info(tag, 'ReLink App Starting');
   AppLogger.divider();
 
   try {
@@ -46,6 +49,10 @@ void main() async {
       ),
     );
 
+    // Initialize marker pre-generation service
+    AppLogger.debug(tag, 'Initializing marker pre-generation service');
+    await MarkerPregenerationService.initialize();
+
     AppLogger.success(tag, 'App initialization completed successfully');
     AppLogger.divider();
   } catch (e, stackTrace) {
@@ -62,6 +69,10 @@ class RelinkApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        // Theme Provider
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider()..initialize(),
+        ),
         // Auth Provider
         ChangeNotifierProvider(
           create: (_) => AuthProvider(),
@@ -74,19 +85,27 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => LocationProvider(),
         ),
+        // Chat Provider
+        ChangeNotifierProvider(
+          create: (_) => ChatProvider(),
+        ),
       ],
-      child: MaterialApp(
-        title: 'ReLink',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.light,
-        initialRoute: '/',
-        routes: {
-          '/': (context) => const SplashScreen(),
-          '/onboarding': (context) => const OnboardingScreen(),
-          '/auth': (context) => const AuthScreen(),
-          '/main': (context) => const MainScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'ReLink',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeProvider.themeMode,
+            initialRoute: '/',
+            routes: {
+              '/': (context) => const SplashScreen(),
+              '/onboarding': (context) => const OnboardingScreen(),
+              '/auth': (context) => const AuthScreen(),
+              '/main': (context) => const MainScreen(),
+            },
+          );
         },
       ),
     );
