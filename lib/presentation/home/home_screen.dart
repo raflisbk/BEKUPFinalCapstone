@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../destinations/destination_detail_screen.dart';
+import '../destinations/destinations_list_screen.dart';
 import '../search/search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,14 +34,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleQuickAction(String action) {
     AppLogger.action('User tapped quick action', {'action': action});
-    // TODO: Navigate to respective screen
-    AppLogger.warning(_tag, 'Quick action "$action" not implemented yet');
+
+    switch (action) {
+      case 'Browse Destinations':
+        AppLogger.navigation(_tag, '/destinations');
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const DestinationsListScreen()),
+        );
+        break;
+      default:
+        // TODO: Navigate to respective screen
+        AppLogger.warning(_tag, 'Quick action "$action" not implemented yet');
+    }
   }
 
   void _handleViewAllDestinations() {
     AppLogger.action('User tapped "View all" destinations');
-    // TODO: Navigate to all destinations screen
-    AppLogger.warning(_tag, 'View all destinations not implemented yet');
+    AppLogger.navigation(_tag, '/destinations');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const DestinationsListScreen()),
+    );
   }
 
   void _navigateToDestination(BuildContext context, String title, String location, String guides) {
@@ -186,9 +201,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Expanded(
                             child: _QuickActionCard(
-                              icon: Icons.people_outline,
-                              title: 'Find\nTravelers',
-                              actionName: 'Find Travelers',
+                              icon: Icons.place_outlined,
+                              title: 'Browse\nDestinations',
+                              actionName: 'Browse Destinations',
                             ),
                           ),
                           const SizedBox(width: 16),

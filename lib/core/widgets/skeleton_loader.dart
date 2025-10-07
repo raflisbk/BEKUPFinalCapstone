@@ -196,39 +196,6 @@ class SkeletonLoader {
     );
   }
 
-  /// Skeleton for destination card
-  static Widget destinationCard() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Image
-          container(
-            width: double.infinity,
-            height: 200,
-            borderRadius: 16,
-          ),
-          const SizedBox(height: 12),
-          // Title
-          line(width: 180, height: 18),
-          const SizedBox(height: 8),
-          // Location
-          line(width: 140, height: 14),
-          const SizedBox(height: 8),
-          // Rating
-          Row(
-            children: [
-              line(width: 80, height: 14),
-              const SizedBox(width: 16),
-              line(width: 60, height: 14),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Skeleton for profile header
   static Widget profileHeader() {
     return Shimmer.fromColors(
@@ -329,7 +296,7 @@ class SkeletonLoader {
   /// Skeleton destination card
   static Widget destinationCard() {
     return Card(
-      margin: const EdgeInsets.zero,
+      margin: EdgeInsets.zero,
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
