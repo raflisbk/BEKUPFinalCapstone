@@ -28,7 +28,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 
 ## Project Status
 
-**Current Version:** 3.2.0
+**Current Version:** 3.3.0
 **Status:** ✅ **Production Ready**
 **Last Updated:** October 7, 2025
 
@@ -44,6 +44,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 | **Performance** | Optimized | ✅ Complete |
 | **Phase 1: Core Stability** | 90% | ✅ Nearly Complete |
 | **Phase 2: Enhanced Features** | 70% | 🚧 In Progress |
+| **Phase 3: Advanced Features** | 80% | ✅ Mostly Complete |
 
 ---
 
@@ -182,6 +183,38 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ⏳ Review Photos Feature - In Progress
 - ⏳ Offline Mode Basics - Pending
 
+### Phase 3: Advanced Features (v3.3.0) - 80% Complete
+- ✅ **Budget Tracking System** - Complete expense management
+  - Full CRUD operations for budgets and expenses
+  - 6 expense categories (accommodation, food, transportation, activities, shopping, other)
+  - Expense splitting among participants
+  - Real-time budget calculations (total, spent, remaining)
+  - Over-budget alerts
+  - Multiple currency support
+- ✅ **Weather Integration** - OpenWeatherMap API
+  - Current weather by city name or coordinates
+  - 5-day weather forecast
+  - Intelligent caching (1-hour validity)
+  - Temperature, humidity, wind speed data
+  - Weather condition icons
+- ✅ **Content Moderation System** - Automated moderation
+  - Profanity detection (customizable word list)
+  - Spam pattern detection (URLs, phone numbers, repeated chars)
+  - Content quality scoring (0-100)
+  - Length validation (min/max)
+  - Capitalization checks
+  - Input sanitization
+  - Moderation actions (approve/reject/flag)
+  - Violation severity levels
+- ✅ **Multi-language Support** - i18n system
+  - English (en_US) and Indonesian (id_ID) support
+  - 100+ translations across all app sections
+  - LocalizationsDelegate pattern
+  - Type-safe translation access
+  - Fallback to English for missing translations
+  - Coverage: auth, trips, chat, reviews, budget, weather, settings, etc.
+- ⏳ Route Planning & Navigation - Deferred (requires Google Directions API)
+
 ---
 
 ## Architecture
@@ -204,17 +237,18 @@ lib/
 ├── core/
 │   ├── constants/        # App constants, avatars
 │   ├── theme/           # Theme, colors, text styles
-│   ├── utils/           # Logger, helpers, generators
-│   ├── models/          # Data models (User, Chat, Trip, etc)
+│   ├── utils/           # Logger, helpers, generators, content_moderator
+│   ├── models/          # Data models (User, Chat, Trip, Budget, Weather, etc)
 │   ├── providers/       # State management (Auth, User, Location, Chat, Theme)
-│   └── widgets/         # Reusable widgets (SkeletonLoader)
-├── services/            # Firebase services (Chat, Social, Trip, Gallery, Review)
+│   ├── widgets/         # Reusable widgets (SkeletonLoader)
+│   └── l10n/            # Multi-language support (English, Indonesian)
+├── services/            # Firebase & API services (Chat, Social, Trip, Gallery, Review, Budget, Weather)
 ├── presentation/        # UI screens
 │   ├── auth/           # Authentication screens
 │   ├── chat/           # Chat list & conversation
 │   ├── gallery/        # Photo gallery & upload
 │   ├── reviews/        # Reviews & ratings
-│   ├── trips/          # Trip planning
+│   ├── trips/          # Trip planning & itinerary
 │   ├── social/         # Activity feed, profiles, followers
 │   ├── explore/        # Map & location
 │   ├── profile/        # User profile
@@ -329,6 +363,8 @@ flutter pub get
    - `activities` - Activity feed
    - `destinations` - Tourism destinations
    - `user_bookmarks` - Bookmarked destinations
+   - `trip_budgets` - Trip budget tracking
+   - `report_logs` - User reports
 
 5. **Setup environment**
    Create `.env` file:
@@ -513,6 +549,9 @@ flutter build ios --release
 
 ## Version History
 
+- **v3.3.0** (Oct 7, 2025) - Phase 3: Advanced features (budget, weather, moderation, i18n)
+- **v3.2.0** (Oct 7, 2025) - Phase 2: Enhanced features (group chat, image sharing, itinerary)
+- **v3.1.0** (Oct 7, 2025) - Destinations management system
 - **v3.0.0** (Oct 7, 2025) - Social features (follow, activity feed)
 - **v2.9.0** (Oct 7, 2025) - Photo gallery system
 - **v2.8.0** (Oct 7, 2025) - UX polish (dark mode, animations, haptics)
@@ -532,13 +571,15 @@ flutter build ios --release
 
 | Metric | Count |
 |--------|-------|
-| **Total Files** | 80+ Dart files |
-| **Lines of Code** | ~15,000+ |
+| **Total Files** | 90+ Dart files |
+| **Lines of Code** | ~17,000+ |
 | **Providers** | 5 (Auth, User, Location, Chat, Theme) |
-| **Models** | 8+ (User, Chat, Trip, Photo, Review, Social) |
-| **Services** | 8+ (Chat, Social, Trip, Gallery, Review, User) |
+| **Models** | 12+ (User, Chat, Trip, Photo, Review, Social, Budget, Weather, etc) |
+| **Services** | 10+ (Chat, Social, Trip, Gallery, Review, User, Budget, Weather) |
 | **Screens** | 25+ complete screens |
-| **Firestore Collections** | 10+ collections |
+| **Firestore Collections** | 11+ collections |
+| **Supported Languages** | 2 (English, Indonesian) |
+| **Translations** | 100+ per language |
 
 ---
 
@@ -594,5 +635,5 @@ flutter build appbundle        # Play Store bundle
 ---
 
 **Last Updated:** October 7, 2025
-**Version:** 3.0.0
+**Version:** 3.3.0
 **Status:** ✅ Production Ready
