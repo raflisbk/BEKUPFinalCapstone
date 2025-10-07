@@ -325,4 +325,42 @@ class SkeletonLoader {
       ),
     );
   }
+
+  /// Skeleton destination card
+  static Widget destinationCard() {
+    return Card(
+      margin: const EdgeInsets.zero,
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          container(width: double.infinity, height: 200, borderRadius: 12),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                container(width: 80, height: 24, borderRadius: 4),
+                const SizedBox(height: 12),
+                line(width: double.infinity, height: 20),
+                const SizedBox(height: 8),
+                line(width: 200, height: 16),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    container(width: 100, height: 16, borderRadius: 4),
+                    container(width: 60, height: 16, borderRadius: 4),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
