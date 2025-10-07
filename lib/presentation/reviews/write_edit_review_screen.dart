@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/models/review_model.dart';
@@ -30,11 +32,14 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
   static const String _tag = 'WriteEditReviewScreen';
 
   final ReviewService _reviewService = ReviewService();
+  final ImagePicker _imagePicker = ImagePicker();
   late TextEditingController _titleController;
   late TextEditingController _contentController;
 
   late double _rating;
   bool _isSubmitting = false;
+  List<File> _selectedImages = [];
+  List<String> _existingPhotoUrls = [];
 
   bool get isEditMode => widget.review != null;
 
@@ -46,8 +51,11 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
     _titleController = TextEditingController(text: widget.review?.title ?? '');
     _contentController = TextEditingController(text: widget.review?.content ?? '');
     _rating = widget.review?.rating ?? 0.0;
+    _existingPhotoUrls = widget.review?.photoUrls ?? [];
 
-    AppLogger.debug(_tag, isEditMode ? 'Edit mode initialized' : 'Write mode initialized');
+    AppLogger.debug(_tag, isEditMode ? 'Edit mode initialized' : 'Write mode initialized', {
+      'existingPhotos': _existingPhotoUrls.length,
+    });
   }
 
   @override
@@ -55,6 +63,63 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImages() async {
+    await HapticHelper.lightImpact();
+
+    try {
+      // Max 5 photos total (existing + new)
+      final remainingSlots = 5 - (_existingPhotoUrls.length + _selectedImages.length);
+      if (remainingSlots <= 0) {
+        _showError('Maximum 5 photos allowed');
+        return;
+      }
+
+      AppLogger.action('User picking images for review');
+
+      final List<XFile> images = await _imagePicker.pickMultiImage(
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
+
+      if (images.isEmpty) {
+        AppLogger.debug(_tag, 'Image picker cancelled');
+        return;
+      }
+
+      // Limit to remaining slots
+      final imagesToAdd = images.take(remainingSlots).toList();
+
+      setState(() {
+        _selectedImages.addAll(imagesToAdd.map((xfile) => File(xfile.path)));
+      });
+
+      AppLogger.info(_tag, 'Images selected', {
+        'count': imagesToAdd.length,
+        'total': _existingPhotoUrls.length + _selectedImages.length,
+      });
+
+      await HapticHelper.success();
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to pick images', e, stackTrace);
+      await HapticHelper.error();
+      _showError('Failed to select images');
+    }
+  }
+
+  void _removeNewImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+    HapticHelper.lightImpact();
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() {
+      _existingPhotoUrls.removeAt(index);
+    });
+    HapticHelper.lightImpact();
   }
 
   Future<void> _saveReview() async {

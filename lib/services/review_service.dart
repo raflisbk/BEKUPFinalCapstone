@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image/image.dart' as img;
 import '../core/models/review_model.dart';
 import '../core/utils/logger.dart';
 
@@ -7,6 +10,7 @@ class ReviewService {
   static const String _tag = 'ReviewService';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   // Collection references
   CollectionReference get _reviewsCollection =>
@@ -355,5 +359,106 @@ class ReviewService {
           .map((doc) => DestinationReview.fromFirestore(doc))
           .toList();
     });
+  }
+
+  /// Upload review photos to Firebase Storage
+  Future<List<String>> uploadReviewPhotos({
+    required String userId,
+    required String destinationId,
+    required List<File> photoFiles,
+  }) async {
+    final List<String> photoUrls = [];
+
+    try {
+      AppLogger.debug(_tag, 'Uploading review photos', {
+        'count': photoFiles.length,
+      });
+
+      for (int i = 0; i < photoFiles.length; i++) {
+        final file = photoFiles[i];
+
+        // Optimize image
+        final optimizedImage = await _optimizeImage(file);
+        if (optimizedImage == null) {
+          AppLogger.warning(_tag, 'Failed to optimize image $i, skipping');
+          continue;
+        }
+
+        // Upload to Firebase Storage
+        final fileName = 'review_photos/${destinationId}/${userId}/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+        final storageRef = _storage.ref().child(fileName);
+
+        AppLogger.debug(_tag, 'Uploading photo ${i + 1}/${photoFiles.length}');
+
+        final uploadTask = await storageRef.putFile(
+          optimizedImage,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+
+        final photoUrl = await uploadTask.ref.getDownloadURL();
+        photoUrls.add(photoUrl);
+
+        // Clean up optimized file
+        await optimizedImage.delete();
+
+        AppLogger.info(_tag, 'Photo ${i + 1} uploaded successfully');
+      }
+
+      AppLogger.success(_tag, 'All review photos uploaded', {
+        'uploaded': photoUrls.length,
+        'total': photoFiles.length,
+      });
+
+      return photoUrls;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to upload review photos', e, stackTrace);
+      return photoUrls; // Return whatever was successfully uploaded
+    }
+  }
+
+  /// Optimize image for review (reduce size and quality)
+  Future<File?> _optimizeImage(File imageFile) async {
+    try {
+      AppLogger.debug(_tag, 'Optimizing image', {
+        'originalSize': imageFile.lengthSync(),
+      });
+
+      // Read image
+      final bytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(bytes);
+
+      if (image == null) {
+        AppLogger.error(_tag, 'Failed to decode image');
+        return null;
+      }
+
+      // Resize if needed (max 1920x1920)
+      final resized = image.width > 1920 || image.height > 1920
+          ? img.copyResize(
+              image,
+              width: image.width > image.height ? 1920 : null,
+              height: image.height > image.width ? 1920 : null,
+            )
+          : image;
+
+      // Compress to JPEG with 85% quality
+      final compressed = img.encodeJpg(resized, quality: 85);
+
+      // Write to temporary file
+      final tempDir = await Directory.systemTemp.createTemp('review_image_');
+      final tempFile = File('${tempDir.path}/optimized.jpg');
+      await tempFile.writeAsBytes(compressed);
+
+      AppLogger.info(_tag, 'Image optimized', {
+        'originalSize': imageFile.lengthSync(),
+        'optimizedSize': tempFile.lengthSync(),
+        'reduction': '${((1 - tempFile.lengthSync() / imageFile.lengthSync()) * 100).toStringAsFixed(1)}%',
+      });
+
+      return tempFile;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to optimize image', e, stackTrace);
+      return null;
+    }
   }
 }
