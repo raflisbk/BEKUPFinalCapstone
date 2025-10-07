@@ -1,7 +1,7 @@
 # ReLink - Feature Implementation Checklist
 
 **Last Updated:** October 7, 2025
-**Current Version:** 3.1.0
+**Current Version:** 3.2.0
 
 ---
 
@@ -108,13 +108,14 @@
 | Empty State UI | ✅ | v2.5.0 | No conversations yet |
 | Message Timestamps | ✅ | v2.5.0 | Relative time |
 | Text Message Sending | ✅ | v2.5.0 | Basic text |
+| Group Chat | ✅ | v3.2.0 | Admin permissions, add/remove members |
+| Image Sharing | ✅ | v3.2.0 | Auto-compression, cached display |
+| System Messages | ✅ | v3.2.0 | Group notifications |
 
 ### ❌ Not Implemented
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| Group Chat | High | High |
-| Image/Photo Sharing | High | Medium |
 | Video Sharing | Medium | Medium |
 | Voice Messages | Medium | High |
 | File Attachments | Medium | Medium |
@@ -225,13 +226,13 @@
 | Review Timestamps | ✅ | v2.6.0 | When posted |
 | User Avatar in Reviews | ✅ | v2.6.0 | Profile picture |
 | Empty State | ✅ | v2.6.0 | No reviews yet |
+| Edit Reviews | ✅ | v3.2.0 | Unified write/edit screen |
+| Delete Reviews | ✅ | v3.2.0 | With confirmation |
 
 ### ❌ Not Implemented
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| Edit Reviews | Medium | Low |
-| Delete Reviews | Medium | Low |
 | Review Photos | High | Medium |
 | Review Videos | Low | Medium |
 | Reply to Reviews | Medium | Medium |
@@ -259,14 +260,19 @@
 | Duration Calculation | ✅ | v2.7.0 | Auto-calculate |
 | Trip List View | ✅ | v2.7.0 | All trips |
 | Trip Detail View | ✅ | v2.7.0 | Full information |
+| Edit Trip | ✅ | v3.2.0 | Unified create/edit screen |
+| Delete Trip | ✅ | v3.2.0 | With confirmation |
+| Trip Itinerary System | ✅ | v3.2.0 | Day-by-day planning |
+| Itinerary Activities | ✅ | v3.2.0 | 8 activity types |
+| Activity Scheduling | ✅ | v3.2.0 | Start/end times |
+| Activity Cost Tracking | ✅ | v3.2.0 | Estimated costs |
+| Activity Completion | ✅ | v3.2.0 | Mark as done |
+| Day Notes | ✅ | v3.2.0 | Notes per day |
 
 ### ❌ Not Implemented
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
-| Edit Trip | High | Low |
-| Delete Trip | High | Low |
-| Trip Itinerary (Day-by-day) | High | Medium |
 | Budget Tracking | Medium | High |
 | Expense Splitting | Medium | High |
 | Trip Photos Gallery | Medium | Medium |
@@ -298,13 +304,13 @@
 | Image Optimization | ✅ | v2.9.0 | 1920x1920, 85% quality |
 | Firebase Storage | ✅ | v2.9.0 | Cloud storage |
 | Cached Images | ✅ | v2.9.0 | Performance |
+| Delete Photos | ✅ | v3.2.0 | With confirmation |
 
 ### ❌ Not Implemented
 
 | Feature | Priority | Complexity |
 |---------|----------|------------|
 | Edit Photos | Medium | High |
-| Delete Photos | High | Low |
 | Photo Albums | Medium | Medium |
 | Tag Users in Photos | Low | Medium |
 | Photo Location on Map | Low | Low |
@@ -392,6 +398,10 @@
 | Location Privacy Toggle | ✅ | v2.0.0 | User control |
 | Public/Private Trip Toggle | ✅ | v2.7.0 | Privacy control |
 | Secure Storage (Firebase) | ✅ | v2.0.0 | Cloud security |
+| Block/Unblock Users | ✅ | v3.2.0 | User safety |
+| Report Users | ✅ | v3.2.0 | 6 report reasons |
+| Terms of Service | ✅ | v3.2.0 | 15 sections, GDPR compliant |
+| Privacy Policy | ✅ | v3.2.0 | 15 sections, data protection |
 
 ### ❌ Not Implemented
 
@@ -402,8 +412,6 @@
 | Spam Detection | Medium | High |
 | Rate Limiting | Medium | Medium |
 | GDPR Compliance | High | High |
-| Terms of Service | High | Low |
-| Privacy Policy | High | Low |
 | Cookie Consent | Medium | Low |
 | User Data Export | Medium | Medium |
 | Account Recovery | Medium | Medium |

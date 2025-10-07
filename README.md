@@ -28,7 +28,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 
 ## Project Status
 
-**Current Version:** 3.1.0
+**Current Version:** 3.2.0
 **Status:** ✅ **Production Ready**
 **Last Updated:** October 7, 2025
 
@@ -42,6 +42,8 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 | **Content System** | 100% | ✅ Complete |
 | **UX/UI Polish** | 100% | ✅ Complete |
 | **Performance** | Optimized | ✅ Complete |
+| **Phase 1: Core Stability** | 90% | ✅ Nearly Complete |
+| **Phase 2: Enhanced Features** | 70% | 🚧 In Progress |
 
 ---
 
@@ -67,7 +69,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ **Background pre-generation** - 41 common markers
 - ✅ Performance: 75% faster load, 60fps on all devices
 
-### Chat System (v2.5.0)
+### Chat System (v2.5.0 - v3.2.0)
 - ✅ Real-time one-on-one messaging
 - ✅ Chat list with unread counts
 - ✅ Read receipts (checkmarks)
@@ -75,8 +77,12 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Date separators
 - ✅ Auto-scroll to latest
 - ✅ Empty states
+- ✅ **Group chat** - Admin permissions, add/remove members
+- ✅ **Image sharing** - Auto-compression (max 1280x1280, 80% quality)
+- ✅ **Full-screen image viewer** - Tap to view, cached display
+- ✅ **System messages** - Group notifications
 
-### Reviews & Ratings (v2.6.0)
+### Reviews & Ratings (v2.6.0 - v3.2.0)
 - ✅ 5-star rating system
 - ✅ Write and submit reviews
 - ✅ Rating summary with distribution
@@ -84,8 +90,10 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Mark reviews as helpful
 - ✅ Auto-calculated averages
 - ✅ Real-time updates
+- ✅ **Edit reviews** - Unified write/edit screen
+- ✅ **Delete reviews** - With confirmation
 
-### Trip Planning (v2.7.0)
+### Trip Planning (v2.7.0 - v3.2.0)
 - ✅ Create trips with date range
 - ✅ Add destinations to trip
 - ✅ Participant management
@@ -94,6 +102,14 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Public/private trips
 - ✅ Trip status tracking
 - ✅ Duration calculation
+- ✅ **Edit trips** - Unified create/edit screen
+- ✅ **Delete trips** - With confirmation
+- ✅ **Trip itinerary system** - Day-by-day planning
+- ✅ **Itinerary activities** - 8 activity types (attraction, food, accommodation, transportation, shopping, entertainment, nature, other)
+- ✅ **Activity scheduling** - Start/end times
+- ✅ **Cost tracking** - Estimated costs per activity
+- ✅ **Activity completion** - Mark activities as done
+- ✅ **Day notes** - Notes for each day
 
 ### UX Enhancements (v2.8.0)
 - ✅ **Dark Mode** - Complete theme switching
@@ -103,7 +119,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Theme persistence
 - ✅ Smooth 60fps animations
 
-### Photo Gallery (v2.9.0)
+### Photo Gallery (v2.9.0 - v3.2.0)
 - ✅ Upload photos (camera/gallery)
 - ✅ Grid view with infinite scroll
 - ✅ Photo detail with zoom (pinch to zoom)
@@ -113,6 +129,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Filter (all/my photos/liked/destination)
 - ✅ Image optimization (1920x1920, 85% quality)
 - ✅ Firebase Storage integration
+- ✅ **Delete photos** - With confirmation
 
 ### Social Features (v3.0.0)
 - ✅ Follow/unfollow users
@@ -141,6 +158,29 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Nearby destinations with distance calculation
 - ✅ 10 destination categories with icons
 - ✅ Price range indicator (1-5 scale)
+
+### Phase 1: Core Stability (v3.2.0) - 90% Complete
+- ✅ **Edit/Delete Trip** - Unified create/edit screen
+- ✅ **Edit/Delete Review** - Unified write/edit screen
+- ✅ **Delete Photo** - With confirmation
+- ✅ **Block/Report Users** - User moderation system (6 report reasons)
+- ✅ **Terms of Service** - 15 comprehensive sections, GDPR compliant
+- ✅ **Privacy Policy** - 15 sections with data protection details
+- ⏳ Push Notifications - Requires Firebase Console setup
+
+### Phase 2: Enhanced Features (v3.2.0) - 70% Complete
+- ✅ **Group Chat** - Full admin system (create, add/remove members, leave, update info)
+- ✅ **Image Sharing in Chat** - Auto-compression (max 1280x1280, 80% JPEG), cached display, full-screen viewer
+- ✅ **Trip Itinerary System** - Complete day-by-day planning system
+  - 8 activity types with icons
+  - Activity scheduling (start/end times)
+  - Estimated cost tracking
+  - Activity completion status
+  - Location coordinates support
+  - Booking URL integration
+  - Day notes
+- ⏳ Review Photos Feature - In Progress
+- ⏳ Offline Mode Basics - Pending
 
 ---
 
