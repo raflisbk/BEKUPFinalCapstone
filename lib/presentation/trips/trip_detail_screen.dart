@@ -7,6 +7,8 @@ import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/haptic_helper.dart';
+import 'create_edit_trip_screen.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final Trip trip;
@@ -96,6 +98,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   }
 
   Future<void> _deleteTrip() async {
+    await HapticHelper.warning();
+
     // Confirm before deleting
     final confirmed = await showDialog<bool>(
       context: context,
@@ -108,7 +112,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () async {
+              await HapticHelper.heavyImpact();
+              if (!context.mounted) return;
+              Navigator.pop(context, true);
+            },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Delete'),
           ),
@@ -125,6 +133,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     if (!mounted) return;
 
     if (success) {
+      await HapticHelper.success();
+      AppLogger.success(_tag, 'Trip deleted successfully');
+
       Navigator.pop(context); // Go back to trip list
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -133,6 +144,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         ),
       );
     } else {
+      await HapticHelper.error();
+      AppLogger.error(_tag, 'Failed to delete trip');
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete trip'),
@@ -158,14 +172,24 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 ListTile(
                   leading: const Icon(Icons.edit, color: AppColors.black),
                   title: const Text('Edit Trip'),
-                  onTap: () {
+                  onTap: () async {
                     Navigator.pop(context);
-                    // TODO: Navigate to edit screen
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Edit feature coming soon'),
+                    await HapticHelper.lightImpact();
+
+                    if (!mounted) return;
+
+                    // Navigate to edit screen
+                    final result = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CreateEditTripScreen(trip: widget.trip),
                       ),
                     );
+
+                    // Refresh trip data if edited successfully
+                    if (result == true && mounted) {
+                      setState(() {}); // Trigger rebuild to refresh data
+                    }
                   },
                 ),
                 ListTile(

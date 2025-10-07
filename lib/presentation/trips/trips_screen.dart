@@ -27,7 +27,7 @@ class _TripsScreenState extends State<TripsScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CreateTripScreen(),
+        builder: (context) => const CreateEditTripScreen(), // No trip = create mode
       ),
     );
   }
