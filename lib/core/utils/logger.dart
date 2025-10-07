@@ -42,25 +42,25 @@ class AppLogger {
   /// Log warning messages
   static void warning(String tag, String message, [dynamic data]) {
     final timestamp = _timestamp();
-    final formattedMessage = '[$_cyan$_appName$_reset][$_yellow$tag$_reset] $timestamp - $_yellow⚠️  $message$_reset';
+    final formattedMessage = '[$_cyan$_appName$_reset][$_yellow$tag$_reset] $timestamp - $_yellow[WARNING] $message$_reset';
     debugPrint(formattedMessage);
     if (data != null) {
-      debugPrint('  $_yellow⚠️  Data: $data$_reset');
+      debugPrint('  ${_yellow}Data: $data$_reset');
     }
   }
 
   /// Log error messages
   static void error(String tag, String message, [dynamic error, StackTrace? stackTrace]) {
     final timestamp = _timestamp();
-    final formattedMessage = '[$_cyan$_appName$_reset][$_red$tag$_reset] $timestamp - $_red❌ $message$_reset';
+    final formattedMessage = '[$_cyan$_appName$_reset][$_red$tag$_reset] $timestamp - $_red[ERROR] $message$_reset';
     debugPrint(formattedMessage);
 
     if (error != null) {
-      debugPrint('  $_red❌ Error: $error$_reset');
+      debugPrint('  ${_red}Error: $error$_reset');
     }
 
     if (stackTrace != null && kDebugMode) {
-      debugPrint('  $_red❌ StackTrace:$_reset');
+      debugPrint('  ${_red}StackTrace:$_reset');
       debugPrint('$stackTrace');
     }
   }
@@ -69,10 +69,10 @@ class AppLogger {
   static void success(String tag, String message, [dynamic data]) {
     if (kDebugMode) {
       final timestamp = _timestamp();
-      final formattedMessage = '[$_cyan$_appName$_reset][$_green$tag$_reset] $timestamp - $_green✅ $message$_reset';
+      final formattedMessage = '[$_cyan$_appName$_reset][$_green$tag$_reset] $timestamp - $_green[SUCCESS] $message$_reset';
       debugPrint(formattedMessage);
       if (data != null) {
-        debugPrint('  $_green✅ Data: $data$_reset');
+        debugPrint('  ${_green}Data: $data$_reset');
       }
     }
   }
@@ -103,9 +103,9 @@ class AppLogger {
   static void navigation(String from, String to, [dynamic arguments]) {
     if (kDebugMode) {
       final timestamp = _timestamp();
-      debugPrint('[$_cyan$_appName$_reset][$_blue NAVIGATION$_reset] $timestamp - $_blue🧭 $from → $to$_reset');
+      debugPrint('[$_cyan$_appName$_reset][$_blue NAVIGATION$_reset] $timestamp - $_blue$from -> $to$_reset');
       if (arguments != null) {
-        debugPrint('  $_blue🧭 Arguments: $arguments$_reset');
+        debugPrint('  ${_blue}Arguments: $arguments$_reset');
       }
     }
   }
@@ -114,9 +114,9 @@ class AppLogger {
   static void action(String action, [dynamic data]) {
     if (kDebugMode) {
       final timestamp = _timestamp();
-      debugPrint('[$_cyan$_appName$_reset][$_magenta USER$_reset] $timestamp - $_magenta👤 $action$_reset');
+      debugPrint('[$_cyan$_appName$_reset][$_magenta USER ACTION$_reset] $timestamp - $_magenta$action$_reset');
       if (data != null) {
-        debugPrint('  $_magenta👤 Data: $data$_reset');
+        debugPrint('  ${_magenta}Data: $data$_reset');
       }
     }
   }
