@@ -7,7 +7,8 @@ import '../../services/review_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
-import 'write_review_screen.dart';
+import '../../core/utils/haptic_helper.dart';
+import 'write_edit_review_screen.dart';
 
 class ReviewsScreen extends StatefulWidget {
   final String destinationId;
@@ -33,7 +34,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WriteReviewScreen(
+        builder: (context) => WriteEditReviewScreen(
           destinationId: widget.destinationId,
           destinationName: widget.destinationName,
         ),
@@ -43,6 +44,118 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     if (result == true) {
       AppLogger.info(_tag, 'Review submitted, refreshing list');
     }
+  }
+
+  Future<void> _deleteReview(DestinationReview review) async {
+    await HapticHelper.warning();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Review'),
+        content: const Text('Are you sure you want to delete this review? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await HapticHelper.heavyImpact();
+              if (!context.mounted) return;
+              Navigator.pop(context, true);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    AppLogger.debug(_tag, 'Deleting review', {'reviewId': review.id});
+
+    final success = await _reviewService.deleteReview(
+      reviewId: review.id,
+      destinationId: widget.destinationId,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      await HapticHelper.success();
+      AppLogger.success(_tag, 'Review deleted successfully');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Review deleted successfully'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } else {
+      await HapticHelper.error();
+      AppLogger.error(_tag, 'Failed to delete review');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to delete review'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  void _showReviewOptions(DestinationReview review) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit, color: AppColors.black),
+                title: const Text('Edit Review'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await HapticHelper.lightImpact();
+
+                  if (!mounted) return;
+
+                  final result = await Navigator.push<bool>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => WriteEditReviewScreen(
+                        destinationId: widget.destinationId,
+                        destinationName: widget.destinationName,
+                        review: review,
+                      ),
+                    ),
+                  );
+
+                  if (result == true && mounted) {
+                    setState(() {}); // Trigger rebuild to refresh data
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete, color: AppColors.error),
+                title: const Text('Delete Review', style: TextStyle(color: AppColors.error)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteReview(review);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _toggleHelpful(String reviewId, String userId) async {
@@ -252,6 +365,16 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   );
                 }),
               ),
+
+              // Options button (only for own reviews)
+              if (currentUserId == review.userId)
+                IconButton(
+                  icon: const Icon(Icons.more_vert, size: 20),
+                  onPressed: () {
+                    HapticHelper.lightImpact();
+                    _showReviewOptions(review);
+                  },
+                ),
             ],
           ),
           const SizedBox(height: 12),
