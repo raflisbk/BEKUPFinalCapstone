@@ -7,7 +7,10 @@ import '../../services/user_service.dart';
 import '../../services/social_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
+import '../../core/utils/logger.dart';
 import '../../core/widgets/skeleton_loader.dart';
+import '../../services/moderation_service.dart';
+import 'report_user_dialog.dart';
 
 /// Screen to view another user's profile and follow/unfollow them
 class UserProfileScreen extends StatefulWidget {
