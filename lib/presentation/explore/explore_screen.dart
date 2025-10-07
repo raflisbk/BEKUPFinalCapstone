@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/marker_generator.dart';
+import '../../core/utils/marker_cluster.dart';
 import '../../core/providers/location_provider.dart';
 import '../../core/providers/auth_provider.dart';
 
@@ -37,6 +38,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
   bool _isLoading = true;
   String? _errorMessage;
   bool _isLocationSharingEnabled = false;
+
+  // Progressive loading settings
+  static const int _markerBatchSize = 10;
+  bool _isLoadingMarkers = false;
+
+  // Clustering settings
+  double _currentZoom = 12.0;
+  bool _enableClustering = true;
 
   // Default location (Jakarta, Indonesia)
   static const LatLng _defaultLocation = LatLng(-6.2088, 106.8456);
@@ -108,83 +117,154 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _updateMarkers() async {
-    if (!mounted) return;
+    if (!mounted || _isLoadingMarkers) return;
+
+    setState(() {
+      _isLoadingMarkers = true;
+    });
 
     final locationProvider = Provider.of<LocationProvider>(context, listen: false);
     final currentPosition = locationProvider.currentPosition;
     final nearbyTravelers = locationProvider.nearbyTravelers;
 
-    AppLogger.debug(_tag, 'Starting marker update', {
+    AppLogger.debug(_tag, 'Starting progressive marker update with clustering', {
       'hasPosition': currentPosition != null,
       'travelersCount': nearbyTravelers.length,
+      'zoomLevel': _currentZoom.toStringAsFixed(1),
+      'clusteringEnabled': _enableClustering,
     });
 
-    // Generate all markers in parallel for better performance
-    final List<Future<Marker?>> markerFutures = [];
+    final Set<Marker> allMarkers = {};
 
-    // Add current location marker
+    // Add current location marker first (priority)
     if (currentPosition != null) {
-      markerFutures.add(
-        MarkerGenerator.createSimpleMarker(
+      try {
+        final icon = await MarkerGenerator.createSimpleMarker(
           color: AppColors.black,
           emoji: '📍',
-        ).then((icon) {
-          return Marker(
-            markerId: const MarkerId('current_location'),
-            position: LatLng(currentPosition.latitude, currentPosition.longitude),
-            icon: icon,
-            anchor: const Offset(0.5, 0.5),
-          ) as Marker?;
-        }).catchError((e) {
-          AppLogger.warning(_tag, 'Failed to create current location marker');
-          return null as Marker?;
-        }),
-      );
-    }
-
-    // Add nearby travelers markers - limit to max 50 for performance
-    final travelersToShow = nearbyTravelers.take(50).toList();
-    for (var traveler in travelersToShow) {
-      final lat = traveler['latitude'] as double?;
-      final lon = traveler['longitude'] as double?;
-      final uid = traveler['uid'] as String;
-      final photoUrl = traveler['photoUrl'] as String?;
-
-      if (lat != null && lon != null) {
-        markerFutures.add(
-          MarkerGenerator.createMarkerFromPhoto(
-            photoUrl: photoUrl,
-            isCurrentUser: false,
-          ).then((icon) {
-            return Marker(
-              markerId: MarkerId(uid),
-              position: LatLng(lat, lon),
-              icon: icon,
-              anchor: const Offset(0.5, 0.5),
-            ) as Marker?;
-          }).catchError((e) {
-            AppLogger.warning(_tag, 'Failed to create marker for traveler', {'uid': uid});
-            return null as Marker?;
-          }),
         );
+        allMarkers.add(Marker(
+          markerId: const MarkerId('current_location'),
+          position: LatLng(currentPosition.latitude, currentPosition.longitude),
+          icon: icon,
+          anchor: const Offset(0.5, 0.5),
+        ));
+
+        // Update UI immediately with current location marker
+        if (mounted) {
+          setState(() {
+            _markers = Set.from(allMarkers);
+          });
+        }
+      } catch (e) {
+        AppLogger.warning(_tag, 'Failed to create current location marker');
       }
     }
 
-    // Wait for all markers to be generated in parallel
-    final markers = await Future.wait(markerFutures);
+    // Cluster markers if enabled and zoom is low
+    final List<MarkerClusterData> clusterData;
+    if (_enableClustering) {
+      clusterData = MarkerCluster.clusterMarkers(
+        travelers: nearbyTravelers.take(50).toList(),
+        zoomLevel: _currentZoom,
+      );
+    } else {
+      clusterData = nearbyTravelers.take(50).map((t) => MarkerClusterData(
+        position: LatLng(t['latitude'] as double, t['longitude'] as double),
+        travelers: [t],
+        isCluster: false,
+      )).toList();
+    }
 
-    if (!mounted) return;
+    final totalBatches = (clusterData.length / _markerBatchSize).ceil();
 
-    // Filter out null markers and convert to set
-    final newMarkers = markers.whereType<Marker>().toSet();
-
-    setState(() {
-      _markers = newMarkers;
+    AppLogger.debug(_tag, 'Loading clustered markers in batches', {
+      'totalClusters': clusterData.length,
+      'batchSize': _markerBatchSize,
+      'totalBatches': totalBatches,
     });
 
-    AppLogger.info(_tag, 'Markers updated successfully', {
-      'markersGenerated': newMarkers.length,
+    for (int batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      if (!mounted) break;
+
+      final startIndex = batchIndex * _markerBatchSize;
+      final endIndex = (startIndex + _markerBatchSize).clamp(0, clusterData.length);
+      final batch = clusterData.sublist(startIndex, endIndex);
+
+      AppLogger.debug(_tag, 'Processing batch ${batchIndex + 1}/$totalBatches', {
+        'markersInBatch': batch.length,
+      });
+
+      // Process batch in parallel
+      final List<Future<Marker?>> batchFutures = [];
+      for (var cluster in batch) {
+        if (cluster.isCluster) {
+          // Create cluster marker
+          batchFutures.add(
+            MarkerCluster.createClusterMarker(cluster.count).then((icon) {
+              return Marker(
+                markerId: MarkerId('cluster_${cluster.position.latitude}_${cluster.position.longitude}'),
+                position: cluster.position,
+                icon: icon,
+                anchor: const Offset(0.5, 0.5),
+              ) as Marker?;
+            }).catchError((e) {
+              AppLogger.warning(_tag, 'Failed to create cluster marker');
+              return null as Marker?;
+            }),
+          );
+        } else {
+          // Create individual traveler marker
+          final traveler = cluster.travelers.first;
+          final uid = traveler['uid'] as String;
+          final photoUrl = traveler['photoUrl'] as String?;
+
+          batchFutures.add(
+            MarkerGenerator.createMarkerFromPhoto(
+              photoUrl: photoUrl,
+              isCurrentUser: false,
+            ).then((icon) {
+              return Marker(
+                markerId: MarkerId(uid),
+                position: cluster.position,
+                icon: icon,
+                anchor: const Offset(0.5, 0.5),
+              ) as Marker?;
+            }).catchError((e) {
+              AppLogger.warning(_tag, 'Failed to create marker for traveler', {'uid': uid});
+              return null as Marker?;
+            }),
+          );
+        }
+      }
+
+      // Wait for batch to complete
+      final batchMarkers = await Future.wait(batchFutures);
+      allMarkers.addAll(batchMarkers.whereType<Marker>());
+
+      // Update UI after each batch for progressive loading
+      if (mounted) {
+        setState(() {
+          _markers = Set.from(allMarkers);
+        });
+      }
+
+      AppLogger.debug(_tag, 'Batch ${batchIndex + 1} completed', {
+        'markersGenerated': batchMarkers.whereType<Marker>().length,
+        'totalMarkers': allMarkers.length,
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoadingMarkers = false;
+      });
+    }
+
+    AppLogger.info(_tag, 'All markers loaded successfully', {
+      'totalMarkersGenerated': allMarkers.length,
       'nearbyTravelers': nearbyTravelers.length,
+      'cacheStats': MarkerGenerator.getCacheStats(),
     });
   }
 
@@ -192,6 +272,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
     AppLogger.debug(_tag, 'Google Map created');
     _mapController = controller;
     AppLogger.info(_tag, 'Map controller initialized');
+  }
+
+  void _onCameraMove(CameraPosition position) {
+    final newZoom = position.zoom;
+    if ((newZoom - _currentZoom).abs() > 1.0) {
+      // Significant zoom change - update zoom level
+      AppLogger.debug(_tag, 'Significant zoom change detected', {
+        'oldZoom': _currentZoom.toStringAsFixed(1),
+        'newZoom': newZoom.toStringAsFixed(1),
+      });
+
+      setState(() {
+        _currentZoom = newZoom;
+      });
+
+      // Trigger marker update with new clustering
+      _updateMarkers();
+    }
   }
 
   Future<void> _goToCurrentLocation() async {
@@ -330,6 +428,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 // Google Map
                 GoogleMap(
                   onMapCreated: _onMapCreated,
+                  onCameraMove: _onCameraMove,
                   initialCameraPosition: CameraPosition(
                     target: mapData.currentPosition != null
                         ? LatLng(

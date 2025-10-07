@@ -9,11 +9,62 @@ import '../utils/logger.dart';
 class MarkerGenerator {
   static const String _tag = 'MarkerGenerator';
 
+  // Bitmap cache for marker reuse
+  static final Map<String, BitmapDescriptor> _markerCache = {};
+  static int _cacheHits = 0;
+  static int _cacheMisses = 0;
+
+  /// Clear the marker cache
+  static void clearCache() {
+    AppLogger.info(_tag, 'Clearing marker cache', {
+      'cachedMarkers': _markerCache.length,
+      'cacheHits': _cacheHits,
+      'cacheMisses': _cacheMisses,
+      'hitRate': _cacheHits + _cacheMisses > 0
+        ? '${((_cacheHits / (_cacheHits + _cacheMisses)) * 100).toStringAsFixed(1)}%'
+        : 'N/A',
+    });
+    _markerCache.clear();
+    _cacheHits = 0;
+    _cacheMisses = 0;
+  }
+
+  /// Get cache statistics
+  static Map<String, dynamic> getCacheStats() {
+    return {
+      'cachedMarkers': _markerCache.length,
+      'cacheHits': _cacheHits,
+      'cacheMisses': _cacheMisses,
+      'hitRate': _cacheHits + _cacheMisses > 0
+        ? '${((_cacheHits / (_cacheHits + _cacheMisses)) * 100).toStringAsFixed(1)}%'
+        : 'N/A',
+    };
+  }
+
   /// Generate a marker with profile photo or avatar emoji
   static Future<BitmapDescriptor> createMarkerFromPhoto({
     required String? photoUrl,
     required bool isCurrentUser,
   }) async {
+    // Create cache key
+    final String cacheKey = '${photoUrl ?? 'default'}_${isCurrentUser ? 'current' : 'traveler'}';
+
+    // Check cache first
+    if (_markerCache.containsKey(cacheKey)) {
+      _cacheHits++;
+      AppLogger.debug(_tag, 'Marker cache hit', {
+        'cacheKey': cacheKey,
+        'totalHits': _cacheHits,
+      });
+      return _markerCache[cacheKey]!;
+    }
+
+    _cacheMisses++;
+    AppLogger.debug(_tag, 'Marker cache miss - generating new marker', {
+      'cacheKey': cacheKey,
+      'totalMisses': _cacheMisses,
+    });
+
     try {
       AppLogger.debug(_tag, 'Generating marker for ${isCurrentUser ? "current user" : "traveler"}');
 
@@ -111,9 +162,16 @@ class MarkerGenerator {
       }
 
       final Uint8List uint8List = byteData.buffer.asUint8List();
-      AppLogger.debug(_tag, 'Marker generated successfully');
+      final BitmapDescriptor descriptor = BitmapDescriptor.bytes(uint8List);
 
-      return BitmapDescriptor.bytes(uint8List);
+      // Cache the generated marker
+      _markerCache[cacheKey] = descriptor;
+      AppLogger.debug(_tag, 'Marker generated and cached successfully', {
+        'cacheKey': cacheKey,
+        'cacheSize': _markerCache.length,
+      });
+
+      return descriptor;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to generate marker from photo', e, stackTrace);
       return BitmapDescriptor.defaultMarker;
@@ -125,6 +183,20 @@ class MarkerGenerator {
     required Color color,
     required String emoji,
   }) async {
+    // Create cache key
+    final String cacheKey = 'simple_${color.value}_$emoji';
+
+    // Check cache first
+    if (_markerCache.containsKey(cacheKey)) {
+      _cacheHits++;
+      AppLogger.debug(_tag, 'Simple marker cache hit', {
+        'cacheKey': cacheKey,
+      });
+      return _markerCache[cacheKey]!;
+    }
+
+    _cacheMisses++;
+
     try {
       AppLogger.debug(_tag, 'Generating simple marker with emoji');
 
@@ -183,8 +255,16 @@ class MarkerGenerator {
         return BitmapDescriptor.defaultMarker;
       }
 
-      AppLogger.debug(_tag, 'Simple marker generated successfully');
-      return BitmapDescriptor.bytes(byteData.buffer.asUint8List());
+      final BitmapDescriptor descriptor = BitmapDescriptor.bytes(byteData.buffer.asUint8List());
+
+      // Cache the generated marker
+      _markerCache[cacheKey] = descriptor;
+      AppLogger.debug(_tag, 'Simple marker generated and cached successfully', {
+        'cacheKey': cacheKey,
+        'cacheSize': _markerCache.length,
+      });
+
+      return descriptor;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to generate simple marker', e, stackTrace);
       return BitmapDescriptor.defaultMarker;
