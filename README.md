@@ -28,7 +28,7 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 
 ## Project Status
 
-**Current Version:** 3.0.0
+**Current Version:** 3.1.0
 **Status:** ✅ **Production Ready**
 **Last Updated:** October 7, 2025
 
@@ -124,6 +124,23 @@ ReLink adalah aplikasi mobile berbasis Flutter yang menghubungkan wisatawan deng
 - ✅ Color-coded activities
 - ✅ Real-time updates
 - ✅ Navigate to content from feed
+
+### Destinations Management (v3.1.0)
+- ✅ Comprehensive destination listing
+- ✅ Advanced filters (category, rating, price range)
+- ✅ Real-time search functionality
+- ✅ Destination detail with full information
+- ✅ Image carousel (up to 5 images)
+- ✅ Bookmark destinations
+- ✅ Google Maps integration
+- ✅ Facilities and activities display
+- ✅ Opening hours and best time info
+- ✅ Add/Edit destination form (admin/guide)
+- ✅ Image upload to Firebase Storage
+- ✅ Review integration
+- ✅ Nearby destinations with distance calculation
+- ✅ 10 destination categories with icons
+- ✅ Price range indicator (1-5 scale)
 
 ---
 
@@ -270,6 +287,8 @@ flutter pub get
    - `rating_summaries` - Rating aggregates
    - `social_connections` - Follow relationships
    - `activities` - Activity feed
+   - `destinations` - Tourism destinations
+   - `user_bookmarks` - Bookmarked destinations
 
 5. **Setup environment**
    Create `.env` file:
@@ -320,6 +339,18 @@ service cloud.firestore {
     match /social_connections/{userId} {
       allow read: if true;
       allow write: if request.auth.uid == userId;
+    }
+
+    // Destinations - public read, verified users can write
+    match /destinations/{destinationId} {
+      allow read: if true;
+      allow create: if request.auth.uid != null;
+      allow update, delete: if request.auth.uid == resource.data.createdBy;
+    }
+
+    // User bookmarks - user can read/write own
+    match /user_bookmarks/{userId} {
+      allow read, write: if request.auth.uid == userId;
     }
   }
 }
