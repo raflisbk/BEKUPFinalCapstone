@@ -3,7 +3,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/logger.dart';
 import '../home/home_screen.dart';
 import '../explore/explore_screen.dart';
-import '../guides/guides_screen.dart';
+import '../social/activity_feed_screen.dart';
+import '../chat/chat_list_screen.dart';
 import '../profile/profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -17,12 +18,13 @@ class _MainScreenState extends State<MainScreen> {
   static const String _tag = 'MainScreen';
   int _currentIndex = 0;
 
-  final List<String> _tabNames = ['Home', 'Explore', 'Guides', 'Profile'];
+  final List<String> _tabNames = ['Home', 'Explore', 'Social', 'Chat', 'Profile'];
 
   final List<Widget> _screens = [
     const HomeScreen(),
     const ExploreScreen(),
-    const GuidesScreen(),
+    const ActivityFeedScreen(),
+    const ChatListScreen(),
     const ProfileScreen(),
   ];
 
@@ -82,9 +84,14 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Explore',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Guides',
+              icon: Icon(Icons.notifications_outlined),
+              activeIcon: Icon(Icons.notifications),
+              label: 'Social',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline),
+              activeIcon: Icon(Icons.chat_bubble),
+              label: 'Chat',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
