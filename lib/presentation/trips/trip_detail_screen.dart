@@ -8,7 +8,10 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/haptic_helper.dart';
+import '../../core/widgets/weather_widget.dart';
 import 'create_edit_trip_screen.dart';
+import 'itinerary_management_screen.dart';
+import 'budget_overview_screen.dart';
 
 class TripDetailScreen extends StatefulWidget {
   final Trip trip;
@@ -98,7 +101,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   }
 
   Future<void> _deleteTrip() async {
-    await HapticHelper.warning();
+    await HapticHelper.mediumImpact();
 
     // Confirm before deleting
     final confirmed = await showDialog<bool>(
@@ -537,6 +540,170 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     );
   }
 
+  Widget _buildItinerarySection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Itinerary',
+                style: AppTextStyles.headlineSmall,
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Plan your daily activities and schedule',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await HapticHelper.lightImpact();
+                if (!mounted) return;
+
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ItineraryManagementScreen(trip: widget.trip),
+                  ),
+                );
+
+                // Refresh trip data
+                if (mounted) {
+                  setState(() {});
+                }
+              },
+              icon: const Icon(Icons.event_note, size: 20),
+              label: const Text('Manage Itinerary'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.black,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Budget',
+                style: AppTextStyles.headlineSmall,
+              ),
+              const Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Track your expenses and manage your budget',
+            style: AppTextStyles.bodySmall.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                await HapticHelper.lightImpact();
+                if (!mounted) return;
+
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => BudgetOverviewScreen(trip: widget.trip),
+                  ),
+                );
+
+                // Refresh trip data
+                if (mounted) {
+                  setState(() {});
+                }
+              },
+              icon: const Icon(Icons.account_balance_wallet, size: 20),
+              label: const Text('Manage Budget'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.black,
+                side: const BorderSide(color: AppColors.border),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherSection() {
+    // Show weather for the first destination if available
+    if (widget.trip.destinations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final firstDestination = widget.trip.destinations.first;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Weather at ${firstDestination.name}',
+            style: AppTextStyles.headlineSmall,
+          ),
+          const SizedBox(height: 12),
+          WeatherWidget(
+            cityName: firstDestination.name,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
@@ -577,6 +744,12 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               _buildInfoSection(),
               const SizedBox(height: 16),
               _buildDestinationsSection(),
+              const SizedBox(height: 16),
+              _buildItinerarySection(),
+              const SizedBox(height: 16),
+              _buildBudgetSection(),
+              const SizedBox(height: 16),
+              _buildWeatherSection(),
               const SizedBox(height: 16),
               _buildParticipantsSection(),
               const SizedBox(height: 80), // Space for bottom button
