@@ -57,6 +57,20 @@ dependencies:
 
   # Local Storage
   shared_preferences: ^2.3.2
+  
+  # Offline Storage - NEW
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.3
+  
+  # Network & Connectivity - NEW
+  connectivity_plus: ^6.0.3
+  
+  # Background Tasks - NEW
+  workmanager: ^0.5.2
+  
+  # Cache Management - NEW
+  flutter_cache_manager: ^3.3.2
 
   # UI/UX - Updated versions
   flutter_svg: ^2.0.10
@@ -82,6 +96,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^4.0.0
+  
+  # Code generation for Hive - NEW
+  hive_generator: ^2.0.1
+  build_runner: ^2.4.9
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

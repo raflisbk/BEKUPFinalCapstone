@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/config/env_config.dart';
 import 'core/utils/logger.dart';
+import 'core/database/hive_service.dart';
+import 'core/utils/connectivity_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
@@ -38,6 +40,16 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     AppLogger.success(tag, 'Firebase initialized successfully');
+
+    // Initialize Hive database for offline storage
+    AppLogger.debug(tag, 'Initializing Hive database');
+    await HiveService.instance.initialize();
+    AppLogger.success(tag, 'Hive database initialized successfully');
+
+    // Initialize connectivity service
+    AppLogger.debug(tag, 'Initializing connectivity service');
+    await ConnectivityService.instance.initialize();
+    AppLogger.success(tag, 'Connectivity service initialized successfully');
 
     // Set system UI overlay style
     AppLogger.debug(tag, 'Setting system UI overlay style');
