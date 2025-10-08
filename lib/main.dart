@@ -14,6 +14,7 @@ import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'services/cache/image_cache_service.dart';
 import 'services/cache/upload_queue_service.dart';
+import 'services/sync/sync_queue_manager.dart';
 import 'services/marker_pregeneration_service.dart';
 import 'services/notification_service.dart';
 import 'presentation/splash/splash_screen.dart';
@@ -62,6 +63,11 @@ void main() async {
     AppLogger.debug(tag, 'Initializing upload queue service');
     await UploadQueueService().initialize();
     AppLogger.success(tag, 'Upload queue service initialized successfully');
+
+    // Initialize sync queue manager
+    AppLogger.debug(tag, 'Initializing sync queue manager');
+    await SyncQueueManager().initialize();
+    AppLogger.success(tag, 'Sync queue manager initialized successfully');
 
     // Set system UI overlay style
     AppLogger.debug(tag, 'Setting system UI overlay style');

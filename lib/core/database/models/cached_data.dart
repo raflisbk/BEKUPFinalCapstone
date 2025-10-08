@@ -107,6 +107,34 @@ class SyncOperation extends HiveObject {
     return -age; // Newer = higher priority
   }
 
+  /// Convert to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'type': type,
+      'collection': collection,
+      'data': data,
+      'timestamp': timestamp.toIso8601String(),
+      'retryCount': retryCount,
+      'error': error,
+      'userId': userId,
+    };
+  }
+
+  /// Create from Map
+  factory SyncOperation.fromMap(Map<String, dynamic> map) {
+    return SyncOperation(
+      id: map['id'] ?? '',
+      type: map['type'] ?? '',
+      collection: map['collection'] ?? '',
+      data: Map<String, dynamic>.from(map['data'] ?? {}),
+      timestamp: DateTime.parse(map['timestamp'] as String),
+      retryCount: map['retryCount'] ?? 0,
+      error: map['error'],
+      userId: map['userId'],
+    );
+  }
+
   @override
   String toString() {
     return 'SyncOperation(id: $id, type: $type, collection: $collection, retryCount: $retryCount)';
