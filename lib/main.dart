@@ -16,6 +16,7 @@ import 'services/cache/image_cache_service.dart';
 import 'services/cache/upload_queue_service.dart';
 import 'services/sync/sync_queue_manager.dart';
 import 'services/sync/background_sync_service.dart';
+import 'services/ai/gemini_service.dart';
 import 'services/marker_pregeneration_service.dart';
 import 'services/notification_service.dart';
 import 'presentation/splash/splash_screen.dart';
@@ -74,6 +75,11 @@ void main() async {
     AppLogger.debug(tag, 'Initializing background sync service');
     await BackgroundSyncService().initialize();
     AppLogger.success(tag, 'Background sync service initialized successfully');
+
+    // Initialize Gemini AI service
+    AppLogger.debug(tag, 'Initializing Gemini AI service');
+    await GeminiService().initialize();
+    AppLogger.success(tag, 'Gemini AI service initialized successfully');
 
     // Set system UI overlay style
     AppLogger.debug(tag, 'Setting system UI overlay style');
