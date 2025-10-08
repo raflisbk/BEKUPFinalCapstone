@@ -12,6 +12,8 @@ import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
+import 'services/cache/image_cache_service.dart';
+import 'services/cache/upload_queue_service.dart';
 import 'services/marker_pregeneration_service.dart';
 import 'services/notification_service.dart';
 import 'presentation/splash/splash_screen.dart';
@@ -50,6 +52,16 @@ void main() async {
     AppLogger.debug(tag, 'Initializing connectivity service');
     await ConnectivityService.instance.initialize();
     AppLogger.success(tag, 'Connectivity service initialized successfully');
+
+    // Initialize image cache service
+    AppLogger.debug(tag, 'Initializing image cache service');
+    await ImageCacheService().initialize();
+    AppLogger.success(tag, 'Image cache service initialized successfully');
+
+    // Initialize upload queue service
+    AppLogger.debug(tag, 'Initializing upload queue service');
+    await UploadQueueService().initialize();
+    AppLogger.success(tag, 'Upload queue service initialized successfully');
 
     // Set system UI overlay style
     AppLogger.debug(tag, 'Setting system UI overlay style');

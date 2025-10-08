@@ -13,6 +13,7 @@ class HiveService {
   static const String profilesBox = 'cached_profiles';
   static const String syncQueueBox = 'sync_queue';
   static const String metadataBox = 'app_metadata';
+  static const String uploadQueueBox = 'upload_queue';
 
   static HiveService? _instance;
   static HiveService get instance => _instance ??= HiveService._();
@@ -63,6 +64,7 @@ class HiveService {
         Hive.openBox(profilesBox),
         Hive.openBox(syncQueueBox),
         Hive.openBox(metadataBox),
+        Hive.openBox(uploadQueueBox),
       ]);
 
       AppLogger.info(_tag, 'All boxes opened successfully');
@@ -97,6 +99,9 @@ class HiveService {
 
   /// Get metadata box
   Box get metadata => getBox(metadataBox);
+
+  /// Get upload queue box
+  Box get uploadQueue => getBox(uploadQueueBox);
 
   /// Clear all cached data (use with caution!)
   Future<void> clearAllCache() async {
@@ -162,6 +167,7 @@ class HiveService {
         'reviews': reviews.length,
         'profiles': profiles.length,
         'syncQueue': syncQueue.length,
+        'uploadQueue': uploadQueue.length,
       };
     } catch (e) {
       AppLogger.error(_tag, 'Failed to get cache stats', e);
