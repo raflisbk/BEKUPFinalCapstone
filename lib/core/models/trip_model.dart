@@ -18,6 +18,14 @@ class Trip {
   final Map<String, ParticipantInfo> participants;
   final TripStatus status;
   final bool isPublic;
+  
+  // Itinerary management
+  final List<ItineraryItem> itinerary;
+  
+  // Budget tracking
+  final TripBudget? budget;
+  final List<BudgetExpense> expenses;
+  
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -37,6 +45,9 @@ class Trip {
     this.participants = const {},
     this.status = TripStatus.planning,
     this.isPublic = true,
+    this.itinerary = const [],
+    this.budget,
+    this.expenses = const [],
     required this.createdAt,
     required this.updatedAt,
   });
@@ -73,6 +84,17 @@ class Trip {
         orElse: () => TripStatus.planning,
       ),
       isPublic: data['isPublic'] ?? true,
+      itinerary: (data['itinerary'] as List<dynamic>?)
+              ?.map((i) => ItineraryItem.fromMap(i as Map<String, dynamic>))
+              .toList() ??
+          [],
+      budget: data['budget'] != null
+          ? TripBudget.fromMap(data['budget'] as Map<String, dynamic>)
+          : null,
+      expenses: (data['expenses'] as List<dynamic>?)
+              ?.map((e) => BudgetExpense.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: (data['updatedAt'] as Timestamp).toDate(),
     );
@@ -95,9 +117,35 @@ class Trip {
       'participants': participants.map((key, value) => MapEntry(key, value.toMap())),
       'status': status.toString().split('.').last,
       'isPublic': isPublic,
+      'itinerary': itinerary.map((i) => i.toMap()).toList(),
+      'budget': budget?.toMap(),
+      'expenses': expenses.map((e) => e.toMap()).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
+  }
+
+  /// Calculate total budget spent
+  double get totalSpent {
+    return expenses.fold(0.0, (sum, expense) => sum + expense.amount);
+  }
+
+  /// Calculate budget remaining
+  double get budgetRemaining {
+    if (budget == null) return 0.0;
+    return budget!.totalBudget - totalSpent;
+  }
+
+  /// Check if over budget
+  bool get isOverBudget {
+    if (budget == null) return false;
+    return totalSpent > budget!.totalBudget;
+  }
+
+  /// Get budget usage percentage
+  double get budgetUsagePercentage {
+    if (budget == null || budget!.totalBudget == 0) return 0.0;
+    return (totalSpent / budget!.totalBudget) * 100;
   }
 
   /// Get trip duration in days
@@ -265,3 +313,298 @@ class TripFilterHelper {
     }
   }
 }
+
+/// Itinerary item for detailed scheduling
+class ItineraryItem {
+  final String id;
+  final String title;
+  final String? description;
+  final DateTime startTime;
+  final DateTime endTime;
+  final String? location;
+  final String? locationId;
+  final ItineraryType type;
+  final String? notes;
+  final bool isCompleted;
+  final int order;
+
+  ItineraryItem({
+    required this.id,
+    required this.title,
+    this.description,
+    required this.startTime,
+    required this.endTime,
+    this.location,
+    this.locationId,
+    this.type = ItineraryType.activity,
+    this.notes,
+    this.isCompleted = false,
+    this.order = 0,
+  });
+
+  factory ItineraryItem.fromMap(Map<String, dynamic> map) {
+    return ItineraryItem(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'],
+      startTime: (map['startTime'] as Timestamp).toDate(),
+      endTime: (map['endTime'] as Timestamp).toDate(),
+      location: map['location'],
+      locationId: map['locationId'],
+      type: ItineraryType.values.firstWhere(
+        (e) => e.toString() == 'ItineraryType.${map['type']}',
+        orElse: () => ItineraryType.activity,
+      ),
+      notes: map['notes'],
+      isCompleted: map['isCompleted'] ?? false,
+      order: map['order'] ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'startTime': Timestamp.fromDate(startTime),
+      'endTime': Timestamp.fromDate(endTime),
+      'location': location,
+      'locationId': locationId,
+      'type': type.toString().split('.').last,
+      'notes': notes,
+      'isCompleted': isCompleted,
+      'order': order,
+    };
+  }
+
+  /// Get duration in minutes
+  int get durationInMinutes {
+    return endTime.difference(startTime).inMinutes;
+  }
+
+  /// Check if item conflicts with another
+  bool conflictsWith(ItineraryItem other) {
+    return (startTime.isBefore(other.endTime) && 
+            endTime.isAfter(other.startTime));
+  }
+}
+
+/// Itinerary item types
+enum ItineraryType {
+  activity,
+  accommodation,
+  transport,
+  meal,
+  other,
+}
+
+class ItineraryTypeHelper {
+  static String getLabel(ItineraryType type) {
+    switch (type) {
+      case ItineraryType.activity:
+        return 'Activity';
+      case ItineraryType.accommodation:
+        return 'Accommodation';
+      case ItineraryType.transport:
+        return 'Transport';
+      case ItineraryType.meal:
+        return 'Meal';
+      case ItineraryType.other:
+        return 'Other';
+    }
+  }
+
+  static Color getColor(ItineraryType type) {
+    switch (type) {
+      case ItineraryType.activity:
+        return const Color(0xFF2196F3); // Blue
+      case ItineraryType.accommodation:
+        return const Color(0xFF9C27B0); // Purple
+      case ItineraryType.transport:
+        return const Color(0xFFFF9800); // Orange
+      case ItineraryType.meal:
+        return const Color(0xFF4CAF50); // Green
+      case ItineraryType.other:
+        return const Color(0xFF757575); // Gray
+    }
+  }
+}
+
+/// Trip budget with category breakdown
+class TripBudget {
+  final double totalBudget;
+  final String currency;
+  final Map<BudgetCategory, double> categoryBudgets;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  TripBudget({
+    required this.totalBudget,
+    this.currency = 'USD',
+    this.categoryBudgets = const {},
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory TripBudget.fromMap(Map<String, dynamic> map) {
+    final categoryBudgetsMap = map['categoryBudgets'] as Map<String, dynamic>?;
+    final categoryBudgets = <BudgetCategory, double>{};
+    
+    if (categoryBudgetsMap != null) {
+      categoryBudgetsMap.forEach((key, value) {
+        final category = BudgetCategory.values.firstWhere(
+          (e) => e.toString() == 'BudgetCategory.$key',
+          orElse: () => BudgetCategory.other,
+        );
+        categoryBudgets[category] = (value as num).toDouble();
+      });
+    }
+
+    return TripBudget(
+      totalBudget: (map['totalBudget'] as num?)?.toDouble() ?? 0.0,
+      currency: map['currency'] ?? 'USD',
+      categoryBudgets: categoryBudgets,
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    final categoryBudgetsMap = <String, double>{};
+    categoryBudgets.forEach((key, value) {
+      categoryBudgetsMap[key.toString().split('.').last] = value;
+    });
+
+    return {
+      'totalBudget': totalBudget,
+      'currency': currency,
+      'categoryBudgets': categoryBudgetsMap,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': Timestamp.fromDate(updatedAt),
+    };
+  }
+
+  /// Get remaining budget for a category
+  double getCategoryRemaining(BudgetCategory category, double spent) {
+    final categoryBudget = categoryBudgets[category] ?? 0.0;
+    return categoryBudget - spent;
+  }
+}
+
+/// Budget expense tracking
+class BudgetExpense {
+  final String id;
+  final String description;
+  final double amount;
+  final String currency;
+  final BudgetCategory category;
+  final DateTime date;
+  final String? paidBy;
+  final List<String> sharedWith;
+  final String? receiptUrl;
+  final String? notes;
+  final DateTime createdAt;
+
+  BudgetExpense({
+    required this.id,
+    required this.description,
+    required this.amount,
+    this.currency = 'USD',
+    required this.category,
+    required this.date,
+    this.paidBy,
+    this.sharedWith = const [],
+    this.receiptUrl,
+    this.notes,
+    required this.createdAt,
+  });
+
+  factory BudgetExpense.fromMap(Map<String, dynamic> map) {
+    return BudgetExpense(
+      id: map['id'] ?? '',
+      description: map['description'] ?? '',
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      currency: map['currency'] ?? 'USD',
+      category: BudgetCategory.values.firstWhere(
+        (e) => e.toString() == 'BudgetCategory.${map['category']}',
+        orElse: () => BudgetCategory.other,
+      ),
+      date: (map['date'] as Timestamp).toDate(),
+      paidBy: map['paidBy'],
+      sharedWith: List<String>.from(map['sharedWith'] ?? []),
+      receiptUrl: map['receiptUrl'],
+      notes: map['notes'],
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'description': description,
+      'amount': amount,
+      'currency': currency,
+      'category': category.toString().split('.').last,
+      'date': Timestamp.fromDate(date),
+      'paidBy': paidBy,
+      'sharedWith': sharedWith,
+      'receiptUrl': receiptUrl,
+      'notes': notes,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
+  }
+
+  /// Calculate share per person
+  double getSharePerPerson() {
+    final totalPeople = sharedWith.length + (paidBy != null ? 1 : 0);
+    if (totalPeople == 0) return amount;
+    return amount / totalPeople;
+  }
+}
+
+/// Budget categories
+enum BudgetCategory {
+  accommodation,
+  transport,
+  food,
+  activities,
+  shopping,
+  other,
+}
+
+class BudgetCategoryHelper {
+  static String getLabel(BudgetCategory category) {
+    switch (category) {
+      case BudgetCategory.accommodation:
+        return 'Accommodation';
+      case BudgetCategory.transport:
+        return 'Transport';
+      case BudgetCategory.food:
+        return 'Food & Drinks';
+      case BudgetCategory.activities:
+        return 'Activities';
+      case BudgetCategory.shopping:
+        return 'Shopping';
+      case BudgetCategory.other:
+        return 'Other';
+    }
+  }
+
+  static Color getColor(BudgetCategory category) {
+    switch (category) {
+      case BudgetCategory.accommodation:
+        return const Color(0xFF9C27B0); // Purple
+      case BudgetCategory.transport:
+        return const Color(0xFFFF9800); // Orange
+      case BudgetCategory.food:
+        return const Color(0xFF4CAF50); // Green
+      case BudgetCategory.activities:
+        return const Color(0xFF2196F3); // Blue
+      case BudgetCategory.shopping:
+        return const Color(0xFFE91E63); // Pink
+      case BudgetCategory.other:
+        return const Color(0xFF757575); // Gray
+    }
+  }
+}
+
