@@ -75,6 +75,46 @@ class DestinationReview {
     };
   }
 
+  /// Create from Map (for offline cache)
+  factory DestinationReview.fromMap(Map<String, dynamic> map) {
+    return DestinationReview(
+      id: map['id'] ?? '',
+      destinationId: map['destinationId'] ?? '',
+      destinationName: map['destinationName'] ?? '',
+      userId: map['userId'] ?? '',
+      userName: map['userName'] ?? '',
+      userPhotoUrl: map['userPhotoUrl'],
+      rating: (map['rating'] ?? 0).toDouble(),
+      title: map['title'] ?? '',
+      content: map['content'] ?? '',
+      photoUrls: List<String>.from(map['photoUrls'] ?? []),
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+      helpfulCount: map['helpfulCount'] ?? 0,
+      helpfulUserIds: List<String>.from(map['helpfulUserIds'] ?? []),
+    );
+  }
+
+  /// Convert to Map (for offline cache)
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'destinationId': destinationId,
+      'destinationName': destinationName,
+      'userId': userId,
+      'userName': userName,
+      'userPhotoUrl': userPhotoUrl,
+      'rating': rating,
+      'title': title,
+      'content': content,
+      'photoUrls': photoUrls,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'helpfulCount': helpfulCount,
+      'helpfulUserIds': helpfulUserIds,
+    };
+  }
+
   /// Check if user marked this review as helpful
   bool isMarkedHelpfulBy(String userId) {
     return helpfulUserIds.contains(userId);

@@ -115,6 +115,9 @@ class UserModel {
     );
   }
 
+  // Create from Map (for offline cache) - alias for fromJson
+  factory UserModel.fromMap(Map<String, dynamic> map) => UserModel.fromJson(map);
+
   // Convert to map for Firestore
   Map<String, dynamic> toMap() {
     return {

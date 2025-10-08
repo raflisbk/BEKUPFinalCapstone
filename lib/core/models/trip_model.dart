@@ -125,6 +125,78 @@ class Trip {
     };
   }
 
+  /// Create from Map (for offline cache)
+  factory Trip.fromMap(Map<String, dynamic> map) {
+    return Trip(
+      id: map['id'] ?? '',
+      userId: map['userId'] ?? '',
+      userName: map['userName'] ?? '',
+      userPhotoUrl: map['userPhotoUrl'],
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      coverImageUrl: map['coverImageUrl'],
+      startDate: DateTime.parse(map['startDate'] as String),
+      endDate: DateTime.parse(map['endDate'] as String),
+      destinationIds: List<String>.from(map['destinationIds'] ?? []),
+      destinations: (map['destinations'] as List<dynamic>?)
+              ?.map((d) => TripDestination.fromMap(d as Map<String, dynamic>))
+              .toList() ??
+          [],
+      participantIds: List<String>.from(map['participantIds'] ?? []),
+      participants: (map['participants'] as Map<String, dynamic>?)?.map(
+            (key, value) => MapEntry(
+              key,
+              ParticipantInfo.fromMap(value as Map<String, dynamic>),
+            ),
+          ) ??
+          {},
+      status: TripStatus.values.firstWhere(
+        (e) => e.toString() == 'TripStatus.${map['status']}',
+        orElse: () => TripStatus.planning,
+      ),
+      isPublic: map['isPublic'] ?? true,
+      itinerary: (map['itinerary'] as List<dynamic>?)
+              ?.map((i) => ItineraryItem.fromMap(i as Map<String, dynamic>))
+              .toList() ??
+          [],
+      budget: map['budget'] != null
+          ? TripBudget.fromMap(map['budget'] as Map<String, dynamic>)
+          : null,
+      expenses: (map['expenses'] as List<dynamic>?)
+              ?.map((e) => BudgetExpense.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+    );
+  }
+
+  /// Convert to Map (for offline cache)
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'userId': userId,
+      'userName': userName,
+      'userPhotoUrl': userPhotoUrl,
+      'title': title,
+      'description': description,
+      'coverImageUrl': coverImageUrl,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'destinationIds': destinationIds,
+      'destinations': destinations.map((d) => d.toMap()).toList(),
+      'participantIds': participantIds,
+      'participants': participants.map((key, value) => MapEntry(key, value.toMap())),
+      'status': status.toString().split('.').last,
+      'isPublic': isPublic,
+      'itinerary': itinerary.map((i) => i.toMap()).toList(),
+      'budget': budget?.toMap(),
+      'expenses': expenses.map((e) => e.toMap()).toList(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
   /// Calculate total budget spent
   double get totalSpent {
     return expenses.fold(0.0, (sum, expense) => sum + expense.amount);

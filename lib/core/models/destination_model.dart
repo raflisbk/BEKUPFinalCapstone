@@ -94,6 +94,56 @@ class Destination {
     };
   }
 
+  /// Create from Map (for offline cache)
+  factory Destination.fromMap(Map<String, dynamic> map) {
+    return Destination(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      description: map['description'] ?? '',
+      location: map['location'] ?? '',
+      latitude: (map['latitude'] ?? 0.0).toDouble(),
+      longitude: (map['longitude'] ?? 0.0).toDouble(),
+      category: map['category'] ?? '',
+      images: List<String>.from(map['images'] ?? []),
+      priceRange: (map['priceRange'] ?? 1.0).toDouble(),
+      rating: (map['rating'] ?? 0.0).toDouble(),
+      reviewCount: map['reviewCount'] ?? 0,
+      facilities: List<String>.from(map['facilities'] ?? []),
+      activities: List<String>.from(map['activities'] ?? []),
+      openingHours: map['openingHours'] ?? '',
+      bestTimeToVisit: map['bestTimeToVisit'] ?? '',
+      isVerified: map['isVerified'] ?? false,
+      createdBy: map['createdBy'] ?? '',
+      createdAt: DateTime.parse(map['createdAt'] as String),
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+    );
+  }
+
+  /// Convert to Map (for offline cache)
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'location': location,
+      'latitude': latitude,
+      'longitude': longitude,
+      'category': category,
+      'images': images,
+      'priceRange': priceRange,
+      'rating': rating,
+      'reviewCount': reviewCount,
+      'facilities': facilities,
+      'activities': activities,
+      'openingHours': openingHours,
+      'bestTimeToVisit': bestTimeToVisit,
+      'isVerified': isVerified,
+      'createdBy': createdBy,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
   Destination copyWith({
     String? id,
     String? name,

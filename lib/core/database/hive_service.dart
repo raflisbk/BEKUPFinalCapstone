@@ -1,5 +1,6 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../utils/logger.dart';
+import 'models/cached_data.dart';
 
 /// Core Hive database service for offline storage
 class HiveService {
@@ -33,10 +34,13 @@ class HiveService {
       // Initialize Hive
       await Hive.initFlutter();
 
-      // Register adapters (will be added later)
-      // Hive.registerAdapter(CachedTripAdapter());
-      // Hive.registerAdapter(CachedDestinationAdapter());
-      // Hive.registerAdapter(SyncOperationAdapter());
+      // Register adapters
+      if (!Hive.isAdapterRegistered(0)) {
+        Hive.registerAdapter(CachedDataAdapter());
+      }
+      if (!Hive.isAdapterRegistered(1)) {
+        Hive.registerAdapter(SyncOperationAdapter());
+      }
 
       // Open boxes
       await _openBoxes();
