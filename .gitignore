@@ -55,9 +55,11 @@ ios/Runner/GoogleService-Info.plist
 # Local settings
 .vscode/settings.json
 
-# Ignore all markdown files EXCEPT README.md
+# Ignore all markdown files EXCEPT README.md and docs folder
 *.md
 !README.md
+!FEATURES_CHECKLIST.md
+!docs/**/*.md
 
 *.pdf
 .pdf
