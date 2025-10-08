@@ -11,6 +11,7 @@ import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'services/marker_pregeneration_service.dart';
+import 'services/notification_service.dart';
 import 'presentation/splash/splash_screen.dart';
 import 'presentation/onboarding/onboarding_screen.dart';
 import 'presentation/auth/auth_screen.dart';
@@ -52,6 +53,11 @@ void main() async {
     // Initialize marker pre-generation service
     AppLogger.debug(tag, 'Initializing marker pre-generation service');
     await MarkerPregenerationService.initialize();
+
+    // Initialize notification service
+    AppLogger.debug(tag, 'Initializing notification service');
+    await NotificationService.instance.initialize();
+    AppLogger.success(tag, 'Notification service initialized');
 
     AppLogger.success(tag, 'App initialization completed successfully');
     AppLogger.divider();

@@ -1,12 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/models/social_model.dart';
 import '../core/utils/logger.dart';
+import 'user_safety_service.dart';
 
 /// Service for managing social features (follow, activity feed)
 class SocialService {
   static const String _tag = 'SocialService';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final UserSafetyService _safetyService = UserSafetyService();
 
   CollectionReference get _socialCollection => _firestore.collection('social_connections');
   CollectionReference get _activityCollection => _firestore.collection('activities');
@@ -23,6 +25,33 @@ class SocialService {
         'currentUserId': currentUserId,
         'targetUserId': targetUserId,
       });
+
+      // Safety Check: Verify neither user has blocked the other
+      final isBlocked = await _safetyService.isUserBlocked(
+        userId: currentUserId,
+        blockedUserId: targetUserId,
+      );
+
+      if (isBlocked) {
+        AppLogger.warning(_tag, 'Cannot follow: User is blocked', {
+          'currentUserId': currentUserId,
+          'targetUserId': targetUserId,
+        });
+        return false;
+      }
+
+      final isBlockedBy = await _safetyService.isUserBlocked(
+        userId: targetUserId,
+        blockedUserId: currentUserId,
+      );
+
+      if (isBlockedBy) {
+        AppLogger.warning(_tag, 'Cannot follow: Blocked by target user', {
+          'currentUserId': currentUserId,
+          'targetUserId': targetUserId,
+        });
+        return false;
+      }
 
       // Update current user's following
       await _socialCollection.doc(currentUserId).set({
@@ -160,15 +189,32 @@ class SocialService {
       final connection = await getSocialConnection(userId);
       final following = connection?.following ?? [];
 
+      // Safety Check: Get blocked users list
+      final blockedUsers = await _safetyService.getBlockedUsers(userId);
+
       // Filter activities from people user follows (plus own activities)
+      // AND filter out activities from blocked users
       final activities = snapshot.docs
           .map((doc) => ActivityItem.fromFirestore(doc))
-          .where((activity) =>
-              following.contains(activity.userId) ||
-              activity.userId == userId ||
-              activity.targetId == userId // Activities targeting the user
-          )
+          .where((activity) {
+            // Skip if activity is from a blocked user
+            if (blockedUsers.contains(activity.userId)) {
+              return false;
+            }
+            
+            // Include activities from people user follows, own activities,
+            // or activities targeting the user
+            return following.contains(activity.userId) ||
+                activity.userId == userId ||
+                activity.targetId == userId;
+          })
           .toList();
+
+      AppLogger.debug(_tag, 'Activity feed filtered', {
+        'totalActivities': snapshot.docs.length,
+        'filteredActivities': activities.length,
+        'blockedCount': blockedUsers.length,
+      });
 
       return activities;
     });
@@ -181,10 +227,29 @@ class SocialService {
         .orderBy('createdAt', descending: true)
         .limit(30)
         .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
+        .asyncMap((snapshot) async {
+      // Safety Check: Get blocked users list to filter activities
+      final blockedUsers = await _safetyService.getBlockedUsers(userId);
+      
+      // Filter out activities targeting blocked users
+      final activities = snapshot.docs
           .map((doc) => ActivityItem.fromFirestore(doc))
+          .where((activity) {
+            // Hide activities that involve blocked users
+            if (activity.targetId != null && 
+                blockedUsers.contains(activity.targetId)) {
+              return false;
+            }
+            return true;
+          })
           .toList();
+
+      AppLogger.debug(_tag, 'User activities filtered', {
+        'totalActivities': snapshot.docs.length,
+        'visibleActivities': activities.length,
+      });
+
+      return activities;
     });
   }
 
@@ -195,6 +260,95 @@ class SocialService {
       return connection?.isFollowing(targetUserId) ?? false;
     } catch (e) {
       return false;
+    }
+  }
+
+  /// Get filtered followers list (excluding blocked users)
+  Future<List<String>> getVisibleFollowers(String userId) async {
+    try {
+      final connection = await getSocialConnection(userId);
+      if (connection == null) return [];
+
+      // Get blocked users
+      final blockedUsers = await _safetyService.getBlockedUsers(userId);
+
+      // Filter out blocked users from followers list
+      final visibleFollowers = connection.followers
+          .where((followerId) => !blockedUsers.contains(followerId))
+          .toList();
+
+      AppLogger.debug(_tag, 'Visible followers filtered', {
+        'totalFollowers': connection.followers.length,
+        'visibleFollowers': visibleFollowers.length,
+        'blockedCount': blockedUsers.length,
+      });
+
+      return visibleFollowers;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get visible followers', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Get filtered following list (excluding blocked users)
+  Future<List<String>> getVisibleFollowing(String userId) async {
+    try {
+      final connection = await getSocialConnection(userId);
+      if (connection == null) return [];
+
+      // Get blocked users
+      final blockedUsers = await _safetyService.getBlockedUsers(userId);
+
+      // Filter out blocked users from following list
+      final visibleFollowing = connection.following
+          .where((followingId) => !blockedUsers.contains(followingId))
+          .toList();
+
+      AppLogger.debug(_tag, 'Visible following filtered', {
+        'totalFollowing': connection.following.length,
+        'visibleFollowing': visibleFollowing.length,
+        'blockedCount': blockedUsers.length,
+      });
+
+      return visibleFollowing;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get visible following', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Remove blocked users from following when they are blocked
+  Future<void> cleanupBlockedConnections(
+    String userId,
+    String blockedUserId,
+  ) async {
+    try {
+      AppLogger.debug(_tag, 'Cleaning up blocked connections', {
+        'userId': userId,
+        'blockedUserId': blockedUserId,
+      });
+
+      // Unfollow if currently following
+      final connection = await getSocialConnection(userId);
+      if (connection != null && connection.isFollowing(blockedUserId)) {
+        await unfollowUser(
+          currentUserId: userId,
+          targetUserId: blockedUserId,
+        );
+      }
+
+      // Remove from followers if they're following
+      final blockedConnection = await getSocialConnection(blockedUserId);
+      if (blockedConnection != null && blockedConnection.isFollowing(userId)) {
+        await unfollowUser(
+          currentUserId: blockedUserId,
+          targetUserId: userId,
+        );
+      }
+
+      AppLogger.info(_tag, 'Blocked connections cleaned up successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to cleanup blocked connections', e, stackTrace);
     }
   }
 }
