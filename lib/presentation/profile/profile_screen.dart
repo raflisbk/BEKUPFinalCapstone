@@ -7,6 +7,7 @@ import '../../core/utils/logger.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/constants/default_avatars.dart';
+import '../../core/widgets/sync_status_widget.dart';
 import '../../services/photo_upload_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -349,6 +350,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
+                      // Sync Status Card
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 16),
+                        child: SyncStatusWidget(
+                          showLabel: true,
+                          compact: false,
+                        ),
+                      ),
                       _MenuItem(
                         icon: Icons.bookmark_outline,
                         title: 'Saved Destinations',
