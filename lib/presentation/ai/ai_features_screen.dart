@@ -3,6 +3,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../explore/ai_recommendations_screen.dart';
 import '../chat/ai_chat_screen.dart';
+import '../gallery/ai_image_analysis_screen.dart';
+import '../budget/ai_budget_optimizer_screen.dart';
 
 /// Central hub for all AI-powered features
 class AIFeaturesScreen extends StatelessWidget {
@@ -183,7 +185,12 @@ class AIFeaturesScreen extends StatelessWidget {
                 colors: [Colors.orange.shade600, Colors.orange.shade400],
               ),
               onTap: () {
-                _showComingSoonDialog(context, 'Image Recognition');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AIImageAnalysisScreen(),
+                  ),
+                );
               },
             ),
 
@@ -197,7 +204,12 @@ class AIFeaturesScreen extends StatelessWidget {
                 colors: [Colors.teal.shade600, Colors.teal.shade400],
               ),
               onTap: () {
-                _showComingSoonDialog(context, 'Budget Optimizer');
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const AIBudgetOptimizerScreen(),
+                  ),
+                );
               },
             ),
 
@@ -399,42 +411,5 @@ class AIFeaturesScreen extends StatelessWidget {
     );
   }
 
-  void _showComingSoonDialog(BuildContext context, String feature) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.rocket_launch, color: Colors.purple),
-            const SizedBox(width: 12),
-            Text('$feature UI'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'The $feature feature is fully implemented and ready to use!',
-              style: const TextStyle(fontSize: 15),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'UI screens for this feature will be added in the next update.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
+
 }
