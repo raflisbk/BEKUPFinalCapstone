@@ -27,9 +27,9 @@ class GeminiService {
         throw Exception('GEMINI_API_KEY not found in .env file');
       }
 
-      // Initialize text model (Gemini 1.5 Flash for speed)
+      // Initialize text model (Gemini 2.0 Flash - newest & fastest)
       _model = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash-exp',
         apiKey: apiKey,
         generationConfig: GenerationConfig(
           temperature: 0.7,
@@ -59,7 +59,7 @@ class GeminiService {
 
       // Initialize vision model for image analysis
       _visionModel = GenerativeModel(
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash-exp',
         apiKey: apiKey,
       );
 
