@@ -5,6 +5,8 @@ import '../explore/ai_recommendations_screen.dart';
 import '../chat/ai_chat_screen.dart';
 import '../gallery/ai_image_analysis_screen.dart';
 import '../budget/ai_budget_optimizer_screen.dart';
+import '../navigation/simple_route_planning_screen.dart';
+import '../analytics/simple_analytics_dashboard_screen.dart';
 
 /// Central hub for all AI-powered features
 class AIFeaturesScreen extends StatelessWidget {
@@ -184,6 +186,44 @@ class AIFeaturesScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (_) => const AIImageAnalysisScreen(),
+                  ),
+                );
+              },
+            ),
+
+            _buildFeatureCard(
+              context,
+              icon: Icons.directions,
+              title: 'AI Route Planning',
+              description:
+                  'Smart route optimization with real-time AI suggestions and navigation',
+              gradient: LinearGradient(
+                colors: [Colors.indigo.shade600, Colors.indigo.shade400],
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SimpleRoutePlanningScreen(),
+                  ),
+                );
+              },
+            ),
+
+            _buildFeatureCard(
+              context,
+              icon: Icons.analytics,
+              title: 'Advanced Analytics',
+              description:
+                  'AI-powered insights into your travel patterns and spending',
+              gradient: LinearGradient(
+                colors: [Colors.red.shade600, Colors.red.shade400],
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const SimpleAnalyticsDashboardScreen(),
                   ),
                 );
               },

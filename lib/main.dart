@@ -12,6 +12,8 @@ import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
+import 'core/providers/route_provider.dart';
+import 'core/providers/analytics_provider.dart';
 import 'services/cache/image_cache_service.dart';
 import 'services/cache/upload_queue_service.dart';
 import 'services/sync/sync_queue_manager.dart';
@@ -136,6 +138,14 @@ class RelinkApp extends StatelessWidget {
         // Chat Provider
         ChangeNotifierProvider(
           create: (_) => ChatProvider(),
+        ),
+        // Route Provider - NEW
+        ChangeNotifierProvider(
+          create: (_) => RouteProvider(),
+        ),
+        // Analytics Provider - NEW
+        ChangeNotifierProvider(
+          create: (_) => AnalyticsProvider()..initialize(),
         ),
       ],
       child: Consumer<ThemeProvider>(
