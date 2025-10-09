@@ -122,9 +122,10 @@ class AnalyticsProvider extends ChangeNotifier {
       
       _insights.removeWhere((insight) => insight.insightId == insightId);
       notifyListeners();
-      
-      // TODO: Optionally persist dismissed insights to prevent them from reappearing
-      
+
+      // Dismissed insights are removed from memory
+      // Could be persisted to local storage if needed in future
+
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to dismiss insight', e, stackTrace);
     }
