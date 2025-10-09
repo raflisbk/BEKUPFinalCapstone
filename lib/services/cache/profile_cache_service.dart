@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../core/database/hive_service.dart';
 import '../../core/database/models/cached_data.dart';
 import '../../core/models/user_model.dart';
@@ -20,7 +21,7 @@ class ProfileCacheService {
       
       return UserModel.fromMap(cached.data);
     } catch (e) {
-      print('Error getting cached profile: $e');
+      debugPrint('Error getting cached profile: $e');
       return null;
     }
   }
@@ -37,14 +38,14 @@ class ProfileCacheService {
           try {
             profiles.add(UserModel.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing cached profile $key: $e');
+            debugPrint('Error parsing cached profile $key: $e');
           }
         }
       }
       
       return profiles;
     } catch (e) {
-      print('Error getting all cached profiles: $e');
+      debugPrint('Error getting all cached profiles: $e');
       return [];
     }
   }
@@ -62,7 +63,7 @@ class ProfileCacheService {
       
       await box.put(profile.uid, cached);
     } catch (e) {
-      print('Error caching profile: $e');
+      debugPrint('Error caching profile: $e');
     }
   }
 
@@ -84,7 +85,7 @@ class ProfileCacheService {
       
       await box.putAll(cachedData);
     } catch (e) {
-      print('Error caching profiles: $e');
+      debugPrint('Error caching profiles: $e');
     }
   }
 
@@ -107,7 +108,7 @@ class ProfileCacheService {
       
       await box.put(profile.uid, cached);
     } catch (e) {
-      print('Error updating cached profile: $e');
+      debugPrint('Error updating cached profile: $e');
     }
   }
 
@@ -117,7 +118,7 @@ class ProfileCacheService {
       final box = _hiveService.profiles;
       await box.delete(uid);
     } catch (e) {
-      print('Error deleting cached profile: $e');
+      debugPrint('Error deleting cached profile: $e');
     }
   }
 
@@ -133,14 +134,14 @@ class ProfileCacheService {
           try {
             profiles.add(UserModel.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing dirty profile $key: $e');
+            debugPrint('Error parsing dirty profile $key: $e');
           }
         }
       }
       
       return profiles;
     } catch (e) {
-      print('Error getting dirty profiles: $e');
+      debugPrint('Error getting dirty profiles: $e');
       return [];
     }
   }
@@ -155,7 +156,7 @@ class ProfileCacheService {
         cached.markSynced();
       }
     } catch (e) {
-      print('Error marking profile as synced: $e');
+      debugPrint('Error marking profile as synced: $e');
     }
   }
 
@@ -165,7 +166,7 @@ class ProfileCacheService {
       final box = _hiveService.profiles;
       return box.containsKey(uid);
     } catch (e) {
-      print('Error checking if profile is cached: $e');
+      debugPrint('Error checking if profile is cached: $e');
       return false;
     }
   }
@@ -198,7 +199,7 @@ class ProfileCacheService {
         'invalid': invalid,
       };
     } catch (e) {
-      print('Error getting cache stats: $e');
+      debugPrint('Error getting cache stats: $e');
       return {
         'total': 0,
         'dirty': 0,
@@ -220,7 +221,7 @@ class ProfileCacheService {
                profile.bio.toLowerCase().contains(lowerQuery);
       }).toList();
     } catch (e) {
-      print('Error searching cached profiles: $e');
+      debugPrint('Error searching cached profiles: $e');
       return [];
     }
   }
@@ -231,7 +232,7 @@ class ProfileCacheService {
       final allProfiles = await getAllCachedProfiles();
       return allProfiles.where((profile) => profile.isGuide).toList();
     } catch (e) {
-      print('Error getting cached guides: $e');
+      debugPrint('Error getting cached guides: $e');
       return [];
     }
   }
@@ -242,7 +243,7 @@ class ProfileCacheService {
       final allProfiles = await getAllCachedProfiles();
       return allProfiles.where((profile) => profile.isVerified).toList();
     } catch (e) {
-      print('Error getting cached verified profiles: $e');
+      debugPrint('Error getting cached verified profiles: $e');
       return [];
     }
   }
@@ -256,7 +257,7 @@ class ProfileCacheService {
           i.toLowerCase().contains(interest.toLowerCase()));
       }).toList();
     } catch (e) {
-      print('Error getting cached profiles by interest: $e');
+      debugPrint('Error getting cached profiles by interest: $e');
       return [];
     }
   }
@@ -267,7 +268,7 @@ class ProfileCacheService {
       final box = _hiveService.profiles;
       await box.clear();
     } catch (e) {
-      print('Error clearing profile cache: $e');
+      debugPrint('Error clearing profile cache: $e');
     }
   }
 }

@@ -83,7 +83,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           border: Border(
             bottom: BorderSide(color: AppColors.divider, width: 1),
           ),
@@ -213,7 +213,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text('Messages', style: AppTextStyles.headlineSmall),
+        title: const Text('Messages', style: AppTextStyles.headlineSmall),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
@@ -261,7 +261,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                 children: [
                   const Text('💬', style: TextStyle(fontSize: 64)),
                   const SizedBox(height: 16),
-                  Text(
+                  const Text(
                     'No messages yet',
                     style: AppTextStyles.headlineSmall,
                   ),

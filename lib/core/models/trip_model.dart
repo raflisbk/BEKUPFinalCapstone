@@ -199,7 +199,7 @@ class Trip {
 
   /// Calculate total budget spent
   double get totalSpent {
-    return expenses.fold(0.0, (sum, expense) => sum + expense.amount);
+    return expenses.fold(0.0, (total, expense) => total + expense.amount);
   }
 
   /// Calculate budget remaining

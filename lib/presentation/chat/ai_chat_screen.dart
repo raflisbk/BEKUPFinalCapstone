@@ -151,7 +151,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 widget.destination?.name ?? widget.trip?.title ?? '',
                 style: TextStyle(
                   fontSize: 12,
-                  color: AppColors.textSecondary.withOpacity(0.8),
+                  color: AppColors.textSecondary.withValues(alpha: 0.8),
                   fontWeight: FontWeight.normal,
                 ),
               ),
@@ -233,7 +233,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 Text(
                   'Ask me anything about travel planning, destinations, local tips, or get personalized recommendations!',
                   style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.white.withOpacity(0.95),
+                    color: AppColors.white.withValues(alpha: 0.95),
                   ),
                 ),
               ],
@@ -294,7 +294,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: AppColors.black.withOpacity(0.03),
+              color: AppColors.black.withValues(alpha: 0.03),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -426,7 +426,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
               _formatTime(message.timestamp),
               style: TextStyle(
                 fontSize: 11,
-                color: AppColors.textSecondary.withOpacity(0.6),
+                color: AppColors.textSecondary.withValues(alpha: 0.6),
               ),
             ),
           ],
@@ -489,7 +489,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
         color: AppColors.white,
         boxShadow: [
           BoxShadow(
-            color: AppColors.black.withOpacity(0.05),
+            color: AppColors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -503,7 +503,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                 controller: _messageController,
                 decoration: InputDecoration(
                   hintText: 'Ask me anything...',
-                  hintStyle: TextStyle(color: AppColors.textSecondary),
+                  hintStyle: const TextStyle(color: AppColors.textSecondary),
                   filled: true,
                   fillColor: AppColors.grey50,
                   border: OutlineInputBorder(
@@ -532,7 +532,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                   color: _isSending ? AppColors.grey200 : AppColors.black,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.send,
                   color: AppColors.white,
                   size: 20,

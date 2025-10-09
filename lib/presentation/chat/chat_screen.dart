@@ -123,7 +123,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _pickAndSendImage() async {
     await HapticHelper.lightImpact();
 
+    // ignore: use_build_context_synchronously
+    if (!mounted) return;
+ // ignore: use_build_context_synchronously
+
+    // ignore: use_build_context_synchronously
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    // ignore: use_build_context_synchronously
     final userProvider = Provider.of<UserProvider>(context, listen: false);
 
     if (authProvider.user == null) return;
@@ -500,7 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.grey50,
                   shape: BoxShape.circle,
                 ),
@@ -515,7 +521,7 @@ class _ChatScreenState extends State<ChatScreen> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   color: AppColors.grey50,
                   shape: BoxShape.circle,
                 ),
@@ -625,7 +631,7 @@ class _ChatScreenState extends State<ChatScreen> {
           // Message input
           Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.white,
               border: Border(
                 top: BorderSide(color: AppColors.divider, width: 1),

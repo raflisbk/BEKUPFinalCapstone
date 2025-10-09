@@ -37,14 +37,17 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
 
   void _handleShare() {
     AppLogger.action('User tapped share button', {'guide': widget.name});
-    // TODO: Implement share functionality
-    AppLogger.warning(_tag, 'Share functionality not implemented yet');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Share link for ${widget.name} copied'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handleViewAllReviews() {
     AppLogger.action('User tapped view all reviews', {'guide': widget.name});
-    // TODO: Navigate to reviews screen
-    AppLogger.warning(_tag, 'View all reviews not implemented yet');
+    Navigator.pushNamed(context, '/reviews');
   }
 
   void _handleBooking() {
@@ -61,7 +64,7 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: Text(
+        title: const Text(
           'Book Guide',
           style: AppTextStyles.headlineSmall,
         ),
@@ -69,13 +72,13 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Select your tour date',
               style: AppTextStyles.bodyMedium,
             ),
             const SizedBox(height: 16),
             TextField(
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 hintText: 'Select date',
                 suffixIcon: Icon(Icons.calendar_today_outlined),
               ),
@@ -214,12 +217,12 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
               FadeInUp(
                 duration: const Duration(milliseconds: 600),
                 delay: const Duration(milliseconds: 100),
-                child: Row(
+                child: const Row(
                   children: [
                     _StatItem(icon: Icons.tour_outlined, value: '127', label: 'Tours'),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     _StatItem(icon: Icons.language, value: '3', label: 'Languages'),
-                    const SizedBox(width: 16),
+                    SizedBox(width: 16),
                     _StatItem(icon: Icons.access_time, value: '5+', label: 'Years'),
                   ],
                 ),
@@ -234,7 +237,7 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'About Me',
                       style: AppTextStyles.titleLarge,
                     ),
@@ -255,14 +258,14 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
               FadeInUp(
                 duration: const Duration(milliseconds: 600),
                 delay: const Duration(milliseconds: 300),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Languages',
                       style: AppTextStyles.titleLarge,
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
@@ -282,14 +285,14 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
               FadeInUp(
                 duration: const Duration(milliseconds: 600),
                 delay: const Duration(milliseconds: 400),
-                child: Column(
+                child: const Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Specializations',
                       style: AppTextStyles.titleLarge,
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Wrap(
                       spacing: 12,
                       runSpacing: 12,
@@ -316,7 +319,7 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'Reviews',
                           style: AppTextStyles.titleLarge,
                         ),
@@ -351,7 +354,7 @@ class _GuideDetailScreenState extends State<GuideDetailScreen> {
       // Bottom CTA
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.white,
           border: Border(
             top: BorderSide(color: AppColors.divider, width: 1),

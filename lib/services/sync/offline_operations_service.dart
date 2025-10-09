@@ -272,11 +272,11 @@ class OfflineOperationsService {
         // Check if cached data has isDirty flag
         return trip != null; // Simplified, should check isDirty from CachedData
       case 'destinations':
-        return await _destCache.isDestinationCached(id);
+        return _destCache.isDestinationCached(id);
       case 'reviews':
-        return await _reviewCache.isReviewCached(id);
+        return _reviewCache.isReviewCached(id);
       case 'profiles':
-        return await _profileCache.isProfileCached(id);
+        return _profileCache.isProfileCached(id);
       default:
         return false;
     }

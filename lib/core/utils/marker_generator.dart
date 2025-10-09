@@ -184,7 +184,7 @@ class MarkerGenerator {
     required String emoji,
   }) async {
     // Create cache key
-    final String cacheKey = 'simple_${color.value}_$emoji';
+    final String cacheKey = 'simple_${color.hashCode}_$emoji';
 
     // Check cache first
     if (_markerCache.containsKey(cacheKey)) {

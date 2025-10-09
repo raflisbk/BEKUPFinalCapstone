@@ -76,23 +76,23 @@ class _OfflineIndicatorState extends State<OfflineIndicator> with SingleTickerPr
           color: Colors.orange.shade700,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withValues(alpha: 0.1),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: SafeArea(
+        child: const SafeArea(
           bottom: false,
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.cloud_off,
                 color: Colors.white,
                 size: 20,
               ),
-              const SizedBox(width: 12),
-              const Expanded(
+              SizedBox(width: 12),
+              Expanded(
                 child: Text(
                   'You\'re offline. Changes will sync when connection is restored.',
                   style: TextStyle(
@@ -156,3 +156,4 @@ class OfflineBadge extends StatelessWidget {
     );
   }
 }
+

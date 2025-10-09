@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/models/destination_model.dart';
+import '../../core/utils/logger.dart';
 import 'gemini_service.dart';
 
 /// Service for AI-powered destination recommendations
 class AIRecommendationService {
+  static const String _tag = 'AIRecommendationService';
   final GeminiService _geminiService = GeminiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -31,7 +33,7 @@ class AIRecommendationService {
 
       return recommendations;
     } catch (e) {
-      print('Error generating recommendations: $e');
+      AppLogger.error(_tag, 'Error generating recommendations', e);
       rethrow;
     }
   }
@@ -63,7 +65,7 @@ class AIRecommendationService {
 
       return recommendations;
     } catch (e) {
-      print('Error getting cached recommendations: $e');
+      AppLogger.error(_tag, 'Error getting cached recommendations', e);
       return null;
     }
   }
@@ -95,7 +97,7 @@ class AIRecommendationService {
 
       return recommendations.take(limit).toList();
     } catch (e) {
-      print('Error finding similar destinations: $e');
+      AppLogger.error(_tag, 'Error finding similar destinations', e);
       rethrow;
     }
   }
@@ -126,7 +128,7 @@ class AIRecommendationService {
 
       return recommendations.take(limit).toList();
     } catch (e) {
-      print('Error getting trending destinations: $e');
+      AppLogger.error(_tag, 'Error getting trending destinations', e);
       rethrow;
     }
   }
@@ -396,7 +398,7 @@ Return ONLY valid JSON:
           ),
         );
       } catch (e) {
-        print('Error parsing recommendation item: $e');
+        AppLogger.error(_tag, 'Error parsing recommendation item', e);
         continue;
       }
     }
@@ -418,7 +420,7 @@ Return ONLY valid JSON:
         'cachedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error caching recommendations: $e');
+      AppLogger.error(_tag, 'Error caching recommendations', e);
       // Don't throw, caching is optional
     }
   }

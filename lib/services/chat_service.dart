@@ -165,7 +165,7 @@ class ChatService {
       }
 
       // Upload to Firebase Storage
-      final fileName = 'chat_images/${conversationId}/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName = 'chat_images/$conversationId/${DateTime.now().millisecondsSinceEpoch}.jpg';
       final storageRef = FirebaseStorage.instance.ref().child(fileName);
 
       AppLogger.debug(_tag, 'Uploading image', {'path': fileName});

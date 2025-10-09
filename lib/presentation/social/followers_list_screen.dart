@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/user_model.dart';
-import '../../core/models/social_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../services/user_service.dart';
 import '../../services/social_service.dart';
@@ -197,7 +196,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user.displayName ?? 'Unknown User',
+                    user.displayName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -251,10 +250,10 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
       );
     } else {
       // Default avatar
-      return CircleAvatar(
+      return const CircleAvatar(
         radius: 28,
         backgroundColor: AppColors.grey200,
-        child: const Icon(Icons.person, size: 28, color: AppColors.grey500),
+        child: Icon(Icons.person, size: 28, color: AppColors.grey500),
       );
     }
   }
@@ -269,6 +268,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
           onPressed: () async {
             await HapticHelper.buttonTap();
 
+            // ignore: use_build_context_synchronously
             final authProvider = Provider.of<AuthProvider>(context, listen: false);
             final currentUser = authProvider.user;
 
@@ -295,6 +295,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
             } else {
               await HapticHelper.error();
               if (mounted) {
+                // ignore: use_build_context_synchronously
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Failed to update follow status')),
                 );

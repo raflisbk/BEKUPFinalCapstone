@@ -211,7 +211,7 @@ class _SearchScreenState extends State<SearchScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
+        title: const Text(
           'Search',
           style: AppTextStyles.headlineSmall,
         ),
@@ -318,7 +318,7 @@ class _SearchScreenState extends State<SearchScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Recent Searches',
             style: AppTextStyles.titleLarge,
           ),
@@ -357,7 +357,7 @@ class _SearchScreenState extends State<SearchScreen> {
               color: AppColors.grey400,
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'No results found',
               style: AppTextStyles.titleLarge,
             ),

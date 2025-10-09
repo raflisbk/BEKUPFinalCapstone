@@ -5,7 +5,6 @@ import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../services/user_safety_service.dart';
-import '../../core/models/report_model.dart';
 
 class ReportUserScreen extends StatefulWidget {
   final String userId;
@@ -58,7 +57,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
     
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUserId = authProvider.currentUser?.id;
+      final currentUserId = authProvider.user?.uid;
       
       if (currentUserId == null) {
         throw Exception('User not authenticated');
@@ -92,11 +91,8 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
           ),
         );
       }
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Error submitting report',
-        error: e,
-        stackTrace: stackTrace
-      );
+    } catch (e) {
+      AppLogger.error(_tag, 'Error submitting report: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -113,7 +109,7 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
   Future<void> _handleBlock() async {
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final currentUserId = authProvider.currentUser?.id;
+      final currentUserId = authProvider.user?.uid;
       
       if (currentUserId == null) {
         throw Exception('User not authenticated');
@@ -144,11 +140,8 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
           ),
         );
       }
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Error blocking user',
-        error: e,
-        stackTrace: stackTrace
-      );
+    } catch (e) {
+      AppLogger.error(_tag, 'Error blocking user: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -201,7 +194,9 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
                   padding: const EdgeInsets.only(bottom: 12.0),
                   child: RadioListTile(
                     value: reason,
+                    // ignore: deprecated_member_use
                     groupValue: _selectedReason,
+                    // ignore: deprecated_member_use
                     onChanged: (value) {
                       setState(() => _selectedReason = value.toString());
                     },

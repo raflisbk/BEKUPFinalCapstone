@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/database/hive_service.dart';
@@ -46,9 +47,9 @@ class SyncQueueManager {
         }
       });
 
-      print('SyncQueueManager initialized');
+      debugPrint('SyncQueueManager initialized');
     } catch (e) {
-      print('Error initializing SyncQueueManager: $e');
+      debugPrint('Error initializing SyncQueueManager: $e');
     }
   }
 
@@ -58,26 +59,26 @@ class SyncQueueManager {
       final box = _hiveService.syncQueue;
       await box.put(operation.id, operation);
       
-      print('Added to sync queue: ${operation.type} ${operation.collection}/${operation.id}');
+      debugPrint('Added to sync queue: ${operation.type} ${operation.collection}/${operation.id}');
 
       // Try to sync immediately if online
       if (_connectivityService.isOnline) {
         syncAll();
       }
     } catch (e) {
-      print('Error adding to sync queue: $e');
+      debugPrint('Error adding to sync queue: $e');
     }
   }
 
   /// Sync all pending operations
   Future<void> syncAll() async {
     if (_isSyncing) {
-      print('Sync already in progress');
+      debugPrint('Sync already in progress');
       return;
     }
 
     if (!_connectivityService.isOnline) {
-      print('Cannot sync: offline');
+      debugPrint('Cannot sync: offline');
       return;
     }
 
@@ -110,7 +111,7 @@ class SyncQueueManager {
       // Sort by priority (higher first)
       operations.sort((a, b) => b.priority.compareTo(a.priority));
 
-      print('Syncing ${operations.length} operations...');
+      debugPrint('Syncing ${operations.length} operations...');
 
       int completed = 0;
       int failed = 0;
@@ -119,7 +120,7 @@ class SyncQueueManager {
         try {
           // Skip if max retries reached
           if (operation.hasMaxRetries) {
-            print('Operation ${operation.id} exceeded max retries, skipping');
+            debugPrint('Operation ${operation.id} exceeded max retries, skipping');
             failed++;
             continue;
           }
@@ -129,7 +130,7 @@ class SyncQueueManager {
           if (success) {
             await box.delete(operation.id);
             completed++;
-            print('Synced: ${operation.type} ${operation.collection}/${operation.id}');
+            debugPrint('Synced: ${operation.type} ${operation.collection}/${operation.id}');
           } else {
             // Increment retry count
             operation.incrementRetry('Sync failed');
@@ -148,7 +149,7 @@ class SyncQueueManager {
             total: operations.length,
           ));
         } catch (e) {
-          print('Error syncing operation ${operation.id}: $e');
+          debugPrint('Error syncing operation ${operation.id}: $e');
           operation.incrementRetry(e.toString());
           await box.put(operation.id, operation);
           failed++;
@@ -164,9 +165,9 @@ class SyncQueueManager {
         total: operations.length,
       ));
 
-      print('Sync completed: $completed succeeded, $failed failed');
+      debugPrint('Sync completed: $completed succeeded, $failed failed');
     } catch (e) {
-      print('Error during sync: $e');
+      debugPrint('Error during sync: $e');
       _syncController.add(SyncProgress(
         status: SyncStatus.error,
         progress: 0.0,
@@ -190,11 +191,11 @@ class SyncQueueManager {
         case 'profiles':
           return await _syncProfile(operation);
         default:
-          print('Unknown collection: ${operation.collection}');
+          debugPrint('Unknown collection: ${operation.collection}');
           return false;
       }
     } catch (e) {
-      print('Error syncing operation: $e');
+      debugPrint('Error syncing operation: $e');
       return false;
     }
   }
@@ -210,7 +211,7 @@ class SyncQueueManager {
           // Get local data
           final localTrip = await _tripCache.getCachedTrip(operation.id);
           if (localTrip == null) {
-            print('Local trip not found: ${operation.id}');
+            debugPrint('Local trip not found: ${operation.id}');
             return false;
           }
 
@@ -225,7 +226,7 @@ class SyncQueueManager {
             );
 
             if (resolution.wasConflict) {
-              print('Conflict resolved for trip ${operation.id}: ${resolution.reason}');
+              debugPrint('Conflict resolved for trip ${operation.id}: ${resolution.reason}');
             }
 
             final resolvedTrip = Trip.fromMap(resolution.data);
@@ -246,11 +247,11 @@ class SyncQueueManager {
           return true;
 
         default:
-          print('Unknown operation type: ${operation.type}');
+          debugPrint('Unknown operation type: ${operation.type}');
           return false;
       }
     } catch (e) {
-      print('Error syncing trip: $e');
+      debugPrint('Error syncing trip: $e');
       return false;
     }
   }
@@ -294,7 +295,7 @@ class SyncQueueManager {
           return false;
       }
     } catch (e) {
-      print('Error syncing destination: $e');
+      debugPrint('Error syncing destination: $e');
       return false;
     }
   }
@@ -338,7 +339,7 @@ class SyncQueueManager {
           return false;
       }
     } catch (e) {
-      print('Error syncing review: $e');
+      debugPrint('Error syncing review: $e');
       return false;
     }
   }
@@ -382,7 +383,7 @@ class SyncQueueManager {
           return false;
       }
     } catch (e) {
-      print('Error syncing profile: $e');
+      debugPrint('Error syncing profile: $e');
       return false;
     }
   }
@@ -392,7 +393,7 @@ class SyncQueueManager {
     try {
       return _hiveService.syncQueue.length;
     } catch (e) {
-      print('Error getting pending count: $e');
+      debugPrint('Error getting pending count: $e');
       return 0;
     }
   }
@@ -430,7 +431,7 @@ class SyncQueueManager {
         'isSyncing': _isSyncing,
       };
     } catch (e) {
-      print('Error getting sync stats: $e');
+      debugPrint('Error getting sync stats: $e');
       return {
         'total': 0,
         'pending': 0,
@@ -461,9 +462,9 @@ class SyncQueueManager {
         }
       }
 
-      print('Failed operations cleared');
+      debugPrint('Failed operations cleared');
     } catch (e) {
-      print('Error clearing failed operations: $e');
+      debugPrint('Error clearing failed operations: $e');
     }
   }
 

@@ -75,7 +75,9 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
 
     if (success) {
       await HapticHelper.success();
+      // ignore: use_build_context_synchronously
       Navigator.pop(context, true); // Return true to indicate success
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.trip.budget == null
@@ -87,6 +89,7 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
     } else {
       await HapticHelper.error();
       setState(() => _isSubmitting = false);
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.trip.budget == null

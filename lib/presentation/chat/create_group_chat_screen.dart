@@ -26,7 +26,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   final TextEditingController _groupNameController = TextEditingController();
 
   List<UserModel> _followingUsers = [];
-  Set<String> _selectedUserIds = {};
+  final Set<String> _selectedUserIds = {};
   bool _isLoading = true;
   bool _isCreating = false;
 
@@ -68,19 +68,19 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
           // Create a basic user model from connection data
           // In production, you should have a proper UserService method for this
           users.add(UserModel(
-            id: userId,
+            uid: userId,
             email: '',
             displayName: 'User', // This should come from user service
             photoUrl: null,
             bio: '',
-            location: '',
             interests: [],
-            createdAt: DateTime.now(),
-            lastLoginAt: DateTime.now(),
-            followingCount: 0,
-            followersCount: 0,
-            tripCount: 0,
+            languages: ['English'],
+            isGuide: false,
+            isVerified: false,
+            rating: 0.0,
             reviewCount: 0,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
           ));
         }
       }
@@ -104,6 +104,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
 
     if (groupName.isEmpty) {
       await HapticHelper.warning();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter a group name')),
       );
@@ -112,6 +113,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
 
     if (_selectedUserIds.length < 2) {
       await HapticHelper.warning();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Please select at least 2 members for the group')),
@@ -123,7 +125,9 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
     setState(() => _isCreating = true);
 
     try {
+      // ignore: use_build_context_synchronously
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      // ignore: use_build_context_synchronously
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
       if (authProvider.user == null) return;

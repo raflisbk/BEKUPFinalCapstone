@@ -63,7 +63,7 @@ class TripBudget {
 
   /// Get total spent
   double get totalSpent {
-    return expenses.fold(0.0, (sum, expense) => sum + expense.amount);
+    return expenses.fold(0.0, (total, expense) => total + expense.amount);
   }
 
   /// Get remaining budget
@@ -86,7 +86,7 @@ class TripBudget {
   double getSpentByCategory(ExpenseCategory category) {
     return expenses
         .where((e) => e.category == category)
-        .fold(0.0, (sum, expense) => sum + expense.amount);
+        .fold(0.0, (total, expense) => total + expense.amount);
   }
 
   /// Copy with updated fields

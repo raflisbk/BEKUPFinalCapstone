@@ -110,7 +110,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   SmoothPageIndicator(
                     controller: _pageController,
                     count: _pages.length,
-                    effect: ExpandingDotsEffect(
+                    effect: const ExpandingDotsEffect(
                       dotHeight: 8,
                       dotWidth: 8,
                       activeDotColor: AppColors.black,

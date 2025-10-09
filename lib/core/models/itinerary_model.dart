@@ -59,7 +59,7 @@ class TripItinerary {
   }
 
   /// Get total activity count
-  int get totalActivities => days.fold(0, (sum, day) => sum + day.activities.length);
+  int get totalActivities => days.fold(0, (total, day) => total + day.activities.length);
 
   /// Check if date is same
   bool _isSameDay(DateTime date1, DateTime date2) {

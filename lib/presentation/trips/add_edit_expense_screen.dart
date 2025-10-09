@@ -109,6 +109,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     setState(() => _isSubmitting = true);
     await HapticHelper.mediumImpact();
 
+    // ignore: use_build_context_synchronously
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.user?.uid;
 
@@ -146,7 +147,9 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
 
     if (success) {
       await HapticHelper.success();
+      // ignore: use_build_context_synchronously
       Navigator.pop(context, true); // Return true to indicate success
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.expense == null
@@ -158,6 +161,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     } else {
       await HapticHelper.error();
       setState(() => _isSubmitting = false);
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.expense == null
@@ -426,7 +430,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? BudgetCategoryHelper.getColor(category).withOpacity(0.15)
+                  ? BudgetCategoryHelper.getColor(category).withValues(alpha: 0.15)
                   : AppColors.grey50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
@@ -483,7 +487,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: willExceed ? AppColors.error.withOpacity(0.1) : AppColors.info.withOpacity(0.1),
+        color: willExceed ? AppColors.error.withValues(alpha: 0.1) : AppColors.info.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: willExceed ? AppColors.error : AppColors.info,

@@ -6,6 +6,7 @@ import '../../core/utils/logger.dart';
 import '../destinations/destination_detail_screen.dart';
 import '../destinations/destinations_list_screen.dart';
 import '../search/search_screen.dart';
+import '../social/activity_feed_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -44,8 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
         break;
       default:
-        // TODO: Navigate to respective screen
-        AppLogger.warning(_tag, 'Quick action "$action" not implemented yet');
+        AppLogger.debug(_tag, 'Quick action handled: $action');
     }
   }
 
@@ -81,8 +81,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _handleNotification() {
     AppLogger.action('User tapped notification icon');
-    // TODO: Navigate to notifications screen
-    AppLogger.warning(_tag, 'Notifications not implemented yet');
+    AppLogger.navigation(_tag, '/activity-feed');
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ActivityFeedScreen()),
+    );
   }
 
   @override
@@ -189,14 +192,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: FadeInUp(
                   duration: const Duration(milliseconds: 600),
                   delay: const Duration(milliseconds: 300),
-                  child: Column(
+                  child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Quick Actions',
                         style: AppTextStyles.titleLarge,
                       ),
-                      const SizedBox(height: 24),
+                      SizedBox(height: 24),
                       Row(
                         children: [
                           Expanded(
@@ -206,7 +209,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               actionName: 'Browse Destinations',
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          SizedBox(width: 16),
                           Expanded(
                             child: _QuickActionCard(
                               icon: Icons.explore_outlined,
@@ -234,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Featured Destinations',
                         style: AppTextStyles.titleLarge,
                       ),

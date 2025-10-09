@@ -114,7 +114,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.notifications_none,
               size: 80,
               color: AppColors.grey300,
@@ -183,7 +183,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
                         ),
                         TextSpan(
                           text: ' ${activity.action}',
-                          style: TextStyle(color: AppColors.grey700),
+                          style: const TextStyle(color: AppColors.grey700),
                         ),
                       ],
                     ),
@@ -203,7 +203,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _getActivityColor(activity.type).withOpacity(0.1),
+                color: _getActivityColor(activity.type).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -246,7 +246,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
       );
     } else {
       // Default avatar
-      return CircleAvatar(
+      return const CircleAvatar(
         radius: 24,
         backgroundColor: AppColors.grey200,
         child: Icon(Icons.person, color: AppColors.grey500),

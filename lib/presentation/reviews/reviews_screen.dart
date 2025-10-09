@@ -50,6 +50,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     await HapticHelper.warning();
 
     final confirmed = await showDialog<bool>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Review'),
@@ -79,6 +80,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     final success = await _reviewService.deleteReview(
       reviewId: review.id,
       destinationId: widget.destinationId,
+      rating: review.rating,
     );
 
     if (!mounted) return;
@@ -87,6 +89,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Review deleted successfully');
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Review deleted successfully'),
@@ -97,6 +100,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       await HapticHelper.error();
       AppLogger.error(_tag, 'Failed to delete review');
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete review'),
@@ -128,6 +132,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   if (!mounted) return;
 
                   final result = await Navigator.push<bool>(
+                    // ignore: use_build_context_synchronously
                     context,
                     MaterialPageRoute(
                       builder: (context) => WriteEditReviewScreen(
@@ -170,7 +175,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   Widget _buildRatingSummary(RatingSummary summary) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
           bottom: BorderSide(color: AppColors.divider, width: 1),
@@ -316,7 +321,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   Widget _buildReviewCard(DestinationReview review, String? currentUserId) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.white,
         border: Border(
           bottom: BorderSide(color: AppColors.divider, width: 1),
@@ -489,7 +494,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.black),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('Reviews', style: AppTextStyles.headlineSmall),
+        title: const Text('Reviews', style: AppTextStyles.headlineSmall),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit, color: AppColors.black),
@@ -565,7 +570,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                           children: [
                             const Text('⭐', style: TextStyle(fontSize: 64)),
                             const SizedBox(height: 16),
-                            Text(
+                            const Text(
                               'No reviews yet',
                               style: AppTextStyles.headlineSmall,
                             ),

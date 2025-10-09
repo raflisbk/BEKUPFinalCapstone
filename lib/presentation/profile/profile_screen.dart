@@ -37,8 +37,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _handleSettings() {
     AppLogger.action('User tapped settings icon');
-    // TODO: Navigate to settings screen
-    AppLogger.warning(_tag, 'Settings screen not implemented yet');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Settings available in menu'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handleEditProfile(BuildContext context) {
@@ -119,8 +123,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _handleMenuItem(String menuItem) {
     AppLogger.action('User tapped menu item', {'item': menuItem});
-    // TODO: Navigate to respective screen
-    AppLogger.warning(_tag, 'Menu item "$menuItem" not implemented yet');
+
+    switch (menuItem) {
+      case 'My Trips':
+        Navigator.pushNamed(context, '/trips');
+        break;
+      case 'Saved Destinations':
+        Navigator.pushNamed(context, '/destinations');
+        break;
+      case 'Reviews':
+        Navigator.pushNamed(context, '/reviews');
+        break;
+      case 'Settings':
+        _handleSettings();
+        break;
+      default:
+        AppLogger.debug(_tag, 'Menu item handled: $menuItem');
+    }
   }
 
   void _handleSignOut(BuildContext context) async {
@@ -190,7 +209,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   floating: true,
                   backgroundColor: AppColors.white,
                   surfaceTintColor: Colors.transparent,
-                  title: Text(
+                  title: const Text(
                     'Profile',
                     style: AppTextStyles.headlineSmall,
                   ),
@@ -315,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
+                                      const Text(
                                         'Guide Mode',
                                         style: AppTextStyles.titleSmall,
                                       ),
@@ -506,7 +525,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Choose Profile Photo',
                 style: AppTextStyles.headlineSmall,
               ),
@@ -591,7 +610,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
+                    const Text(
                       'Choose Your Avatar',
                       style: AppTextStyles.headlineSmall,
                     ),
@@ -628,10 +647,10 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                           });
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
+                            const SnackBar(
                               content: Text('Avatar selected'),
                               backgroundColor: AppColors.black,
-                              duration: const Duration(seconds: 1),
+                              duration: Duration(seconds: 1),
                             ),
                           );
                         },
@@ -757,7 +776,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
               icon: const Icon(Icons.close),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text(
+            title: const Text(
               'Edit Profile',
               style: AppTextStyles.headlineSmall,
             ),
@@ -843,7 +862,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                     const SizedBox(height: 32),
 
                     // Full Name Field
-                    Text(
+                    const Text(
                       'Full Name',
                       style: AppTextStyles.titleSmall,
                     ),
@@ -859,19 +878,19 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                         fillColor: AppColors.grey50,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.border),
+                          borderSide: const BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.border),
+                          borderSide: const BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.black, width: 2),
+                          borderSide: const BorderSide(color: AppColors.black, width: 2),
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.error),
+                          borderSide: const BorderSide(color: AppColors.error),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
@@ -893,7 +912,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                     const SizedBox(height: 24),
 
                     // Bio Field
-                    Text(
+                    const Text(
                       'Bio',
                       style: AppTextStyles.titleSmall,
                     ),
@@ -909,19 +928,19 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                         fillColor: AppColors.grey50,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.border),
+                          borderSide: const BorderSide(color: AppColors.border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.border),
+                          borderSide: const BorderSide(color: AppColors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.black, width: 2),
+                          borderSide: const BorderSide(color: AppColors.black, width: 2),
                         ),
                         errorBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: AppColors.error),
+                          borderSide: const BorderSide(color: AppColors.error),
                         ),
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,

@@ -129,7 +129,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.black.withOpacity(0.1),
+                          color: AppColors.black.withValues(alpha: 0.1),
                           blurRadius: 40,
                           offset: const Offset(0, 10),
                         ),
@@ -187,7 +187,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 FadeIn(
                   duration: const Duration(milliseconds: 800),
                   delay: const Duration(milliseconds: 800),
-                  child: SizedBox(
+                  child: const SizedBox(
                     width: 40,
                     height: 40,
                     child: CircularProgressIndicator(

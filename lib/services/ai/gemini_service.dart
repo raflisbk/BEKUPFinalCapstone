@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../core/utils/logger.dart';
 
 /// Service for managing Google Gemini AI operations
 class GeminiService {
+  static const String _tag = 'GeminiService';
   static final GeminiService _instance = GeminiService._internal();
   factory GeminiService() => _instance;
   GeminiService._internal();
@@ -16,7 +18,7 @@ class GeminiService {
   /// Initialize Gemini AI with API key from environment
   Future<void> initialize() async {
     if (_isInitialized) {
-      print('[GeminiService] Already initialized');
+      AppLogger.debug(_tag, 'Already initialized');
       return;
     }
 
@@ -64,9 +66,9 @@ class GeminiService {
       );
 
       _isInitialized = true;
-      print('[GeminiService] ✅ Initialized successfully');
+      AppLogger.info(_tag, 'Initialized successfully');
     } catch (e) {
-      print('[GeminiService] ❌ Initialization failed: $e');
+      AppLogger.error(_tag, 'Initialization failed', e);
       rethrow;
     }
   }
@@ -88,7 +90,7 @@ class GeminiService {
 
       return response.text!;
     } catch (e) {
-      print('[GeminiService] Error generating text: $e');
+      AppLogger.error(_tag, 'Error generating text', e);
       rethrow;
     }
   }
@@ -123,7 +125,7 @@ class GeminiService {
 
       return response.text!;
     } catch (e) {
-      print('[GeminiService] Error in chat: $e');
+      AppLogger.error(_tag, 'Error in chat', e);
       rethrow;
     }
   }
@@ -159,7 +161,7 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure
       final jsonResponse = parseJSON(cleanedResponse);
       return jsonResponse;
     } catch (e) {
-      print('[GeminiService] Error generating JSON: $e');
+      AppLogger.error(_tag, 'Error generating JSON', e);
       rethrow;
     }
   }
@@ -187,7 +189,7 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure
 
       return response.text!;
     } catch (e) {
-      print('[GeminiService] Error analyzing image: $e');
+      AppLogger.error(_tag, 'Error analyzing image', e);
       rethrow;
     }
   }
@@ -206,7 +208,7 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure
         }
       }
     } catch (e) {
-      print('[GeminiService] Error in streaming: $e');
+      AppLogger.error(_tag, 'Error in streaming', e);
       rethrow;
     }
   }
@@ -220,7 +222,7 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure
       final response = await _model.countTokens(content);
       return response.totalTokens;
     } catch (e) {
-      print('[GeminiService] Error counting tokens: $e');
+      AppLogger.error(_tag, 'Error counting tokens', e);
       return 0;
     }
   }
@@ -254,6 +256,6 @@ IMPORTANT: Respond ONLY with valid JSON. No markdown, no explanations, just pure
   /// Dispose resources
   void dispose() {
     _isInitialized = false;
-    print('[GeminiService] Disposed');
+    AppLogger.info(_tag, 'Disposed');
   }
 }

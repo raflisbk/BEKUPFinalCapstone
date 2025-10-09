@@ -105,6 +105,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     // Confirm before deleting
     final confirmed = await showDialog<bool>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Trip'),
@@ -139,7 +140,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Trip deleted successfully');
 
+      // ignore: use_build_context_synchronously
       Navigator.pop(context); // Go back to trip list
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Trip deleted successfully'),
@@ -150,6 +153,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       await HapticHelper.error();
       AppLogger.error(_tag, 'Failed to delete trip');
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete trip'),
@@ -183,6 +187,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
                     // Navigate to edit screen
                     final result = await Navigator.push<bool>(
+                      // ignore: use_build_context_synchronously
                       context,
                       MaterialPageRoute(
                         builder: (context) => CreateEditTripScreen(trip: widget.trip),
@@ -323,7 +328,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Destinations',
                 style: AppTextStyles.headlineSmall,
               ),
@@ -440,7 +445,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Travelers',
                 style: AppTextStyles.headlineSmall,
               ),
@@ -550,14 +555,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Itinerary',
                 style: AppTextStyles.headlineSmall,
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
                 color: AppColors.textSecondary,
               ),
@@ -617,14 +622,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Budget',
                 style: AppTextStyles.headlineSmall,
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right,
                 color: AppColors.textSecondary,
               ),
@@ -722,9 +727,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               icon: const Icon(Icons.arrow_back, color: AppColors.black),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text('Trip Details', style: AppTextStyles.headlineSmall),
+            title: const Text('Trip Details', style: AppTextStyles.headlineSmall),
             actions: [
-              if (isParticipant && currentUserId != null)
+              if (isParticipant)
                 IconButton(
                   icon: const Icon(Icons.more_vert, color: AppColors.black),
                   onPressed: () => _showOptionsMenu(context, currentUserId, isOwner),

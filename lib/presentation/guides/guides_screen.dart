@@ -74,7 +74,7 @@ class _GuidesScreenState extends State<GuidesScreen> {
               floating: true,
               backgroundColor: AppColors.white,
               surfaceTintColor: Colors.transparent,
-              title: Text(
+              title: const Text(
                 'Local Guides',
                 style: AppTextStyles.headlineSmall,
               ),

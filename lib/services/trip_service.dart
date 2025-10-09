@@ -22,12 +22,6 @@ class TripService {
   // Cache management
   final Map<String, Trip> _tripCache = {};
   final Map<String, DateTime> _cacheTimestamp = {};
-  static const Duration _cacheDuration = Duration(minutes: 15);
-  
-  // Batch operations
-  WriteBatch? _batch;
-  int _batchOperations = 0;
-  static const int _maxBatchOperations = 500;
   
   // Rate limiting
   DateTime? _lastWrite;
@@ -36,26 +30,6 @@ class TripService {
   static const Duration _minReadInterval = Duration(milliseconds: 50);
 
   /// Create a new trip
-  // Initialize batch if needed
-  void _initializeBatchIfNeeded() {
-    if (_batch == null) {
-      _batch = _firestore.batch();
-      _batchOperations = 0;
-      AppLogger.debug(_tag, 'Initialized new batch');
-    }
-  }
-
-  // Commit batch if needed
-  Future<void> _commitBatchIfNeeded() async {
-    if (_batch != null && _batchOperations >= _maxBatchOperations) {
-      AppLogger.debug(_tag, 'Committing batch', {
-        'operations': _batchOperations,
-      });
-      await _batch!.commit();
-      _batch = null;
-      _batchOperations = 0;
-    }
-  }
 
   // Ensure write interval
   Future<void> _ensureWriteInterval() async {
@@ -77,28 +51,6 @@ class TripService {
       }
     }
     _lastRead = DateTime.now();
-  }
-
-  // Update cache
-  void _updateCache(String tripId, Trip trip) {
-    _tripCache[tripId] = trip;
-    _cacheTimestamp[tripId] = DateTime.now();
-    AppLogger.debug(_tag, 'Updated cache', {
-      'tripId': tripId,
-    });
-  }
-
-  // Get from cache if valid
-  Trip? _getFromCache(String tripId) {
-    final timestamp = _cacheTimestamp[tripId];
-    if (timestamp != null && 
-        DateTime.now().difference(timestamp) < _cacheDuration) {
-      AppLogger.debug(_tag, 'Retrieved from cache', {
-        'tripId': tripId,
-      });
-      return _tripCache[tripId];
-    }
-    return null;
   }
 
   // Clear cache for trip

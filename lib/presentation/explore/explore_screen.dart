@@ -45,7 +45,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   // Clustering settings
   double _currentZoom = 12.0;
-  bool _enableClustering = true;
+  final bool _enableClustering = true;
 
   // Default location (Jakarta, Indonesia)
   static const LatLng _defaultLocation = LatLng(-6.2088, 106.8456);
@@ -458,7 +458,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: AppColors.white,
                       border: Border(
                         bottom: BorderSide(color: AppColors.divider, width: 1),
@@ -466,7 +466,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     ),
                     child: Row(
                       children: [
-                        Text(
+                        const Text(
                           'Explore',
                           style: AppTextStyles.headlineSmall,
                         ),
@@ -523,7 +523,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 // Loading Overlay
                 if (_isLoading)
                   Container(
-                    color: AppColors.white.withOpacity(0.9),
+                    color: AppColors.white.withValues(alpha: 0.9),
                     child: Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -608,7 +608,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Text(
+                            const Text(
                               'Nearby Travelers',
                               style: AppTextStyles.titleLarge,
                             ),
@@ -694,7 +694,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 ],
                               ),
                             );
-                          }).toList(),
+                          }),
                         ],
                       ],
                     ),

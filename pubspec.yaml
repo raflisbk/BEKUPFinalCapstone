@@ -81,6 +81,10 @@ dependencies:
   shimmer: ^3.0.0
   cached_network_image: ^3.3.1
   image_picker: ^1.1.2
+  image: ^4.2.0
+
+  # UUID generation
+  uuid: ^4.4.0
 
   # Animations
   animate_do: ^3.3.4

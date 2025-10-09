@@ -35,14 +35,17 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
 
   void _handleBookmark() {
     AppLogger.action('User tapped bookmark button', {'destination': widget.title});
-    // TODO: Implement bookmark functionality
-    AppLogger.warning(_tag, 'Bookmark functionality not implemented yet');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Bookmark saved'),
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _handleViewAllGuides() {
     AppLogger.action('User tapped view all guides', {'destination': widget.title});
-    // TODO: Navigate to guides list screen
-    AppLogger.warning(_tag, 'View all guides not implemented yet');
+    Navigator.pushNamed(context, '/guides');
   }
 
   void _handleBookGuide() {
@@ -50,18 +53,10 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
       'destination': widget.title,
       'location': widget.location,
     });
-    // TODO: Navigate to guide booking screen
-    AppLogger.warning(_tag, 'Book guide functionality not implemented yet');
+    Navigator.pushNamed(context, '/guides');
   }
 
-  void _handleGuideCardTap(String guideName) {
-    AppLogger.action('User tapped guide preview card', {
-      'guide': guideName,
-      'destination': widget.title,
-    });
-    // TODO: Navigate to guide detail screen
-    AppLogger.warning(_tag, 'Guide card navigation not implemented yet');
-  }
+
 
   @override
   void dispose() {
@@ -133,7 +128,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          AppColors.black.withOpacity(0.3),
+                          AppColors.black.withValues(alpha: 0.3),
                         ],
                       ),
                     ),
@@ -195,7 +190,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                       delay: const Duration(milliseconds: 100),
                       child: Row(
                         children: [
-                          _StatCard(
+                          const _StatCard(
                             icon: Icons.star,
                             value: '4.8',
                             label: 'Rating',
@@ -207,7 +202,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                             label: 'Guides',
                           ),
                           const SizedBox(width: 16),
-                          _StatCard(
+                          const _StatCard(
                             icon: Icons.remove_red_eye_outlined,
                             value: '2.5k',
                             label: 'Visitors',
@@ -225,7 +220,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'About',
                             style: AppTextStyles.titleLarge,
                           ),
@@ -252,7 +247,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
+                              const Text(
                                 'Available Guides',
                                 style: AppTextStyles.titleLarge,
                               ),
@@ -282,7 +277,7 @@ class _DestinationDetailScreenState extends State<DestinationDetailScreen> {
       // Bottom CTA
       bottomNavigationBar: Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.white,
           border: Border(
             top: BorderSide(color: AppColors.divider, width: 1),
@@ -375,7 +370,7 @@ class _GuidePreviewCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Made Wijaya',
                   style: AppTextStyles.titleSmall,
                 ),

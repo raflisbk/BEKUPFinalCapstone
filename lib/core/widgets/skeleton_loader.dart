@@ -33,7 +33,7 @@ class SkeletonLoader {
       child: Container(
         width: size,
         height: size,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: AppColors.grey100,
           shape: BoxShape.circle,
         ),

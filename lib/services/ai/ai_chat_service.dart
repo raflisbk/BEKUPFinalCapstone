@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/models/trip_model.dart';
 import '../../core/models/destination_model.dart';
+import '../../core/utils/logger.dart';
 import 'gemini_service.dart';
 
 /// Service for AI-powered chat assistant
 class AIChatService {
+  static const String _tag = 'AIChatService';
   final GeminiService _geminiService = GeminiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -75,7 +77,7 @@ class AIChatService {
 
       return aiMsg;
     } catch (e) {
-      print('Error sending message: $e');
+      AppLogger.error(_tag, 'Error sending message', e);
       rethrow;
     }
   }

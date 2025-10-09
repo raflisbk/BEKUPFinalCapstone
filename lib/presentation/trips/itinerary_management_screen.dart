@@ -72,10 +72,11 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     await HapticHelper.mediumImpact();
 
     final confirmed = await showDialog<bool>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: Text('Delete Activity', style: AppTextStyles.titleLarge),
+        title: const Text('Delete Activity', style: AppTextStyles.titleLarge),
         content: Text(
           'Are you sure you want to delete "${item.title}"?',
           style: AppTextStyles.bodyMedium,
@@ -83,7 +84,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTextStyles.labelLarge),
+            child: const Text('Cancel', style: AppTextStyles.labelLarge),
           ),
           TextButton(
             onPressed: () {
@@ -91,7 +92,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
               Navigator.pop(context, true);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: Text('Delete', style: AppTextStyles.labelLarge),
+            child: const Text('Delete', style: AppTextStyles.labelLarge),
           ),
         ],
       ),
@@ -112,6 +113,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
         widget.trip.itinerary.removeWhere((i) => i.id == item.id);
       });
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Activity deleted'),
@@ -120,6 +122,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
       );
     } else {
       await HapticHelper.error();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete activity'),
@@ -227,7 +230,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Itinerary', style: AppTextStyles.headlineSmall),
+        title: const Text('Itinerary', style: AppTextStyles.headlineSmall),
         actions: [
           if (!isEmpty)
             IconButton(
@@ -281,7 +284,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'No Activities Yet',
                 style: AppTextStyles.titleLarge,
               ),
@@ -397,7 +400,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
               if (_isReordering)
                 Container(
                   margin: const EdgeInsets.only(right: 12),
-                  child: Icon(
+                  child: const Icon(
                     Icons.drag_handle,
                     color: AppColors.grey400,
                   ),
@@ -428,7 +431,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: ItineraryTypeHelper.getColor(item.type).withOpacity(0.1),
+                  color: ItineraryTypeHelper.getColor(item.type).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -453,7 +456,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.access_time,
                           size: 14,
                           color: AppColors.textSecondary,
@@ -471,7 +474,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.location_on,
                             size: 14,
                             color: AppColors.textSecondary,
@@ -507,12 +510,12 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                     }
                   },
                   itemBuilder: (context) => [
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'edit',
                       child: Row(
                         children: [
-                          const Icon(Icons.edit, size: 20),
-                          const SizedBox(width: 12),
+                          Icon(Icons.edit, size: 20),
+                          SizedBox(width: 12),
                           Text('Edit', style: AppTextStyles.bodyMedium),
                         ],
                       ),

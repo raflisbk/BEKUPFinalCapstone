@@ -5,13 +5,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../services/destination_service.dart';
-import '../../services/review_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
-import '../../core/widgets/skeleton_loader.dart';
 import '../reviews/reviews_screen.dart';
-import '../reviews/write_review_screen.dart';
-import '../gallery/gallery_screen.dart';
 
 /// Complete destination detail screen with all features
 class DestinationDetailNewScreen extends StatefulWidget {
@@ -28,7 +24,6 @@ class DestinationDetailNewScreen extends StatefulWidget {
 
 class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen> {
   final DestinationService _destinationService = DestinationService();
-  final ReviewService _reviewService = ReviewService();
 
   bool _isBookmarked = false;
   bool _isLoadingBookmark = false;
@@ -145,7 +140,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
+                color: Colors.black.withValues(alpha: 0.1),
                 blurRadius: 8,
               ),
             ],
@@ -165,7 +160,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                 ),
               ],
@@ -218,14 +213,15 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
   Widget _buildHeader(Destination destination) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Category badge
+          const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
@@ -401,7 +397,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
                 ],
               ),
             );
-          }).toList(),
+          }),
           const SizedBox(height: 24),
         ],
       ),
@@ -537,15 +533,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
           ElevatedButton.icon(
             onPressed: () {
               HapticHelper.buttonTap();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => WriteReviewScreen(
-                    destinationId: destination.id,
-                    destinationName: destination.name,
-                  ),
-                ),
-              );
+              Navigator.pushNamed(context, '/write-edit-review');
             },
             icon: const Icon(Icons.rate_review),
             label: const Text('Write a Review'),
@@ -601,9 +589,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [

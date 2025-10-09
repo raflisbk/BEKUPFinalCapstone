@@ -228,7 +228,7 @@ class AnimationHelper {
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: normal,
+      duration: normal + delay,
       curve: easeOut,
       builder: (context, value, child) {
         return Opacity(

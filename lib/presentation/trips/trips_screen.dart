@@ -99,19 +99,19 @@ class _TripsScreenState extends State<TripsScreen> {
             // Cover image or placeholder
             Container(
               height: 160,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.grey50,
-                borderRadius: const BorderRadius.vertical(
+                borderRadius: BorderRadius.vertical(
                   top: Radius.circular(16),
                 ),
               ),
               child: Stack(
                 children: [
                   // Placeholder
-                  Center(
+                  const Center(
                     child: Text(
                       '🗺️',
-                      style: const TextStyle(fontSize: 48),
+                      style: TextStyle(fontSize: 48),
                     ),
                   ),
 
@@ -198,7 +198,7 @@ class _TripsScreenState extends State<TripsScreen> {
                   Row(
                     children: [
                       // Destinations
-                      Icon(
+                      const Icon(
                         Icons.location_on,
                         size: 16,
                         color: AppColors.textSecondary,
@@ -213,7 +213,7 @@ class _TripsScreenState extends State<TripsScreen> {
                       const SizedBox(width: 16),
 
                       // Participants
-                      Icon(
+                      const Icon(
                         Icons.people,
                         size: 16,
                         color: AppColors.textSecondary,
@@ -243,7 +243,7 @@ class _TripsScreenState extends State<TripsScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text('My Trips', style: AppTextStyles.headlineSmall),
+        title: const Text('My Trips', style: AppTextStyles.headlineSmall),
         actions: [
           IconButton(
             icon: const Icon(Icons.add, color: AppColors.black),
@@ -327,7 +327,7 @@ class _TripsScreenState extends State<TripsScreen> {
                           children: [
                             const Text('🗺️', style: TextStyle(fontSize: 64)),
                             const SizedBox(height: 16),
-                            Text(
+                            const Text(
                               'No trips yet',
                               style: AppTextStyles.headlineSmall,
                             ),

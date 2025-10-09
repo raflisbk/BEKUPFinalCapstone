@@ -84,7 +84,7 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
     if (commentId != null) {
       _commentController.clear();
-      FocusScope.of(context).unfocus();
+      if (mounted) FocusScope.of(context).unfocus();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -100,6 +100,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
   Future<void> _deletePhoto() async {
     await HapticHelper.warning();
+
+    if (!mounted) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -139,23 +141,27 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Photo deleted successfully');
 
-      Navigator.pop(context, true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Photo deleted successfully'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      if (mounted) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Photo deleted successfully'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
     } else {
       await HapticHelper.error();
       AppLogger.error(_tag, 'Failed to delete photo');
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to delete photo'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to delete photo'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -290,7 +296,8 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
               icon: const Icon(Icons.close, color: AppColors.white),
               onPressed: () async {
                 await HapticHelper.buttonTap();
-                Navigator.pop(context);
+                // ignore: use_build_context_synchronously
+                if (mounted) Navigator.pop(context);
               },
             ),
             actions: [

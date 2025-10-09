@@ -66,6 +66,11 @@ class HapticHelper {
     await heavyImpact();
   }
 
+  /// Warning feedback - combination of medium impact for warnings
+  static Future<void> warning() async {
+    await mediumImpact();
+  }
+
   /// Button tap feedback - standard button press
   static Future<void> buttonTap() async {
     await lightImpact();

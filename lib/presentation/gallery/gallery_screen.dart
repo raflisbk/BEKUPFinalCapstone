@@ -189,7 +189,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withOpacity(0.7),
+                      Colors.black.withValues(alpha: 0.7),
                     ],
                     stops: const [0.5, 1.0],
                   ),
@@ -290,7 +290,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
         children: [
           const Text('📷', style: TextStyle(fontSize: 64)),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'No photos yet',
             style: AppTextStyles.headlineSmall,
           ),
@@ -327,7 +327,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.white,
         elevation: 0,
-        title: Text('Gallery', style: AppTextStyles.headlineSmall),
+        title: const Text('Gallery', style: AppTextStyles.headlineSmall),
         actions: [
           _buildSortMenu(),
           IconButton(

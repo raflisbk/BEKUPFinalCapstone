@@ -22,7 +22,6 @@ class LocationProvider with ChangeNotifier {
 
   // Nearby travelers
   List<Map<String, dynamic>> _nearbyTravelers = [];
-  final double _nearbyRadius = 5000; // 5km radius
 
   // Getters
   Position? get currentPosition => _currentPosition;

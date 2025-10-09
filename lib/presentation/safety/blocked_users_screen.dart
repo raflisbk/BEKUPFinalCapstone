@@ -56,18 +56,19 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
     await HapticHelper.mediumImpact();
 
     final confirmed = await showDialog<bool>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: Text('Unblock User', style: AppTextStyles.titleLarge),
-        content: Text(
+        title: const Text('Unblock User', style: AppTextStyles.titleLarge),
+        content: const Text(
           'Are you sure you want to unblock this user? They will be able to interact with you again.',
           style: AppTextStyles.bodyMedium,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTextStyles.labelLarge),
+            child: const Text('Cancel', style: AppTextStyles.labelLarge),
           ),
           TextButton(
             onPressed: () {
@@ -98,6 +99,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         _blockedUserIds.remove(blockedUserId);
       });
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('User unblocked successfully'),
@@ -110,6 +112,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       });
     } else {
       await HapticHelper.error();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to unblock user'),
@@ -133,7 +136,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Blocked Users', style: AppTextStyles.headlineSmall),
+        title: const Text('Blocked Users', style: AppTextStyles.headlineSmall),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
@@ -173,7 +176,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'No Blocked Users',
                 style: AppTextStyles.titleLarge,
               ),
@@ -219,7 +222,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
         leading: Container(
           width: 48,
           height: 48,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: AppColors.grey100,
             shape: BoxShape.circle,
           ),

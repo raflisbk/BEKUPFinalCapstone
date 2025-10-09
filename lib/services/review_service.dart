@@ -309,8 +309,8 @@ class ReviewService {
 
         // Calculate new average
         double totalRating = 0;
-        newDistribution.forEach((star, count) {
-          totalRating += star * count;
+        newDistribution.forEach((star, reviewCount) {
+          totalRating += star * reviewCount;
         });
 
         final newAverage =
@@ -385,7 +385,7 @@ class ReviewService {
         }
 
         // Upload to Firebase Storage
-        final fileName = 'review_photos/${destinationId}/${userId}/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+        final fileName = 'review_photos/$destinationId/$userId/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
         final storageRef = _storage.ref().child(fileName);
 
         AppLogger.debug(_tag, 'Uploading photo ${i + 1}/${photoFiles.length}');

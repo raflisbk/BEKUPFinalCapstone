@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:workmanager/workmanager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -11,7 +12,7 @@ import '../cache/upload_queue_service.dart';
 void backgroundSyncCallback() {
   Workmanager().executeTask((task, inputData) async {
     try {
-      print('Background sync started: $task');
+      debugPrint('Background sync started: $task');
 
       // Initialize Hive for background task
       await HiveService.instance.initialize();
@@ -21,7 +22,7 @@ void backgroundSyncCallback() {
 
       // Check if online
       if (!ConnectivityService.instance.isOnline) {
-        print('Background sync skipped: offline');
+        debugPrint('Background sync skipped: offline');
         return Future.value(true);
       }
 
@@ -31,10 +32,10 @@ void backgroundSyncCallback() {
       // Process upload queue
       await UploadQueueService().processQueue();
 
-      print('Background sync completed successfully');
+      debugPrint('Background sync completed successfully');
       return Future.value(true);
     } catch (e) {
-      print('Background sync error: $e');
+      debugPrint('Background sync error: $e');
       return Future.value(false);
     }
   });
@@ -62,7 +63,7 @@ class BackgroundSyncService {
   /// Initialize background sync service
   Future<void> initialize() async {
     if (_isInitialized) {
-      print('BackgroundSyncService already initialized');
+      debugPrint('BackgroundSyncService already initialized');
       return;
     }
 
@@ -88,9 +89,9 @@ class BackgroundSyncService {
       });
 
       _isInitialized = true;
-      print('BackgroundSyncService initialized');
+      debugPrint('BackgroundSyncService initialized');
     } catch (e) {
-      print('Error initializing BackgroundSyncService: $e');
+      debugPrint('Error initializing BackgroundSyncService: $e');
     }
   }
 
@@ -112,9 +113,9 @@ class BackgroundSyncService {
       );
 
       await _notifications?.initialize(initSettings);
-      print('Notifications initialized');
+      debugPrint('Notifications initialized');
     } catch (e) {
-      print('Error initializing notifications: $e');
+      debugPrint('Error initializing notifications: $e');
     }
   }
 
@@ -135,9 +136,9 @@ class BackgroundSyncService {
         existingWorkPolicy: ExistingWorkPolicy.keep,
       );
 
-      print('Periodic sync registered: every ${_periodicSyncInterval.inMinutes} minutes');
+      debugPrint('Periodic sync registered: every ${_periodicSyncInterval.inMinutes} minutes');
     } catch (e) {
-      print('Error registering periodic sync: $e');
+      debugPrint('Error registering periodic sync: $e');
     }
   }
 
@@ -154,9 +155,9 @@ class BackgroundSyncService {
         existingWorkPolicy: ExistingWorkPolicy.replace,
       );
 
-      print('Quick sync scheduled');
+      debugPrint('Quick sync scheduled');
     } catch (e) {
-      print('Error scheduling quick sync: $e');
+      debugPrint('Error scheduling quick sync: $e');
     }
   }
 
@@ -164,7 +165,7 @@ class BackgroundSyncService {
   Future<void> syncNow({bool showNotification = true}) async {
     try {
       if (!_connectivity.isOnline) {
-        print('Cannot sync: offline');
+        debugPrint('Cannot sync: offline');
         if (showNotification) {
           await _showNotification(
             'Sync Failed',
@@ -189,7 +190,7 @@ class BackgroundSyncService {
       final totalItems = (syncStats['pending'] ?? 0) + (uploadStats['pending'] ?? 0);
 
       if (totalItems == 0) {
-        print('No items to sync');
+        debugPrint('No items to sync');
         if (showNotification) {
           await _showNotification(
             'Already Synced',
@@ -226,9 +227,9 @@ class BackgroundSyncService {
         }
       }
 
-      print('Foreground sync completed: $syncedItems/$totalItems items');
+      debugPrint('Foreground sync completed: $syncedItems/$totalItems items');
     } catch (e) {
-      print('Error during sync: $e');
+      debugPrint('Error during sync: $e');
       if (showNotification) {
         await _showNotification(
           'Sync Error',
@@ -270,7 +271,7 @@ class BackgroundSyncService {
         details,
       );
     } catch (e) {
-      print('Error showing notification: $e');
+      debugPrint('Error showing notification: $e');
     }
   }
 
@@ -290,9 +291,9 @@ class BackgroundSyncService {
   Future<void> enableBackgroundSync() async {
     try {
       await _registerPeriodicSync();
-      print('Background sync enabled');
+      debugPrint('Background sync enabled');
     } catch (e) {
-      print('Error enabling background sync: $e');
+      debugPrint('Error enabling background sync: $e');
     }
   }
 
@@ -300,9 +301,9 @@ class BackgroundSyncService {
   Future<void> disableBackgroundSync() async {
     try {
       await Workmanager().cancelByUniqueName(_uniqueTaskName);
-      print('Background sync disabled');
+      debugPrint('Background sync disabled');
     } catch (e) {
-      print('Error disabling background sync: $e');
+      debugPrint('Error disabling background sync: $e');
     }
   }
 
@@ -310,9 +311,9 @@ class BackgroundSyncService {
   Future<void> cancelAllTasks() async {
     try {
       await Workmanager().cancelAll();
-      print('All background tasks cancelled');
+      debugPrint('All background tasks cancelled');
     } catch (e) {
-      print('Error cancelling tasks: $e');
+      debugPrint('Error cancelling tasks: $e');
     }
   }
 

@@ -45,10 +45,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
     final success = await authProvider.signInAsGuest();
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       AppLogger.navigation(_tag, '/main', {'mode': 'guest'});
+      // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/main');
-    } else if (mounted) {
+    } else {
+      // ignore: use_build_context_synchronously
       _showErrorSnackBar(context, authProvider.errorMessage ?? 'Failed to continue as guest');
     }
   }
@@ -78,11 +82,15 @@ class _AuthScreenState extends State<AuthScreen> {
       );
     }
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       AppLogger.info(_tag, 'Navigating to main screen after $mode');
       AppLogger.navigation(_tag, '/main', {'authMode': mode});
+      // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/main');
-    } else if (mounted) {
+    } else {
+      // ignore: use_build_context_synchronously
       _showErrorSnackBar(context, authProvider.errorMessage ?? 'Authentication failed');
     }
   }
@@ -93,10 +101,14 @@ class _AuthScreenState extends State<AuthScreen> {
 
     final success = await authProvider.signInWithGoogle();
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
       AppLogger.navigation(_tag, '/main', {'authMode': 'google'});
+      // ignore: use_build_context_synchronously
       Navigator.pushReplacementNamed(context, '/main');
-    } else if (mounted && authProvider.errorMessage != null) {
+    } else if (authProvider.errorMessage != null) {
+      // ignore: use_build_context_synchronously
       _showErrorSnackBar(context, authProvider.errorMessage!);
     }
   }
@@ -112,9 +124,13 @@ class _AuthScreenState extends State<AuthScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final success = await authProvider.resetPassword(_emailController.text.trim());
 
-    if (success && mounted) {
+    if (!mounted) return;
+
+    if (success) {
+      // ignore: use_build_context_synchronously
       _showSuccessSnackBar(context, 'Password reset email sent. Check your inbox.');
-    } else if (mounted && authProvider.errorMessage != null) {
+    } else if (authProvider.errorMessage != null) {
+      // ignore: use_build_context_synchronously
       _showErrorSnackBar(context, authProvider.errorMessage!);
     }
   }
@@ -497,7 +513,7 @@ class _GuestModeCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Continue as Guest',
                     style: AppTextStyles.titleMedium,
                   ),

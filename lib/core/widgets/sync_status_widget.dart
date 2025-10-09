@@ -108,10 +108,10 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: _getSyncColor().withOpacity(0.1),
+          color: _getSyncColor().withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: _getSyncColor().withOpacity(0.3),
+            color: _getSyncColor().withValues(alpha: 0.3),
             width: 1,
           ),
         ),
@@ -166,10 +166,10 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _getSyncColor().withOpacity(0.05),
+            color: _getSyncColor().withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _getSyncColor().withOpacity(0.2),
+              color: _getSyncColor().withValues(alpha: 0.2),
               width: 1,
             ),
           ),

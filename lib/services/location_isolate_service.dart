@@ -159,8 +159,6 @@ class LocationIsolateService {
 
 /// Isolate entry point - runs on separate thread
 void _locationIsolateEntry(SendPort mainSendPort) async {
-  const tag = 'LocationIsolate';
-
   // Create receive port for this isolate
   final isolateReceivePort = ReceivePort();
 

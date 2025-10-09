@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/models/trip_model.dart' as trip_models;
+import '../../core/utils/logger.dart';
 import 'gemini_service.dart';
 
 /// Service for AI-powered budget optimization
 class AIBudgetService {
+  static const String _tag = 'AIBudgetService';
   final GeminiService _geminiService = GeminiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -23,7 +25,7 @@ class AIBudgetService {
 
       return result;
     } catch (e) {
-      print('Error optimizing budget: $e');
+      AppLogger.error(_tag, 'Error optimizing budget: $e');
       rethrow;
     }
   }
@@ -38,7 +40,7 @@ class AIBudgetService {
 
       return SpendingRecommendation.fromJson(response);
     } catch (e) {
-      print('Error getting spending recommendation: $e');
+      AppLogger.error(_tag, 'Error getting spending recommendation', e);
       rethrow;
     }
   }
@@ -53,7 +55,7 @@ class AIBudgetService {
 
       return BudgetHealthReport.fromJson(response);
     } catch (e) {
-      print('Error analyzing budget health: $e');
+      AppLogger.error(_tag, 'Error analyzing budget health', e);
       rethrow;
     }
   }
@@ -98,7 +100,7 @@ Return ONLY valid JSON:
 
       return tips;
     } catch (e) {
-      print('Error getting money-saving tips: $e');
+      AppLogger.error(_tag, 'Error getting money-saving tips', e);
       rethrow;
     }
   }
@@ -187,7 +189,7 @@ Return ONLY valid JSON matching this structure:
     final budget = trip.budget;
     final spent = trip.expenses.fold<double>(
       0,
-      (sum, expense) => sum + expense.amount,
+      (total, expense) => total + expense.amount,
     );
     final remaining = (budget?.totalBudget ?? 0) - spent;
     final daysLeft = trip.endDate.difference(DateTime.now()).inDays;
@@ -235,7 +237,7 @@ Return ONLY valid JSON:
     final budget = trip.budget;
     final spent = trip.expenses.fold<double>(
       0,
-      (sum, expense) => sum + expense.amount,
+      (total, expense) => total + expense.amount,
     );
     final percentage = budget != null && budget.totalBudget > 0
         ? (spent / budget.totalBudget * 100)
@@ -317,7 +319,7 @@ Return ONLY valid JSON:
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error saving budget recommendation: $e');
+      AppLogger.error(_tag, 'Error saving budget recommendation', e);
     }
   }
 }

@@ -173,7 +173,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
             // Header with current weather
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -182,7 +182,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                     AppColors.grey100,
                   ],
                 ),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

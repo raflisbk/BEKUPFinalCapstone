@@ -2,10 +2,12 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../core/utils/logger.dart';
 import 'gemini_service.dart';
 
 /// Service for AI-powered image recognition and analysis
 class AIImageService {
+  static const String _tag = 'AIImageService';
   final GeminiService _geminiService = GeminiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final ImagePicker _imagePicker = ImagePicker();
@@ -33,7 +35,7 @@ class AIImageService {
 
       return result;
     } catch (e) {
-      print('Error analyzing image: $e');
+      AppLogger.error(_tag, 'Error analyzing image', e);
       rethrow;
     }
   }
@@ -91,7 +93,7 @@ If no landmark is detected, return:
 
       return LandmarkDetectionResult.fromJson(jsonResponse);
     } catch (e) {
-      print('Error detecting landmark: $e');
+      AppLogger.error(_tag, 'Error detecting landmark', e);
       rethrow;
     }
   }
@@ -153,7 +155,7 @@ Return ONLY valid JSON:
 
       return PhotoCaption.fromJson(jsonResponse);
     } catch (e) {
-      print('Error generating caption: $e');
+      AppLogger.error(_tag, 'Error generating caption', e);
       rethrow;
     }
   }
@@ -165,7 +167,7 @@ Return ONLY valid JSON:
     try {
       final imageBytes = await imageFile.readAsBytes();
 
-      final prompt = '''
+      const prompt = '''
 Analyze this photo and provide professional photography feedback and tips.
 
 Evaluate:
@@ -214,7 +216,7 @@ Return ONLY valid JSON:
 
       return PhotographyTips.fromJson(jsonResponse);
     } catch (e) {
-      print('Error getting photography tips: $e');
+      AppLogger.error(_tag, 'Error getting photography tips', e);
       rethrow;
     }
   }
@@ -233,7 +235,7 @@ Return ONLY valid JSON:
 
       return File(pickedFile.path);
     } catch (e) {
-      print('Error picking image: $e');
+      AppLogger.error(_tag, 'Error picking image', e);
       rethrow;
     }
   }
@@ -252,7 +254,7 @@ Return ONLY valid JSON:
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('Error saving analysis result: $e');
+      AppLogger.error(_tag, 'Error saving analysis result', e);
     }
   }
 
@@ -327,8 +329,7 @@ Return ONLY valid JSON:
         jsonDecode(cleanResponse.trim()),
       );
     } catch (e) {
-      print('JSON parse error: $e');
-      print('Response: $cleanResponse');
+      AppLogger.error(_tag, 'JSON parse error: $e. Response: $cleanResponse', e);
       throw Exception('Failed to parse JSON response');
     }
   }

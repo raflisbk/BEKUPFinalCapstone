@@ -97,10 +97,11 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
     await HapticHelper.mediumImpact();
 
     final confirmed = await showDialog<bool>(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.white,
-        title: Text('Delete Expense', style: AppTextStyles.titleLarge),
+        title: const Text('Delete Expense', style: AppTextStyles.titleLarge),
         content: Text(
           'Are you sure you want to delete "${expense.description}"?',
           style: AppTextStyles.bodyMedium,
@@ -108,7 +109,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel', style: AppTextStyles.labelLarge),
+            child: const Text('Cancel', style: AppTextStyles.labelLarge),
           ),
           TextButton(
             onPressed: () {
@@ -116,7 +117,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
               Navigator.pop(context, true);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: Text('Delete', style: AppTextStyles.labelLarge),
+            child: const Text('Delete', style: AppTextStyles.labelLarge),
           ),
         ],
       ),
@@ -137,6 +138,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
         widget.trip.expenses.removeWhere((e) => e.id == expense.id);
       });
 
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Expense deleted'),
@@ -145,6 +147,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
       );
     } else {
       await HapticHelper.error();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete expense'),
@@ -170,7 +173,6 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
   @override
   Widget build(BuildContext context) {
     final hasBudget = widget.trip.budget != null;
-    final hasExpenses = widget.trip.expenses.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.grey50,
@@ -184,7 +186,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
             Navigator.pop(context);
           },
         ),
-        title: Text('Budget & Expenses', style: AppTextStyles.headlineSmall),
+        title: const Text('Budget & Expenses', style: AppTextStyles.headlineSmall),
         actions: [
           if (hasBudget)
             IconButton(
@@ -248,7 +250,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'No Budget Set',
                 style: AppTextStyles.titleLarge,
               ),
@@ -465,7 +467,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -492,7 +494,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                 color: AppColors.grey400,
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'No expenses yet',
                 style: AppTextStyles.titleMedium,
               ),
@@ -566,7 +568,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: BudgetCategoryHelper.getColor(expense.category).withOpacity(0.1),
+                color: BudgetCategoryHelper.getColor(expense.category).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -647,7 +649,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit),
-              title: Text('Edit', style: AppTextStyles.bodyMedium),
+              title: const Text('Edit', style: AppTextStyles.bodyMedium),
               onTap: () {
                 Navigator.pop(context);
                 _editExpense(expense);

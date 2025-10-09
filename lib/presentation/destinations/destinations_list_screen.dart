@@ -8,7 +8,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
 import '../../core/widgets/skeleton_loader.dart';
 import 'destination_detail_screen.dart';
-import 'add_destination_screen.dart';
 
 /// Destinations list screen with filtering and search
 class DestinationsListScreen extends StatefulWidget {
@@ -78,12 +77,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
               icon: const Icon(Icons.add),
               onPressed: () {
                 HapticHelper.buttonTap();
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddDestinationScreen(),
-                  ),
-                );
+                Navigator.pushNamed(context, '/add-edit-destination');
               },
             ),
         ],
@@ -109,7 +103,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                     : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.grey300),
+                  borderSide: const BorderSide(color: AppColors.grey300),
                 ),
                 filled: true,
                 fillColor: AppColors.grey50,
@@ -164,7 +158,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
   Widget _buildFilterPanel() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: AppColors.grey50,
         border: Border(
           bottom: BorderSide(color: AppColors.grey200),
@@ -209,7 +203,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                     );
                   });
                 },
-                selectedColor: AppColors.black.withOpacity(0.1),
+                selectedColor: AppColors.black.withValues(alpha: 0.1),
               );
             }).toList(),
           ),
@@ -218,7 +212,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
 
           // Sort options
           DropdownButtonFormField<DestinationSort>(
-            value: _filter.sortBy,
+            initialValue: _filter.sortBy,
             decoration: InputDecoration(
               labelText: 'Sort by',
               border: OutlineInputBorder(
@@ -259,7 +253,9 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
             context,
             MaterialPageRoute(
               builder: (context) => DestinationDetailScreen(
-                destinationId: destination.id,
+                title: destination.name,
+                location: destination.location,
+                guides: 'Guide information available',
               ),
             ),
           );
@@ -418,7 +414,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.explore_off,
               size: 80,
               color: AppColors.grey300,

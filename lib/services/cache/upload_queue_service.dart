@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../../core/database/hive_service.dart';
@@ -85,9 +86,9 @@ class UploadQueueService {
         }
       });
 
-      print('UploadQueueService initialized');
+      debugPrint('UploadQueueService initialized');
     } catch (e) {
-      print('Error initializing UploadQueueService: $e');
+      debugPrint('Error initializing UploadQueueService: $e');
     }
   }
 
@@ -103,7 +104,7 @@ class UploadQueueService {
     try {
       final file = File(localPath);
       if (!await file.exists()) {
-        print('File not found: $localPath');
+        debugPrint('File not found: $localPath');
         return null;
       }
 
@@ -122,7 +123,7 @@ class UploadQueueService {
       final box = _hiveService.getBox(_uploadQueueBox);
       await box.put(id, upload.toMap());
 
-      print('Upload queued: $id');
+      debugPrint('Upload queued: $id');
 
       // Try to process immediately if online
       if (_connectivityService.isOnline) {
@@ -131,7 +132,7 @@ class UploadQueueService {
 
       return id;
     } catch (e) {
-      print('Error queueing upload: $e');
+      debugPrint('Error queueing upload: $e');
       return null;
     }
   }
@@ -139,17 +140,17 @@ class UploadQueueService {
   /// Process upload queue
   Future<void> processQueue() async {
     if (_isProcessing) {
-      print('Upload queue is already being processed');
+      debugPrint('Upload queue is already being processed');
       return;
     }
 
     if (!_connectivityService.isOnline) {
-      print('Cannot process upload queue: offline');
+      debugPrint('Cannot process upload queue: offline');
       return;
     }
 
     _isProcessing = true;
-    print('Processing upload queue...');
+    debugPrint('Processing upload queue...');
 
     try {
       final box = _hiveService.getBox(_uploadQueueBox);
@@ -163,7 +164,7 @@ class UploadQueueService {
 
         // Skip if max retries reached
         if (upload.retryCount >= _maxRetries) {
-          print('Upload ${upload.id} exceeded max retries, removing...');
+          debugPrint('Upload ${upload.id} exceeded max retries, removing...');
           await box.delete(key);
           continue;
         }
@@ -174,18 +175,18 @@ class UploadQueueService {
         if (success) {
           // Remove from queue
           await box.delete(key);
-          print('Upload completed: ${upload.id}');
+          debugPrint('Upload completed: ${upload.id}');
         } else {
           // Increment retry count
           upload.retryCount++;
           await box.put(key, upload.toMap());
-          print('Upload failed: ${upload.id}, retry ${upload.retryCount}/$_maxRetries');
+          debugPrint('Upload failed: ${upload.id}, retry ${upload.retryCount}/$_maxRetries');
         }
       }
 
-      print('Upload queue processing completed');
+      debugPrint('Upload queue processing completed');
     } catch (e) {
-      print('Error processing upload queue: $e');
+      debugPrint('Error processing upload queue: $e');
     } finally {
       _isProcessing = false;
     }
@@ -197,7 +198,7 @@ class UploadQueueService {
       final file = File(upload.localPath);
       
       if (!await file.exists()) {
-        print('Local file not found: ${upload.localPath}');
+        debugPrint('Local file not found: ${upload.localPath}');
         upload.error = 'File not found';
         return false;
       }
@@ -221,14 +222,14 @@ class UploadQueueService {
       final snapshot = await uploadTask;
       
       if (snapshot.state == TaskState.success) {
-        print('File uploaded successfully: ${upload.destinationPath}');
+        debugPrint('File uploaded successfully: ${upload.destinationPath}');
         return true;
       } else {
         upload.error = 'Upload failed with state: ${snapshot.state}';
         return false;
       }
     } catch (e) {
-      print('Error uploading file: $e');
+      debugPrint('Error uploading file: $e');
       upload.error = e.toString();
       return false;
     }
@@ -272,7 +273,7 @@ class UploadQueueService {
 
       return uploads;
     } catch (e) {
-      print('Error getting queued uploads: $e');
+      debugPrint('Error getting queued uploads: $e');
       return [];
     }
   }
@@ -307,7 +308,7 @@ class UploadQueueService {
         'failed': failed,
       };
     } catch (e) {
-      print('Error getting queue stats: $e');
+      debugPrint('Error getting queue stats: $e');
       return {
         'total': 0,
         'pending': 0,
@@ -321,9 +322,9 @@ class UploadQueueService {
     try {
       final box = _hiveService.getBox(_uploadQueueBox);
       await box.delete(id);
-      print('Upload removed from queue: $id');
+      debugPrint('Upload removed from queue: $id');
     } catch (e) {
-      print('Error removing upload: $e');
+      debugPrint('Error removing upload: $e');
     }
   }
 
@@ -343,9 +344,9 @@ class UploadQueueService {
         }
       }
 
-      print('Failed uploads cleared');
+      debugPrint('Failed uploads cleared');
     } catch (e) {
-      print('Error clearing failed uploads: $e');
+      debugPrint('Error clearing failed uploads: $e');
     }
   }
 
@@ -354,9 +355,9 @@ class UploadQueueService {
     try {
       final box = _hiveService.getBox(_uploadQueueBox);
       await box.clear();
-      print('Upload queue cleared');
+      debugPrint('Upload queue cleared');
     } catch (e) {
-      print('Error clearing upload queue: $e');
+      debugPrint('Error clearing upload queue: $e');
     }
   }
 
@@ -372,14 +373,14 @@ class UploadQueueService {
         upload.error = null;
         await box.put(id, upload.toMap());
         
-        print('Upload retry reset: $id');
+        debugPrint('Upload retry reset: $id');
         
         if (_connectivityService.isOnline) {
           processQueue();
         }
       }
     } catch (e) {
-      print('Error retrying upload: $e');
+      debugPrint('Error retrying upload: $e');
     }
   }
 }

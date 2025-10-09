@@ -66,6 +66,7 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
     await HapticHelper.lightImpact();
 
     final DateTime? picked = await showDatePicker(
+      // ignore: use_build_context_synchronously
       context: context,
       initialDate: _startDate ?? DateTime.now(),
       firstDate: DateTime.now(),
@@ -113,6 +114,7 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
     await HapticHelper.lightImpact();
 
     final DateTime? picked = await showDatePicker(
+      // ignore: use_build_context_synchronously
       context: context,
       initialDate: _endDate ?? _startDate!.add(const Duration(days: 1)),
       firstDate: _startDate!,
@@ -234,6 +236,7 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
       if (success) {
         await HapticHelper.success();
 
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEditMode ? 'Trip updated successfully!' : 'Trip created successfully!'),
@@ -241,10 +244,12 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
           ),
         );
 
+        // ignore: use_build_context_synchronously
         Navigator.pop(context, true); // Return true to indicate success
       } else {
         await HapticHelper.error();
 
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEditMode ? 'Failed to update trip' : 'Failed to create trip'),

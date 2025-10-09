@@ -241,7 +241,9 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
 
     if (success) {
       await HapticHelper.success();
+      // ignore: use_build_context_synchronously
       Navigator.pop(context, true); // Return true to indicate success
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.item == null
@@ -253,6 +255,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
     } else {
       await HapticHelper.error();
       setState(() => _isSubmitting = false);
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(widget.item == null
@@ -533,7 +536,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? ItineraryTypeHelper.getColor(type).withOpacity(0.15)
+                  ? ItineraryTypeHelper.getColor(type).withValues(alpha: 0.15)
                   : AppColors.grey50,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(

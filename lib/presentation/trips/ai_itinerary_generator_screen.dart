@@ -85,7 +85,7 @@ class _AIItineraryGeneratorScreenState
               gradient: LinearGradient(
                 colors: [
                   AppColors.black,
-                  AppColors.black.withOpacity(0.8),
+                  AppColors.black.withValues(alpha: 0.8),
                 ],
               ),
               borderRadius: BorderRadius.circular(16),
@@ -109,7 +109,7 @@ class _AIItineraryGeneratorScreenState
                 Text(
                   'Answer a few questions and get a personalized day-by-day itinerary in seconds',
                   style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.white.withOpacity(0.9),
+                    color: AppColors.white.withValues(alpha: 0.9),
                   ),
                 ),
               ],
@@ -312,7 +312,7 @@ class _AIItineraryGeneratorScreenState
                       style: TextStyle(
                         fontSize: 12,
                         color: isSelected
-                            ? AppColors.white.withOpacity(0.8)
+                            ? AppColors.white.withValues(alpha: 0.8)
                             : AppColors.textSecondary,
                       ),
                     ),
@@ -355,7 +355,7 @@ class _AIItineraryGeneratorScreenState
           label: '\$${_budgetPerDay.toStringAsFixed(0)}',
           onChanged: (value) => setState(() => _budgetPerDay = value),
         ),
-        Row(
+        const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('\$30', style: AppTextStyles.bodySmall),
@@ -449,7 +449,7 @@ class _AIItineraryGeneratorScreenState
                     style: TextStyle(
                       fontSize: 11,
                       color: isSelected
-                          ? AppColors.white.withOpacity(0.8)
+                          ? AppColors.white.withValues(alpha: 0.8)
                           : AppColors.textSecondary,
                     ),
                   ),
@@ -593,7 +593,7 @@ class _AIItineraryGeneratorScreenState
                       Text(
                         '${_result!.itinerary.length} days • \$${_result!.totalEstimatedCost.toStringAsFixed(0)} total',
                         style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.white.withOpacity(0.9),
+                          color: AppColors.white.withValues(alpha: 0.9),
                         ),
                       ),
                     ],
@@ -640,7 +640,7 @@ class _AIItineraryGeneratorScreenState
           const SizedBox(height: 24),
 
           // Day-by-day itinerary
-          Text(
+          const Text(
             'Day-by-Day Itinerary',
             style: AppTextStyles.headlineSmall,
           ),

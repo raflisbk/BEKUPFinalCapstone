@@ -1,9 +1,11 @@
 import '../../core/database/hive_service.dart';
 import '../../core/database/models/cached_data.dart';
 import '../../core/models/destination_model.dart';
+import '../../core/utils/logger.dart';
 
 /// Service for caching destination data offline
 class DestinationCacheService {
+  static const String _tag = 'DestinationCacheService';
   static final DestinationCacheService _instance = DestinationCacheService._internal();
   factory DestinationCacheService() => _instance;
   DestinationCacheService._internal();
@@ -20,7 +22,7 @@ class DestinationCacheService {
       
       return Destination.fromMap(cached.data);
     } catch (e) {
-      print('Error getting cached destination: $e');
+      AppLogger.error(_tag, 'Error getting cached destination', e);
       return null;
     }
   }
@@ -37,14 +39,14 @@ class DestinationCacheService {
           try {
             destinations.add(Destination.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing cached destination $key: $e');
+            AppLogger.error(_tag, 'Error parsing cached destination $key', e);
           }
         }
       }
       
       return destinations;
     } catch (e) {
-      print('Error getting all cached destinations: $e');
+      AppLogger.error(_tag, 'Error getting all cached destinations', e);
       return [];
     }
   }
@@ -62,7 +64,7 @@ class DestinationCacheService {
       
       await box.put(destination.id, cached);
     } catch (e) {
-      print('Error caching destination: $e');
+      AppLogger.error(_tag, 'Error caching destination', e);
     }
   }
 
@@ -84,7 +86,7 @@ class DestinationCacheService {
       
       await box.putAll(cachedData);
     } catch (e) {
-      print('Error caching destinations: $e');
+      AppLogger.error(_tag, 'Error caching destinations', e);
     }
   }
 
@@ -107,7 +109,7 @@ class DestinationCacheService {
       
       await box.put(destination.id, cached);
     } catch (e) {
-      print('Error updating cached destination: $e');
+      AppLogger.error(_tag, 'Error updating cached destination', e);
     }
   }
 
@@ -117,7 +119,7 @@ class DestinationCacheService {
       final box = _hiveService.destinations;
       await box.delete(id);
     } catch (e) {
-      print('Error deleting cached destination: $e');
+      AppLogger.error(_tag, 'Error deleting cached destination', e);
     }
   }
 
@@ -133,14 +135,14 @@ class DestinationCacheService {
           try {
             destinations.add(Destination.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing dirty destination $key: $e');
+            AppLogger.error(_tag, 'Error parsing dirty destination $key', e);
           }
         }
       }
       
       return destinations;
     } catch (e) {
-      print('Error getting dirty destinations: $e');
+      AppLogger.error(_tag, 'Error getting dirty destinations', e);
       return [];
     }
   }
@@ -155,7 +157,7 @@ class DestinationCacheService {
         cached.markSynced();
       }
     } catch (e) {
-      print('Error marking destination as synced: $e');
+      AppLogger.error(_tag, 'Error marking destination as synced', e);
     }
   }
 
@@ -165,7 +167,7 @@ class DestinationCacheService {
       final box = _hiveService.destinations;
       return box.containsKey(id);
     } catch (e) {
-      print('Error checking if destination is cached: $e');
+      AppLogger.error(_tag, 'Error checking if destination is cached', e);
       return false;
     }
   }
@@ -198,7 +200,7 @@ class DestinationCacheService {
         'invalid': invalid,
       };
     } catch (e) {
-      print('Error getting cache stats: $e');
+      AppLogger.error(_tag, 'Error getting cache stats', e);
       return {
         'total': 0,
         'dirty': 0,
@@ -221,7 +223,7 @@ class DestinationCacheService {
                dest.category.toLowerCase().contains(lowerQuery);
       }).toList();
     } catch (e) {
-      print('Error searching cached destinations: $e');
+      AppLogger.error(_tag, 'Error searching cached destinations', e);
       return [];
     }
   }
@@ -232,7 +234,7 @@ class DestinationCacheService {
       final allDestinations = await getAllCachedDestinations();
       return allDestinations.where((dest) => dest.category == category).toList();
     } catch (e) {
-      print('Error getting cached destinations by category: $e');
+      AppLogger.error(_tag, 'Error getting cached destinations by category', e);
       return [];
     }
   }
@@ -248,7 +250,7 @@ class DestinationCacheService {
         return dest.priceRange >= minPrice && dest.priceRange <= maxPrice;
       }).toList();
     } catch (e) {
-      print('Error getting cached destinations by price range: $e');
+      AppLogger.error(_tag, 'Error getting cached destinations by price range', e);
       return [];
     }
   }
@@ -259,7 +261,7 @@ class DestinationCacheService {
       final allDestinations = await getAllCachedDestinations();
       return allDestinations.where((dest) => dest.rating >= minRating).toList();
     } catch (e) {
-      print('Error getting cached destinations by rating: $e');
+      AppLogger.error(_tag, 'Error getting cached destinations by rating', e);
       return [];
     }
   }
@@ -270,7 +272,7 @@ class DestinationCacheService {
       final box = _hiveService.destinations;
       await box.clear();
     } catch (e) {
-      print('Error clearing destination cache: $e');
+      AppLogger.error(_tag, 'Error clearing destination cache', e);
     }
   }
 }

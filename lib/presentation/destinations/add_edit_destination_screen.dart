@@ -97,11 +97,13 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
         });
         HapticHelper.success();
       } else if (images.length > 5) {
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Maximum 5 images allowed')),
         );
       }
     } catch (e) {
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error picking images: $e')),
       );
@@ -309,7 +311,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
 
             // Category
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 border: OutlineInputBorder(),
@@ -350,7 +352,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
                     controller: _latitudeController,
                     label: 'Latitude',
                     hint: 'e.g., -7.6079',
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (value) {
                       if (value?.isEmpty ?? true) return 'Required';
                       if (double.tryParse(value!) == null) return 'Invalid number';
@@ -364,7 +366,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
                     controller: _longitudeController,
                     label: 'Longitude',
                     hint: 'e.g., 110.2038',
-                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (value) {
                       if (value?.isEmpty ?? true) return 'Required';
                       if (double.tryParse(value!) == null) return 'Invalid number';
@@ -535,7 +537,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
                           ),
                         ),
                       );
-                    }).toList(),
+                    }),
                     if (_imageFiles.length < 5)
                       InkWell(
                         onTap: _pickImages,

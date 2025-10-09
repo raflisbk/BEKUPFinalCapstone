@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/utils/logger.dart';
 import '../ai/gemini_service.dart';
 
 /// Model for itinerary generation parameters
@@ -28,6 +29,7 @@ class ItineraryGenerationParams {
 
 /// AI-powered itinerary generation service
 class AIItineraryService {
+  static const String _tag = 'AIItineraryService';
   final GeminiService _gemini = GeminiService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -66,7 +68,7 @@ class AIItineraryService {
 
       return result;
     } catch (e) {
-      print('[AIItineraryService] Error generating itinerary: $e');
+      AppLogger.error(_tag, 'Error generating itinerary', e);
       rethrow;
     }
   }
@@ -232,7 +234,7 @@ Generate a realistic, actionable itinerary that a traveler can actually follow.
         'generatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
-      print('[AIItineraryService] Error saving itinerary: $e');
+      AppLogger.error(_tag, 'Error saving itinerary', e);
       // Non-critical, continue
     }
   }
@@ -277,9 +279,9 @@ Generate a realistic, actionable itinerary that a traveler can actually follow.
         'generatedAt': FieldValue.serverTimestamp(),
       });
 
-      print('[AIItineraryService] Successfully applied itinerary to trip $tripId');
+      AppLogger.info(_tag, 'Successfully applied itinerary to trip $tripId');
     } catch (e) {
-      print('[AIItineraryService] Error applying itinerary: $e');
+      AppLogger.error(_tag, 'Error applying itinerary', e);
       rethrow;
     }
   }

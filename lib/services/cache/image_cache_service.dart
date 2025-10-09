@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../core/utils/logger.dart';
 
 /// Service for caching images and media offline with LRU eviction
 class ImageCacheService {
+  static const String _tag = 'ImageCacheService';
   static final ImageCacheService _instance = ImageCacheService._internal();
   factory ImageCacheService() => _instance;
   ImageCacheService._internal();
@@ -36,9 +38,9 @@ class ImageCacheService {
       );
 
       _initialized = true;
-      print('ImageCacheService initialized with 500MB limit');
+      AppLogger.info(_tag, 'ImageCacheService initialized with 500MB limit');
     } catch (e) {
-      print('Error initializing ImageCacheService: $e');
+      AppLogger.error(_tag, 'Error initializing ImageCacheService', e);
     }
   }
 
@@ -50,7 +52,7 @@ class ImageCacheService {
       final file = await _cacheManager.getSingleFile(url);
       return file;
     } catch (e) {
-      print('Error getting cached file for $url: $e');
+      AppLogger.error(_tag, 'Error getting cached file for $url', e);
       return null;
     }
   }
@@ -63,7 +65,7 @@ class ImageCacheService {
       final file = await _cacheManager.downloadFile(url);
       return file.file;
     } catch (e) {
-      print('Error downloading and caching $url: $e');
+      AppLogger.error(_tag, 'Error downloading and caching $url', e);
       return null;
     }
   }
@@ -76,7 +78,7 @@ class ImageCacheService {
       final fileInfo = await _cacheManager.getFileFromCache(url);
       return fileInfo?.file;
     } catch (e) {
-      print('Error getting file from cache only: $e');
+      AppLogger.error(_tag, 'Error getting file from cache only', e);
       return null;
     }
   }
@@ -89,7 +91,7 @@ class ImageCacheService {
       final fileInfo = await _cacheManager.getFileFromCache(url);
       return fileInfo != null;
     } catch (e) {
-      print('Error checking if file is cached: $e');
+      AppLogger.error(_tag, 'Error checking if file is cached', e);
       return false;
     }
   }
@@ -104,13 +106,13 @@ class ImageCacheService {
         _cacheManager.downloadFile(url).then((_) {
           // Success - do nothing
         }).catchError((error) {
-          print('Error prefetching $url: $error');
+          AppLogger.error(_tag, 'Error prefetching $url', error);
         });
       }
       
-      print('Prefetching ${urls.length} images...');
+      AppLogger.info(_tag, 'Prefetching ${urls.length} images...');
     } catch (e) {
-      print('Error in prefetchImages: $e');
+      AppLogger.error(_tag, 'Error in prefetchImages', e);
     }
   }
 
@@ -131,7 +133,7 @@ class ImageCacheService {
       
       await _cacheManager.removeFile(url);
     } catch (e) {
-      print('Error removing file from cache: $e');
+      AppLogger.error(_tag, 'Error removing file from cache', e);
     }
   }
 
@@ -141,9 +143,9 @@ class ImageCacheService {
       if (!_initialized) await initialize();
       
       await _cacheManager.emptyCache();
-      print('Image cache cleared');
+      AppLogger.info(_tag, 'Image cache cleared');
     } catch (e) {
-      print('Error clearing cache: $e');
+      AppLogger.error(_tag, 'Error clearing cache', e);
     }
   }
 
@@ -166,7 +168,7 @@ class ImageCacheService {
       
       return totalSize;
     } catch (e) {
-      print('Error calculating cache size: $e');
+      AppLogger.error(_tag, 'Error calculating cache size', e);
       return 0;
     }
   }
@@ -204,7 +206,7 @@ class ImageCacheService {
         'isFull': sizeInBytes >= _maxCacheSize,
       };
     } catch (e) {
-      print('Error getting cache stats: $e');
+      AppLogger.error(_tag, 'Error getting cache stats', e);
       return {
         'sizeInBytes': 0,
         'sizeFormatted': '0 B',
@@ -242,13 +244,13 @@ class ImageCacheService {
   Future<void> cleanupIfNeeded() async {
     try {
       if (await needsCleanup()) {
-        print('Cache is full, cleaning up...');
+        AppLogger.info(_tag, 'Cache is full, cleaning up...');
         // CacheManager handles LRU automatically, but we can force cleanup
         await _cacheManager.emptyCache();
-        print('Cache cleanup completed');
+        AppLogger.info(_tag, 'Cache cleanup completed');
       }
     } catch (e) {
-      print('Error during cache cleanup: $e');
+      AppLogger.error(_tag, 'Error during cache cleanup', e);
     }
   }
 }

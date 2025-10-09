@@ -46,7 +46,7 @@ class AIFeaturesScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.purple.withOpacity(0.3),
+                    color: Colors.purple.withValues(alpha: 0.3),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -60,7 +60,7 @@ class AIFeaturesScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: AppColors.white.withOpacity(0.2),
+                          color: AppColors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -77,7 +77,7 @@ class AIFeaturesScreen extends StatelessWidget {
                             Text(
                               'Powered by AI',
                               style: TextStyle(
-                                color: AppColors.white.withOpacity(0.9),
+                                color: AppColors.white.withValues(alpha: 0.9),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -98,7 +98,7 @@ class AIFeaturesScreen extends StatelessWidget {
                   Text(
                     'Your intelligent travel companion. Plan smarter, discover more, and travel better with AI-powered insights.',
                     style: TextStyle(
-                      color: AppColors.white.withOpacity(0.95),
+                      color: AppColors.white.withValues(alpha: 0.95),
                       fontSize: 15,
                       height: 1.4,
                     ),
@@ -128,12 +128,7 @@ class AIFeaturesScreen extends StatelessWidget {
                 colors: [Colors.blue.shade600, Colors.blue.shade400],
               ),
               onTap: () {
-                // TODO: Navigate with trip context
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please create or select a trip first'),
-                  ),
-                );
+                Navigator.pushNamed(context, '/ai-itinerary-generator');
               },
             ),
 
@@ -311,7 +306,7 @@ class AIFeaturesScreen extends StatelessWidget {
           border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: AppColors.black.withOpacity(0.05),
+              color: AppColors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -359,8 +354,8 @@ class AIFeaturesScreen extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
               child: Icon(
                 Icons.arrow_forward_ios,
                 size: 16,
@@ -398,7 +393,7 @@ class AIFeaturesScreen extends StatelessWidget {
                 ),
                 Text(
                   description,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 13,
                     color: AppColors.textSecondary,
                   ),
@@ -411,5 +406,46 @@ class AIFeaturesScreen extends StatelessWidget {
     );
   }
 
+<<<<<<< HEAD
 
+=======
+  void _showComingSoonDialog(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.rocket_launch, color: Colors.purple),
+            const SizedBox(width: 12),
+            Text('$feature UI'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'The $feature feature is fully implemented and ready to use!',
+              style: const TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'UI screens for this feature will be added in the next update.',
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+>>>>>>> 2ddae3e (refactor: clean up codebase and resolve all Flutter hints)
 }

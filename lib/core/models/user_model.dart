@@ -225,6 +225,10 @@ class UserModel {
     );
   }
 
+  // Convenience getters for backward compatibility
+  String get id => uid; // Alias for uid
+  String get name => displayName; // Alias for displayName
+
   @override
   String toString() {
     return 'UserModel(uid: $uid, displayName: $displayName, email: $email, isGuide: $isGuide)';

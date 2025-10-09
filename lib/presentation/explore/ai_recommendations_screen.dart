@@ -147,7 +147,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                 color: Colors.red,
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'Failed to load recommendations',
                 style: AppTextStyles.titleMedium,
               ),
@@ -195,10 +195,10 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
               Icon(
                 Icons.travel_explore,
                 size: 64,
-                color: AppColors.textSecondary.withOpacity(0.5),
+                color: AppColors.textSecondary.withValues(alpha: 0.5),
               ),
               const SizedBox(height: 16),
-              Text(
+              const Text(
                 'No recommendations yet',
                 style: AppTextStyles.titleMedium,
               ),
@@ -242,7 +242,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
         gradient: LinearGradient(
           colors: [
             AppColors.black,
-            AppColors.black.withOpacity(0.8),
+            AppColors.black.withValues(alpha: 0.8),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
@@ -266,7 +266,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
           Text(
             'Based on your travel history, preferences, and places you\'ve loved',
             style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.white.withOpacity(0.9),
+              color: AppColors.white.withValues(alpha: 0.9),
             ),
           ),
         ],
@@ -331,7 +331,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
           Text(
             'Popular destinations travelers are loving right now',
             style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.white.withOpacity(0.9),
+              color: AppColors.white.withValues(alpha: 0.9),
             ),
           ),
         ],
@@ -359,7 +359,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
           border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-              color: AppColors.black.withOpacity(0.05),
+              color: AppColors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),

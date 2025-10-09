@@ -47,6 +47,7 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
   Future<void> _submitReport() async {
     if (_selectedReason == null) {
       await HapticHelper.error();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a reason'),
@@ -76,7 +77,9 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Report submitted');
 
+      // ignore: use_build_context_synchronously
       Navigator.pop(context, true);
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Report submitted successfully'),
@@ -85,6 +88,7 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
       );
     } else {
       await HapticHelper.error();
+      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to submit report'),
@@ -116,7 +120,9 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
               return RadioListTile<String>(
                 title: Text(reason, style: AppTextStyles.bodyMedium),
                 value: reason,
+                // ignore: deprecated_member_use
                 groupValue: _selectedReason,
+                // ignore: deprecated_member_use
                 onChanged: (value) {
                   HapticHelper.selectionClick();
                   setState(() => _selectedReason = value);

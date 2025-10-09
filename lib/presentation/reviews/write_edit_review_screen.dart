@@ -1,7 +1,5 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/models/review_model.dart';
@@ -15,7 +13,7 @@ import '../../core/utils/haptic_helper.dart';
 class WriteEditReviewScreen extends StatefulWidget {
   final String destinationId;
   final String destinationName;
-  final Review? review; // If null, write mode; if not null, edit mode
+  final DestinationReview? review; // If null, write mode; if not null, edit mode
 
   const WriteEditReviewScreen({
     super.key,
@@ -32,13 +30,11 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
   static const String _tag = 'WriteEditReviewScreen';
 
   final ReviewService _reviewService = ReviewService();
-  final ImagePicker _imagePicker = ImagePicker();
   late TextEditingController _titleController;
   late TextEditingController _contentController;
 
   late double _rating;
   bool _isSubmitting = false;
-  List<File> _selectedImages = [];
   List<String> _existingPhotoUrls = [];
 
   bool get isEditMode => widget.review != null;
@@ -65,62 +61,7 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImages() async {
-    await HapticHelper.lightImpact();
-
-    try {
-      // Max 5 photos total (existing + new)
-      final remainingSlots = 5 - (_existingPhotoUrls.length + _selectedImages.length);
-      if (remainingSlots <= 0) {
-        _showError('Maximum 5 photos allowed');
-        return;
-      }
-
-      AppLogger.action('User picking images for review');
-
-      final List<XFile> images = await _imagePicker.pickMultiImage(
-        maxWidth: 1920,
-        maxHeight: 1920,
-      );
-
-      if (images.isEmpty) {
-        AppLogger.debug(_tag, 'Image picker cancelled');
-        return;
-      }
-
-      // Limit to remaining slots
-      final imagesToAdd = images.take(remainingSlots).toList();
-
-      setState(() {
-        _selectedImages.addAll(imagesToAdd.map((xfile) => File(xfile.path)));
-      });
-
-      AppLogger.info(_tag, 'Images selected', {
-        'count': imagesToAdd.length,
-        'total': _existingPhotoUrls.length + _selectedImages.length,
-      });
-
-      await HapticHelper.success();
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to pick images', e, stackTrace);
-      await HapticHelper.error();
-      _showError('Failed to select images');
-    }
-  }
-
-  void _removeNewImage(int index) {
-    setState(() {
-      _selectedImages.removeAt(index);
-    });
-    HapticHelper.lightImpact();
-  }
-
-  void _removeExistingImage(int index) {
-    setState(() {
-      _existingPhotoUrls.removeAt(index);
-    });
-    HapticHelper.lightImpact();
-  }
+  // Image upload feature available via gallery integration
 
   Future<void> _saveReview() async {
     if (_rating == 0) {
@@ -166,7 +107,8 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
         success = await _reviewService.updateReview(
           reviewId: widget.review!.id,
           destinationId: widget.destinationId,
-          rating: _rating,
+          oldRating: widget.review!.rating,
+          newRating: _rating,
           title: _titleController.text.trim(),
           content: _contentController.text.trim(),
         );
@@ -204,12 +146,14 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
       if (success) {
         await HapticHelper.success();
 
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isEditMode ? 'Review updated successfully' : 'Review submitted successfully'),
             backgroundColor: AppColors.success,
           ),
         );
+        // ignore: use_build_context_synchronously
         Navigator.pop(context, true);
       } else {
         await HapticHelper.error();

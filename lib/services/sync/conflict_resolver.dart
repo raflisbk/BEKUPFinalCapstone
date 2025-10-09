@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 /// Conflict resolution strategy for offline sync
 enum ConflictStrategy {
   /// Local changes win (client-wins)
@@ -75,7 +76,7 @@ class ConflictResolver {
           return _mergeData(localData, remoteData);
       }
     } catch (e) {
-      print('Error resolving conflict: $e');
+      debugPrint('Error resolving conflict: $e');
       // Default to remote wins on error
       return ConflictResolution(
         data: remoteData,
@@ -147,7 +148,7 @@ class ConflictResolver {
                 '(${useLocal ? localUpdated : remoteUpdated})',
       );
     } catch (e) {
-      print('Error in timestamp resolution: $e');
+      debugPrint('Error in timestamp resolution: $e');
       return ConflictResolution(
         data: remoteData,
         strategyUsed: ConflictStrategy.remoteWins,
@@ -207,7 +208,7 @@ class ConflictResolver {
         reason: 'Data merged field-by-field',
       );
     } catch (e) {
-      print('Error merging data: $e');
+      debugPrint('Error merging data: $e');
       return ConflictResolution(
         data: remoteData,
         strategyUsed: ConflictStrategy.remoteWins,
@@ -234,7 +235,7 @@ class ConflictResolver {
 
       return null;
     } catch (e) {
-      print('Error parsing timestamp from $field: $e');
+      debugPrint('Error parsing timestamp from $field: $e');
       return null;
     }
   }

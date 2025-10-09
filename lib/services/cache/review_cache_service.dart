@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../../core/database/hive_service.dart';
 import '../../core/database/models/cached_data.dart';
 import '../../core/models/review_model.dart';
@@ -20,7 +21,7 @@ class ReviewCacheService {
       
       return DestinationReview.fromMap(cached.data);
     } catch (e) {
-      print('Error getting cached review: $e');
+      debugPrint('Error getting cached review: $e');
       return null;
     }
   }
@@ -37,14 +38,14 @@ class ReviewCacheService {
           try {
             reviews.add(DestinationReview.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing cached review $key: $e');
+            debugPrint('Error parsing cached review $key: $e');
           }
         }
       }
       
       return reviews;
     } catch (e) {
-      print('Error getting all cached reviews: $e');
+      debugPrint('Error getting all cached reviews: $e');
       return [];
     }
   }
@@ -62,7 +63,7 @@ class ReviewCacheService {
       
       await box.put(review.id, cached);
     } catch (e) {
-      print('Error caching review: $e');
+      debugPrint('Error caching review: $e');
     }
   }
 
@@ -84,7 +85,7 @@ class ReviewCacheService {
       
       await box.putAll(cachedData);
     } catch (e) {
-      print('Error caching reviews: $e');
+      debugPrint('Error caching reviews: $e');
     }
   }
 
@@ -107,7 +108,7 @@ class ReviewCacheService {
       
       await box.put(review.id, cached);
     } catch (e) {
-      print('Error updating cached review: $e');
+      debugPrint('Error updating cached review: $e');
     }
   }
 
@@ -117,7 +118,7 @@ class ReviewCacheService {
       final box = _hiveService.reviews;
       await box.delete(id);
     } catch (e) {
-      print('Error deleting cached review: $e');
+      debugPrint('Error deleting cached review: $e');
     }
   }
 
@@ -133,14 +134,14 @@ class ReviewCacheService {
           try {
             reviews.add(DestinationReview.fromMap(cached.data));
           } catch (e) {
-            print('Error parsing dirty review $key: $e');
+            debugPrint('Error parsing dirty review $key: $e');
           }
         }
       }
       
       return reviews;
     } catch (e) {
-      print('Error getting dirty reviews: $e');
+      debugPrint('Error getting dirty reviews: $e');
       return [];
     }
   }
@@ -155,7 +156,7 @@ class ReviewCacheService {
         cached.markSynced();
       }
     } catch (e) {
-      print('Error marking review as synced: $e');
+      debugPrint('Error marking review as synced: $e');
     }
   }
 
@@ -165,7 +166,7 @@ class ReviewCacheService {
       final box = _hiveService.reviews;
       return box.containsKey(id);
     } catch (e) {
-      print('Error checking if review is cached: $e');
+      debugPrint('Error checking if review is cached: $e');
       return false;
     }
   }
@@ -198,7 +199,7 @@ class ReviewCacheService {
         'invalid': invalid,
       };
     } catch (e) {
-      print('Error getting cache stats: $e');
+      debugPrint('Error getting cache stats: $e');
       return {
         'total': 0,
         'dirty': 0,
@@ -220,7 +221,7 @@ class ReviewCacheService {
                review.userName.toLowerCase().contains(lowerQuery);
       }).toList();
     } catch (e) {
-      print('Error searching cached reviews: $e');
+      debugPrint('Error searching cached reviews: $e');
       return [];
     }
   }
@@ -231,7 +232,7 @@ class ReviewCacheService {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.destinationId == destinationId).toList();
     } catch (e) {
-      print('Error getting cached reviews by destination: $e');
+      debugPrint('Error getting cached reviews by destination: $e');
       return [];
     }
   }
@@ -242,7 +243,7 @@ class ReviewCacheService {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.userId == userId).toList();
     } catch (e) {
-      print('Error getting cached reviews by user: $e');
+      debugPrint('Error getting cached reviews by user: $e');
       return [];
     }
   }
@@ -253,7 +254,7 @@ class ReviewCacheService {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.rating >= minRating).toList();
     } catch (e) {
-      print('Error getting cached reviews by rating: $e');
+      debugPrint('Error getting cached reviews by rating: $e');
       return [];
     }
   }
@@ -264,7 +265,7 @@ class ReviewCacheService {
       final box = _hiveService.reviews;
       await box.clear();
     } catch (e) {
-      print('Error clearing review cache: $e');
+      debugPrint('Error clearing review cache: $e');
     }
   }
 }

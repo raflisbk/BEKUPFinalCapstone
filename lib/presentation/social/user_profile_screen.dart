@@ -7,10 +7,7 @@ import '../../services/user_service.dart';
 import '../../services/social_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
-import '../../core/utils/logger.dart';
 import '../../core/widgets/skeleton_loader.dart';
-import '../../services/moderation_service.dart';
-import 'report_user_dialog.dart';
 
 /// Screen to view another user's profile and follow/unfollow them
 class UserProfileScreen extends StatefulWidget {
@@ -52,6 +49,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       final connection = await _socialService.getSocialConnection(widget.userId);
 
       // Check if current user is following this user
+      // ignore: use_build_context_synchronously
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.user?.uid;
 
@@ -193,7 +191,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.person_off, size: 64, color: AppColors.grey400),
+            const Icon(Icons.person_off, size: 64, color: AppColors.grey400),
             const SizedBox(height: 16),
             Text(
               'User not found',
@@ -214,7 +212,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
           // Name
           Text(
-            _user!.displayName ?? 'Unknown User',
+            _user!.displayName,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -283,10 +281,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       );
     } else {
       // Default avatar
-      return CircleAvatar(
+      return const CircleAvatar(
         radius: 60,
         backgroundColor: AppColors.grey200,
-        child: const Icon(Icons.person, size: 60, color: AppColors.grey500),
+        child: Icon(Icons.person, size: 60, color: AppColors.grey500),
       );
     }
   }

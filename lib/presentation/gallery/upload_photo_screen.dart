@@ -166,6 +166,7 @@ class _UploadPhotoScreenState extends State<UploadPhotoScreen> {
         await HapticHelper.success();
         AppLogger.info(_tag, 'Photo uploaded successfully', {'photoId': photoId});
 
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Photo uploaded successfully!'),
@@ -173,6 +174,7 @@ class _UploadPhotoScreenState extends State<UploadPhotoScreen> {
           ),
         );
 
+        // ignore: use_build_context_synchronously
         Navigator.pop(context, true);
       } else {
         throw Exception('Failed to create photo post');
@@ -209,10 +211,11 @@ class _UploadPhotoScreenState extends State<UploadPhotoScreen> {
           icon: const Icon(Icons.close, color: AppColors.black),
           onPressed: () async {
             await HapticHelper.buttonTap();
+            // ignore: use_build_context_synchronously
             Navigator.pop(context);
           },
         ),
-        title: Text('Upload Photo', style: AppTextStyles.headlineSmall),
+        title: const Text('Upload Photo', style: AppTextStyles.headlineSmall),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(
@@ -258,7 +261,7 @@ class _UploadPhotoScreenState extends State<UploadPhotoScreen> {
                                   });
                                 },
                                 style: IconButton.styleFrom(
-                                  backgroundColor: Colors.black.withOpacity(0.5),
+                                  backgroundColor: Colors.black.withValues(alpha: 0.5),
                                 ),
                               ),
                             ),
