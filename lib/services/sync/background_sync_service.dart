@@ -1,47 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'dart:async';
-import 'package:workmanager/workmanager.dart';
+// NOTE: Workmanager removed due to Flutter embedding V2 compatibility issues
+// Using Timer-based periodic sync as alternative
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import '../../core/database/hive_service.dart';
 import '../../core/utils/connectivity_service.dart';
 import 'sync_queue_manager.dart';
 import '../cache/upload_queue_service.dart';
 
-/// Background callback for workmanager (must be top-level function)
-@pragma('vm:entry-point')
-void backgroundSyncCallback() {
-  Workmanager().executeTask((task, inputData) async {
-    try {
-      debugPrint('Background sync started: $task');
-
-      // Initialize Hive for background task
-      await HiveService.instance.initialize();
-
-      // Initialize connectivity
-      await ConnectivityService.instance.initialize();
-
-      // Check if online
-      if (!ConnectivityService.instance.isOnline) {
-        debugPrint('Background sync skipped: offline');
-        return Future.value(true);
-      }
-
-      // Sync queue operations
-      await SyncQueueManager().syncAll();
-
-      // Process upload queue
-      await UploadQueueService().processQueue();
-
-      debugPrint('Background sync completed successfully');
-      return Future.value(true);
-    } catch (e) {
-      debugPrint('Background sync error: $e');
-      return Future.value(false);
-    }
-  });
-}
-
-/// Service for managing background sync with workmanager
+/// Service for managing background sync with periodic timers
+/// Alternative to workmanager due to compatibility issues
 class BackgroundSyncService {
   static final BackgroundSyncService _instance = BackgroundSyncService._internal();
   factory BackgroundSyncService() => _instance;
@@ -51,11 +18,10 @@ class BackgroundSyncService {
   final UploadQueueService _uploadQueue = UploadQueueService();
   final ConnectivityService _connectivity = ConnectivityService.instance;
 
-  static const String _syncTaskName = 'background_sync_task';
-  static const String _uniqueTaskName = 'relink_background_sync';
-  
-  // Sync intervals
-  static const Duration _periodicSyncInterval = Duration(minutes: 15);
+  // Timer-based sync
+  Timer? _periodicSyncTimer;
+  static const Duration _syncInterval = Duration(minutes: 15);
+  bool _isSyncing = false;
 
   bool _isInitialized = false;
   FlutterLocalNotificationsPlugin? _notifications;
@@ -68,16 +34,10 @@ class BackgroundSyncService {
     }
 
     try {
-      // Initialize workmanager
-      await Workmanager().initialize(
-        backgroundSyncCallback,
-        isInDebugMode: false, // Set to false for production
-      );
-
       // Initialize notifications
       await _initializeNotifications();
 
-      // Register periodic sync task
+      // Start periodic sync timer
       await _registerPeriodicSync();
 
       // Listen to connectivity changes
@@ -89,7 +49,7 @@ class BackgroundSyncService {
       });
 
       _isInitialized = true;
-      debugPrint('BackgroundSyncService initialized');
+      debugPrint('BackgroundSyncService initialized with periodic timer (${_syncInterval.inMinutes}min intervals)');
     } catch (e) {
       debugPrint('Error initializing BackgroundSyncService: $e');
     }
@@ -119,43 +79,66 @@ class BackgroundSyncService {
     }
   }
 
-  /// Register periodic background sync
+  /// Register periodic background sync using Timer
   Future<void> _registerPeriodicSync() async {
     try {
-      await Workmanager().registerPeriodicTask(
-        _uniqueTaskName,
-        _syncTaskName,
-        frequency: _periodicSyncInterval,
-        constraints: Constraints(
-          networkType: NetworkType.connected,
-          requiresBatteryNotLow: true,
-          requiresCharging: false,
-        ),
-        backoffPolicy: BackoffPolicy.exponential,
-        backoffPolicyDelay: const Duration(minutes: 1),
-        existingWorkPolicy: ExistingWorkPolicy.keep,
-      );
+      // Cancel existing timer if any
+      _periodicSyncTimer?.cancel();
 
-      debugPrint('Periodic sync registered: every ${_periodicSyncInterval.inMinutes} minutes');
+      // Start new periodic timer
+      _periodicSyncTimer = Timer.periodic(_syncInterval, (timer) async {
+        await _performBackgroundSync();
+      });
+
+      debugPrint('Periodic sync timer started: every ${_syncInterval.inMinutes} minutes');
     } catch (e) {
       debugPrint('Error registering periodic sync: $e');
+    }
+  }
+
+  /// Perform background sync (called by timer)
+  Future<void> _performBackgroundSync() async {
+    // Prevent concurrent syncs
+    if (_isSyncing) {
+      debugPrint('Sync already in progress, skipping');
+      return;
+    }
+
+    // Check if online
+    if (!_connectivity.isOnline) {
+      debugPrint('Background sync skipped: offline');
+      return;
+    }
+
+    _isSyncing = true;
+
+    try {
+      debugPrint('Background sync started');
+
+      // Sync queue operations
+      await _syncQueue.syncAll();
+
+      // Process upload queue
+      await _uploadQueue.processQueue();
+
+      debugPrint('Background sync completed successfully');
+    } catch (e) {
+      debugPrint('Background sync error: $e');
+    } finally {
+      _isSyncing = false;
     }
   }
 
   /// Schedule quick sync (used when coming online)
   Future<void> scheduleQuickSync() async {
     try {
-      await Workmanager().registerOneOffTask(
-        '${_uniqueTaskName}_quick',
-        _syncTaskName,
-        constraints: Constraints(
-          networkType: NetworkType.connected,
-        ),
-        initialDelay: const Duration(seconds: 5),
-        existingWorkPolicy: ExistingWorkPolicy.replace,
-      );
+      // Wait a bit before syncing to avoid immediate sync after network connection
+      await Future.delayed(const Duration(seconds: 5));
 
-      debugPrint('Quick sync scheduled');
+      if (_connectivity.isOnline && !_isSyncing) {
+        debugPrint('Quick sync triggered');
+        await _performBackgroundSync();
+      }
     } catch (e) {
       debugPrint('Error scheduling quick sync: $e');
     }
@@ -300,7 +283,8 @@ class BackgroundSyncService {
   /// Disable background sync
   Future<void> disableBackgroundSync() async {
     try {
-      await Workmanager().cancelByUniqueName(_uniqueTaskName);
+      _periodicSyncTimer?.cancel();
+      _periodicSyncTimer = null;
       debugPrint('Background sync disabled');
     } catch (e) {
       debugPrint('Error disabling background sync: $e');
@@ -310,7 +294,8 @@ class BackgroundSyncService {
   /// Cancel all background tasks
   Future<void> cancelAllTasks() async {
     try {
-      await Workmanager().cancelAll();
+      _periodicSyncTimer?.cancel();
+      _periodicSyncTimer = null;
       debugPrint('All background tasks cancelled');
     } catch (e) {
       debugPrint('Error cancelling tasks: $e');
@@ -319,9 +304,7 @@ class BackgroundSyncService {
 
   /// Check if background sync is enabled
   Future<bool> isBackgroundSyncEnabled() async {
-    // Note: Workmanager doesn't provide a way to check if task exists
-    // This is a placeholder - you'd need to track this in shared preferences
-    return _isInitialized;
+    return _periodicSyncTimer != null && _periodicSyncTimer!.isActive;
   }
 
   /// Get pending sync counts
@@ -341,6 +324,8 @@ class BackgroundSyncService {
 
   /// Dispose resources
   void dispose() {
-    // Cleanup if needed
+    _periodicSyncTimer?.cancel();
+    _periodicSyncTimer = null;
+    debugPrint('BackgroundSyncService disposed');
   }
 }

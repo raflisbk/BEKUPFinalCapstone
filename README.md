@@ -401,7 +401,7 @@ lib/
 - Flutter SDK (>= 3.9.2)
 - Dart SDK
 - Firebase account
-- Google Cloud account (Maps API)
+- Google Cloud account (Maps & Gemini API)
 
 ### Quick Start
 
@@ -416,45 +416,25 @@ cd relink
 flutter pub get
 ```
 
-3. **Setup Firebase**
+3. **Setup Firebase & Google Cloud**
+   - See detailed instructions in [SETUP_GUIDE.md](SETUP_GUIDE.md)
    - Download `google-services.json` from Firebase Console
    - Place in `android/app/google-services.json`
-   - Enable: Authentication, Firestore, Storage
+   - Enable: Authentication, Firestore, Storage, FCM
 
-4. **Configure Firestore**
-   Create collections:
-   - `users` - User profiles and preferences
-   - `conversations` - Chat conversations (including AI chat history)
-   - `messages` - Chat messages and AI responses
-   - `user_status` - Online status tracking
-   - `photos` - Photo gallery with AI analysis
-   - `photo_comments` - Photo comments and AI insights
-   - `trips` - Trip planning with AI recommendations
-   - `reviews` - Destination reviews
-   - `rating_summaries` - Rating aggregates
-   - `social_connections` - Follow relationships
-   - `activities` - Activity feed
-   - `destinations` - Tourism destinations with AI enhancement
-   - `user_bookmarks` - Bookmarked destinations
-   - `trip_budgets` - AI-optimized budget tracking
-   - `report_logs` - User reports and moderation
-   - `ai_chat_sessions` - AI conversation contexts
-   - `ai_preferences` - User AI learning data
-   - `cache_metadata` - Offline cache management
-   - `sync_queues` - Background sync operations
-
-5. **Setup environment**
+4. **Setup API Keys**
    Create `.env` file:
 ```env
-GOOGLE_MAPS_API_KEY=your_api_key_here
+GOOGLE_MAPS_API_KEY=your_maps_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
-OPENWEATHER_API_KEY=your_weather_api_key_here
 ```
 
-6. **Run app**
+5. **Run app**
 ```bash
 flutter run
 ```
+
+📖 **For complete setup instructions, see [SETUP_GUIDE.md](SETUP_GUIDE.md)**
 
 ---
 
@@ -749,6 +729,8 @@ flutter build appbundle        # Play Store bundle
 
 ---
 
-**Last Updated:** October 9, 2025
-**Version:** 4.0.0
+**Last Updated:** January 10, 2025
+**Version:** 4.1.0
 **Status:** ✅ Production Ready with AI
+
+📖 **Setup Documentation**: See [SETUP_GUIDE.md](SETUP_GUIDE.md) for complete installation instructions
