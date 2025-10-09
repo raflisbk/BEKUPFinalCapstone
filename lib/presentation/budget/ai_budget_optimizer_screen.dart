@@ -7,9 +7,9 @@ class AIBudgetOptimizerScreen extends StatefulWidget {
   final trip_models.Trip? trip;
 
   const AIBudgetOptimizerScreen({
-    Key? key,
+    super.key,
     this.trip,
-  }) : super(key: key);
+  });
 
   @override
   State<AIBudgetOptimizerScreen> createState() =>

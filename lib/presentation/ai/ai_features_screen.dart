@@ -405,47 +405,4 @@ class AIFeaturesScreen extends StatelessWidget {
       ),
     );
   }
-
-<<<<<<< HEAD
-
-=======
-  void _showComingSoonDialog(BuildContext context, String feature) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.rocket_launch, color: Colors.purple),
-            const SizedBox(width: 12),
-            Text('$feature UI'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'The $feature feature is fully implemented and ready to use!',
-              style: const TextStyle(fontSize: 15),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'UI screens for this feature will be added in the next update.',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
-  }
->>>>>>> 2ddae3e (refactor: clean up codebase and resolve all Flutter hints)
 }

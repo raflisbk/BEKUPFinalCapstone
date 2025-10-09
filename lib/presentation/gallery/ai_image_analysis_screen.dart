@@ -6,7 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../services/ai/ai_image_service.dart';
 
 class AIImageAnalysisScreen extends StatefulWidget {
-  const AIImageAnalysisScreen({Key? key}) : super(key: key);
+  const AIImageAnalysisScreen({super.key});
 
   @override
   State<AIImageAnalysisScreen> createState() => _AIImageAnalysisScreenState();

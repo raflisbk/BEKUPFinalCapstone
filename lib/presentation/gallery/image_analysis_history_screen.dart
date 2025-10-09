@@ -141,16 +141,37 @@ class _ImageAnalysisHistoryScreenState extends State<ImageAnalysisHistoryScreen>
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: LoadingIndicator(
-          message: 'Loading analysis history...',
-        ),
+        child: CircularProgressIndicator(),
       );
     }
-    
+
     if (_errorMessage != null) {
-      return ErrorView(
-        message: _errorMessage!,
-        onRetry: _loadHistory,
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Error',
+              style: AppTextStyles.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _errorMessage!,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _loadHistory,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
       );
     }
     
@@ -165,7 +186,7 @@ class _ImageAnalysisHistoryScreenState extends State<ImageAnalysisHistoryScreen>
               color: Colors.grey.shade300,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'No Analysis History',
               style: AppTextStyles.titleLarge,
             ),
@@ -229,7 +250,6 @@ class _ImageAnalysisHistoryScreenState extends State<ImageAnalysisHistoryScreen>
               final result = analysis['result'] as Map<String, dynamic>;
               final landmark = result['landmark'] as Map<String, dynamic>;
               final tags = result['tags'] as List;
-              final caption = result['caption'] as String;
               final date = analysis['createdAt'] as DateTime;
               
               return GestureDetector(
@@ -277,7 +297,7 @@ class _ImageAnalysisHistoryScreenState extends State<ImageAnalysisHistoryScreen>
                                     begin: Alignment.bottomCenter,
                                     end: Alignment.topCenter,
                                     colors: [
-                                      Colors.black.withOpacity(0.7),
+                                      Colors.black.withValues(alpha: 0.7),
                                       Colors.transparent,
                                     ],
                                   ),
@@ -619,7 +639,7 @@ class _ImageAnalysisHistoryScreenState extends State<ImageAnalysisHistoryScreen>
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 5,
             spreadRadius: 0,
             offset: const Offset(0, 2),

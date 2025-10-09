@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 
@@ -150,7 +149,7 @@ class _BudgetOptimizationHistoryScreenState extends State<BudgetOptimizationHist
               color: Colors.red,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Error',
               style: AppTextStyles.headlineSmall,
             ),
@@ -180,7 +179,7 @@ class _BudgetOptimizationHistoryScreenState extends State<BudgetOptimizationHist
               color: Colors.grey.shade300,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'No Optimization History',
               style: AppTextStyles.titleLarge,
             ),
@@ -247,7 +246,7 @@ class _BudgetOptimizationHistoryScreenState extends State<BudgetOptimizationHist
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: _getHealthColor(healthScore).withOpacity(0.1),
+                          color: _getHealthColor(healthScore).withValues(alpha: 0.1),
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                         ),
                         child: Row(
@@ -748,10 +747,10 @@ class _BudgetOptimizationHistoryScreenState extends State<BudgetOptimizationHist
                   ),
                 );
               },
-              child: const Text('Select'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
               ),
+              child: const Text('Select'),
             ),
           ],
         );
@@ -773,7 +772,7 @@ class _BudgetOptimizationHistoryScreenState extends State<BudgetOptimizationHist
         border: Border.all(color: Colors.grey.shade200),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 5,
             spreadRadius: 0,
             offset: const Offset(0, 2),
