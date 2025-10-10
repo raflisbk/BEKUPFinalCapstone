@@ -58,9 +58,9 @@ void main() {
 
     testWidgets('Password field is obscured', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
-            body: const TextField(
+            body: TextField(
               decoration: InputDecoration(labelText: 'Password'),
               obscureText: true,
             ),
