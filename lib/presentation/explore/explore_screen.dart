@@ -9,6 +9,7 @@ import '../../core/utils/marker_generator.dart';
 import '../../core/utils/marker_cluster.dart';
 import '../../core/providers/location_provider.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/explore_ui_provider.dart';
 
 // Data class for optimized map rebuilds
 class _MapData {
@@ -34,17 +35,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
   static const String _tag = 'ExploreScreen';
 
   GoogleMapController? _mapController;
-  Set<Marker> _markers = {};
-  bool _isLoading = true;
-  String? _errorMessage;
-  bool _isLocationSharingEnabled = false;
 
   // Progressive loading settings
   static const int _markerBatchSize = 10;
-  bool _isLoadingMarkers = false;
 
   // Clustering settings
-  double _currentZoom = 12.0;
   final bool _enableClustering = true;
 
   // Default location (Jakarta, Indonesia)
@@ -62,8 +57,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _initializeLocation() async {
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(
+      context,
+      listen: false,
+    );
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final exploreUIProvider = Provider.of<ExploreUIProvider>(
+      context,
+      listen: false,
+    );
 
     try {
       AppLogger.debug(_tag, 'Initializing location and map');
@@ -77,9 +79,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
           'longitude': position.longitude,
         });
 
-        setState(() {
-          _isLoading = false;
-        });
+        exploreUIProvider.setLoading(false);
 
         // Move camera to current location
         AppLogger.debug(_tag, 'Moving camera to current location');
@@ -93,46 +93,54 @@ class _ExploreScreenState extends State<ExploreScreen> {
         // Start location stream if user is authenticated
         if (authProvider.isAuthenticated && !authProvider.isGuest) {
           await locationProvider.startLocationStream();
-          setState(() {
-            _isLocationSharingEnabled = locationProvider.isLocationSharing;
-          });
+          exploreUIProvider.setLocationSharing(
+            locationProvider.isLocationSharing,
+          );
         }
 
         // Update markers from provider
         _updateMarkers();
       } else {
         AppLogger.warning(_tag, 'Unable to get location - position is null');
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Unable to get location. Please enable location services.';
-        });
+        exploreUIProvider.setLoading(false);
+        exploreUIProvider.setError(
+          'Unable to get location. Please enable location services.',
+        );
       }
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to initialize location', e, stackTrace);
-      setState(() {
-        _isLoading = false;
-        _errorMessage = e.toString();
-      });
+      exploreUIProvider.setLoading(false);
+      exploreUIProvider.setError(e.toString());
     }
   }
 
   Future<void> _updateMarkers() async {
-    if (!mounted || _isLoadingMarkers) return;
+    final exploreUIProvider = Provider.of<ExploreUIProvider>(
+      context,
+      listen: false,
+    );
 
-    setState(() {
-      _isLoadingMarkers = true;
-    });
+    if (!mounted || exploreUIProvider.isLoadingMarkers) return;
 
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    exploreUIProvider.setLoadingMarkers(true);
+
+    final locationProvider = Provider.of<LocationProvider>(
+      context,
+      listen: false,
+    );
     final currentPosition = locationProvider.currentPosition;
     final nearbyTravelers = locationProvider.nearbyTravelers;
 
-    AppLogger.debug(_tag, 'Starting progressive marker update with clustering', {
-      'hasPosition': currentPosition != null,
-      'travelersCount': nearbyTravelers.length,
-      'zoomLevel': _currentZoom.toStringAsFixed(1),
-      'clusteringEnabled': _enableClustering,
-    });
+    AppLogger.debug(
+      _tag,
+      'Starting progressive marker update with clustering',
+      {
+        'hasPosition': currentPosition != null,
+        'travelersCount': nearbyTravelers.length,
+        'zoomLevel': exploreUIProvider.currentZoom.toStringAsFixed(1),
+        'clusteringEnabled': _enableClustering,
+      },
+    );
 
     final Set<Marker> allMarkers = {};
 
@@ -143,18 +151,21 @@ class _ExploreScreenState extends State<ExploreScreen> {
           color: AppColors.black,
           emoji: '📍',
         );
-        allMarkers.add(Marker(
-          markerId: const MarkerId('current_location'),
-          position: LatLng(currentPosition.latitude, currentPosition.longitude),
-          icon: icon,
-          anchor: const Offset(0.5, 0.5),
-        ));
+        allMarkers.add(
+          Marker(
+            markerId: const MarkerId('current_location'),
+            position: LatLng(
+              currentPosition.latitude,
+              currentPosition.longitude,
+            ),
+            icon: icon,
+            anchor: const Offset(0.5, 0.5),
+          ),
+        );
 
         // Update UI immediately with current location marker
         if (mounted) {
-          setState(() {
-            _markers = Set.from(allMarkers);
-          });
+          exploreUIProvider.setMarkers(Set.from(allMarkers));
         }
       } catch (e) {
         AppLogger.warning(_tag, 'Failed to create current location marker');
@@ -166,14 +177,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
     if (_enableClustering) {
       clusterData = MarkerCluster.clusterMarkers(
         travelers: nearbyTravelers.take(50).toList(),
-        zoomLevel: _currentZoom,
+        zoomLevel: exploreUIProvider.currentZoom,
       );
     } else {
-      clusterData = nearbyTravelers.take(50).map((t) => MarkerClusterData(
-        position: LatLng(t['latitude'] as double, t['longitude'] as double),
-        travelers: [t],
-        isCluster: false,
-      )).toList();
+      clusterData = nearbyTravelers
+          .take(50)
+          .map(
+            (t) => MarkerClusterData(
+              position: LatLng(
+                t['latitude'] as double,
+                t['longitude'] as double,
+              ),
+              travelers: [t],
+              isCluster: false,
+            ),
+          )
+          .toList();
     }
 
     final totalBatches = (clusterData.length / _markerBatchSize).ceil();
@@ -188,12 +207,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
       if (!mounted) break;
 
       final startIndex = batchIndex * _markerBatchSize;
-      final endIndex = (startIndex + _markerBatchSize).clamp(0, clusterData.length);
+      final endIndex = (startIndex + _markerBatchSize).clamp(
+        0,
+        clusterData.length,
+      );
       final batch = clusterData.sublist(startIndex, endIndex);
 
-      AppLogger.debug(_tag, 'Processing batch ${batchIndex + 1}/$totalBatches', {
-        'markersInBatch': batch.length,
-      });
+      AppLogger.debug(
+        _tag,
+        'Processing batch ${batchIndex + 1}/$totalBatches',
+        {'markersInBatch': batch.length},
+      );
 
       // Process batch in parallel
       final List<Future<Marker?>> batchFutures = [];
@@ -201,17 +225,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
         if (cluster.isCluster) {
           // Create cluster marker
           batchFutures.add(
-            MarkerCluster.createClusterMarker(cluster.count).then((icon) {
-              return Marker(
-                markerId: MarkerId('cluster_${cluster.position.latitude}_${cluster.position.longitude}'),
-                position: cluster.position,
-                icon: icon,
-                anchor: const Offset(0.5, 0.5),
-              ) as Marker?;
-            }).catchError((e) {
-              AppLogger.warning(_tag, 'Failed to create cluster marker');
-              return null as Marker?;
-            }),
+            MarkerCluster.createClusterMarker(cluster.count)
+                .then((icon) {
+                  return Marker(
+                        markerId: MarkerId(
+                          'cluster_${cluster.position.latitude}_${cluster.position.longitude}',
+                        ),
+                        position: cluster.position,
+                        icon: icon,
+                        anchor: const Offset(0.5, 0.5),
+                      )
+                      as Marker?;
+                })
+                .catchError((e) {
+                  AppLogger.warning(_tag, 'Failed to create cluster marker');
+                  return null as Marker?;
+                }),
           );
         } else {
           // Create individual traveler marker
@@ -221,19 +250,26 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
           batchFutures.add(
             MarkerGenerator.createMarkerFromPhoto(
-              photoUrl: photoUrl,
-              isCurrentUser: false,
-            ).then((icon) {
-              return Marker(
-                markerId: MarkerId(uid),
-                position: cluster.position,
-                icon: icon,
-                anchor: const Offset(0.5, 0.5),
-              ) as Marker?;
-            }).catchError((e) {
-              AppLogger.warning(_tag, 'Failed to create marker for traveler', {'uid': uid});
-              return null as Marker?;
-            }),
+                  photoUrl: photoUrl,
+                  isCurrentUser: false,
+                )
+                .then((icon) {
+                  return Marker(
+                        markerId: MarkerId(uid),
+                        position: cluster.position,
+                        icon: icon,
+                        anchor: const Offset(0.5, 0.5),
+                      )
+                      as Marker?;
+                })
+                .catchError((e) {
+                  AppLogger.warning(
+                    _tag,
+                    'Failed to create marker for traveler',
+                    {'uid': uid},
+                  );
+                  return null as Marker?;
+                }),
           );
         }
       }
@@ -244,9 +280,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
       // Update UI after each batch for progressive loading
       if (mounted) {
-        setState(() {
-          _markers = Set.from(allMarkers);
-        });
+        exploreUIProvider.setMarkers(Set.from(allMarkers));
       }
 
       AppLogger.debug(_tag, 'Batch ${batchIndex + 1} completed', {
@@ -256,9 +290,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     if (mounted) {
-      setState(() {
-        _isLoadingMarkers = false;
-      });
+      exploreUIProvider.setLoadingMarkers(false);
     }
 
     AppLogger.info(_tag, 'All markers loaded successfully', {
@@ -275,17 +307,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   void _onCameraMove(CameraPosition position) {
+    final exploreUIProvider = Provider.of<ExploreUIProvider>(
+      context,
+      listen: false,
+    );
     final newZoom = position.zoom;
-    if ((newZoom - _currentZoom).abs() > 1.0) {
+    if ((newZoom - exploreUIProvider.currentZoom).abs() > 1.0) {
       // Significant zoom change - update zoom level
       AppLogger.debug(_tag, 'Significant zoom change detected', {
-        'oldZoom': _currentZoom.toStringAsFixed(1),
+        'oldZoom': exploreUIProvider.currentZoom.toStringAsFixed(1),
         'newZoom': newZoom.toStringAsFixed(1),
       });
 
-      setState(() {
-        _currentZoom = newZoom;
-      });
+      exploreUIProvider.setZoom(newZoom);
 
       // Trigger marker update with new clustering
       _updateMarkers();
@@ -293,7 +327,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _goToCurrentLocation() async {
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(
+      context,
+      listen: false,
+    );
 
     AppLogger.action('User tapped "My Location" button');
 
@@ -308,13 +345,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
       );
       AppLogger.info(_tag, 'Camera moved to current location');
     } else {
-      AppLogger.warning(_tag, 'Cannot go to current location - position is null');
+      AppLogger.warning(
+        _tag,
+        'Cannot go to current location - position is null',
+      );
     }
   }
 
   Future<void> _toggleLocationSharing() async {
-    final locationProvider = Provider.of<LocationProvider>(context, listen: false);
+    final locationProvider = Provider.of<LocationProvider>(
+      context,
+      listen: false,
+    );
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final exploreUIProvider = Provider.of<ExploreUIProvider>(
+      context,
+      listen: false,
+    );
 
     if (authProvider.isGuest) {
       _showGuestModeDialog();
@@ -322,15 +369,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
     }
 
     AppLogger.action('User toggled location sharing', {
-      'currentValue': _isLocationSharingEnabled,
+      'currentValue': exploreUIProvider.isLocationSharingEnabled,
     });
 
-    if (_isLocationSharingEnabled) {
+    if (exploreUIProvider.isLocationSharingEnabled) {
       // Stop sharing
       await locationProvider.stopLocationStream();
-      setState(() {
-        _isLocationSharingEnabled = false;
-      });
+      exploreUIProvider.setLocationSharing(false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -342,9 +387,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
     } else {
       // Start sharing
       await locationProvider.startLocationStream();
-      setState(() {
-        _isLocationSharingEnabled = true;
-      });
+      exploreUIProvider.setLocationSharing(true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -385,34 +428,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
   void dispose() {
     AppLogger.debug(_tag, 'Disposing explore screen resources');
     _mapController?.dispose();
-    _markers.clear();
     AppLogger.info(_tag, 'Map controller disposed and markers cleared');
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Selector<LocationProvider, _MapData>(
-      selector: (_, provider) => _MapData(
-        currentPosition: provider.currentPosition,
-        nearbyTravelers: provider.nearbyTravelers,
-        isLocationSharing: provider.isLocationSharing,
-      ),
-      shouldRebuild: (previous, next) {
-        // Only rebuild if data actually changed
-        final shouldRebuild = previous.currentPosition != next.currentPosition ||
-            previous.nearbyTravelers.length != next.nearbyTravelers.length ||
-            previous.isLocationSharing != next.isLocationSharing;
+    return Consumer2<LocationProvider, ExploreUIProvider>(
+      builder: (context, locationProvider, exploreUIProvider, child) {
+        final mapData = _MapData(
+          currentPosition: locationProvider.currentPosition,
+          nearbyTravelers: locationProvider.nearbyTravelers,
+          isLocationSharing: locationProvider.isLocationSharing,
+        );
 
-        if (shouldRebuild) {
-          AppLogger.debug(_tag, 'Map data changed, triggering rebuild');
-        }
-
-        return shouldRebuild;
-      },
-      builder: (context, mapData, child) {
         // Update markers when location data changes
-        if (mapData.currentPosition != null && !_isLoading) {
+        if (mapData.currentPosition != null && !exploreUIProvider.isLoading) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _updateMarkers();
           });
@@ -438,7 +469,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         : _defaultLocation,
                     zoom: 15,
                   ),
-                  markers: _markers,
+                  markers: exploreUIProvider.markers,
                   myLocationEnabled: true,
                   myLocationButtonEnabled: false,
                   zoomControlsEnabled: false,
@@ -478,12 +509,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: _isLocationSharingEnabled
+                            color: exploreUIProvider.isLocationSharingEnabled
                                 ? AppColors.black
                                 : AppColors.grey100,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: _isLocationSharingEnabled
+                              color: exploreUIProvider.isLocationSharingEnabled
                                   ? AppColors.black
                                   : AppColors.border,
                             ),
@@ -494,19 +525,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
-                                  _isLocationSharingEnabled
+                                  exploreUIProvider.isLocationSharingEnabled
                                       ? Icons.location_on
                                       : Icons.location_off,
                                   size: 16,
-                                  color: _isLocationSharingEnabled
+                                  color:
+                                      exploreUIProvider.isLocationSharingEnabled
                                       ? AppColors.white
                                       : AppColors.textSecondary,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  _isLocationSharingEnabled ? 'Sharing' : 'Share',
+                                  exploreUIProvider.isLocationSharingEnabled
+                                      ? 'Sharing'
+                                      : 'Share',
                                   style: AppTextStyles.labelSmall.copyWith(
-                                    color: _isLocationSharingEnabled
+                                    color:
+                                        exploreUIProvider
+                                            .isLocationSharingEnabled
                                         ? AppColors.white
                                         : AppColors.textSecondary,
                                   ),
@@ -521,7 +557,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
 
                 // Loading Overlay
-                if (_isLoading)
+                if (exploreUIProvider.isLoading)
                   Container(
                     color: AppColors.white.withValues(alpha: 0.9),
                     child: Center(
@@ -529,7 +565,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.black),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.black,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -544,7 +582,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   ),
 
                 // Error Message
-                if (_errorMessage != null && !_isLoading)
+                if (exploreUIProvider.errorMessage != null &&
+                    !exploreUIProvider.isLoading)
                   Positioned(
                     bottom: 200,
                     left: 24,
@@ -556,7 +595,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        _errorMessage!,
+                        exploreUIProvider.errorMessage!,
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.white,
                         ),
@@ -636,9 +675,9 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         Text(
                           nearbyCount > 0
                               ? '$nearbyCount ${nearbyCount == 1 ? "traveler" : "travelers"} found near you (within 5km)'
-                              : _isLocationSharingEnabled
-                                  ? 'No travelers nearby. Be the first to share your location!'
-                                  : 'Enable location sharing to find nearby travelers',
+                              : exploreUIProvider.isLocationSharingEnabled
+                              ? 'No travelers nearby. Be the first to share your location!'
+                              : 'Enable location sharing to find nearby travelers',
                           style: AppTextStyles.bodyMedium.copyWith(
                             color: AppColors.textSecondary,
                           ),
@@ -648,7 +687,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           const Divider(color: AppColors.divider),
                           const SizedBox(height: 12),
                           ...mapData.nearbyTravelers.take(3).map((traveler) {
-                            final distance = traveler['distance'] as double? ?? 0;
+                            final distance =
+                                traveler['distance'] as double? ?? 0;
                             final formattedDistance = distance < 1
                                 ? '${(distance * 1000).toStringAsFixed(0)}m away'
                                 : '${distance.toStringAsFixed(1)}km away';
@@ -676,7 +716,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           traveler['displayName'] ?? 'Traveler',
@@ -684,9 +725,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                         ),
                                         Text(
                                           formattedDistance,
-                                          style: AppTextStyles.bodySmall.copyWith(
-                                            color: AppColors.textTertiary,
-                                          ),
+                                          style: AppTextStyles.bodySmall
+                                              .copyWith(
+                                                color: AppColors.textTertiary,
+                                              ),
                                         ),
                                       ],
                                     ),
