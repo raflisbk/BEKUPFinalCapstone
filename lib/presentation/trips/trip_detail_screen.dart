@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/trip_detail_ui_provider.dart';
 import '../../core/models/trip_model.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -16,10 +17,7 @@ import 'budget_overview_screen.dart';
 class TripDetailScreen extends StatefulWidget {
   final Trip trip;
 
-  const TripDetailScreen({
-    super.key,
-    required this.trip,
-  });
+  const TripDetailScreen({super.key, required this.trip});
 
   @override
   State<TripDetailScreen> createState() => _TripDetailScreenState();
@@ -30,7 +28,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
   final TripService _tripService = TripService();
 
-  Future<void> _joinTrip(String userId, String userName, String? photoUrl) async {
+  Future<void> _joinTrip(
+    String userId,
+    String userName,
+    String? photoUrl,
+  ) async {
     AppLogger.debug(_tag, 'Joining trip', {'tripId': widget.trip.id});
 
     final success = await _tripService.joinTrip(
@@ -44,7 +46,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success ? 'Joined trip successfully!' : 'Failed to join trip'),
+        content: Text(
+          success ? 'Joined trip successfully!' : 'Failed to join trip',
+        ),
         backgroundColor: success ? AppColors.success : AppColors.error,
       ),
     );
@@ -109,7 +113,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Trip'),
-        content: const Text('Are you sure you want to delete this trip? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this trip? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -163,7 +169,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     }
   }
 
-  void _showOptionsMenu(BuildContext context, String currentUserId, bool isOwner) {
+  void _showOptionsMenu(
+    BuildContext context,
+    String currentUserId,
+    bool isOwner,
+  ) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.white,
@@ -190,19 +200,23 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       // ignore: use_build_context_synchronously
                       context,
                       MaterialPageRoute(
-                        builder: (context) => CreateEditTripScreen(trip: widget.trip),
+                        builder: (context) =>
+                            CreateEditTripScreen(trip: widget.trip),
                       ),
                     );
 
                     // Refresh trip data if edited successfully
                     if (result == true && mounted) {
-                      setState(() {}); // Trigger rebuild to refresh data
+                      context.read<TripDetailUIProvider>().refresh();
                     }
                   },
                 ),
                 ListTile(
                   leading: const Icon(Icons.delete, color: AppColors.error),
-                  title: const Text('Delete Trip', style: TextStyle(color: AppColors.error)),
+                  title: const Text(
+                    'Delete Trip',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _deleteTrip();
@@ -210,8 +224,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 ),
               ] else ...[
                 ListTile(
-                  leading: const Icon(Icons.exit_to_app, color: AppColors.error),
-                  title: const Text('Leave Trip', style: TextStyle(color: AppColors.error)),
+                  leading: const Icon(
+                    Icons.exit_to_app,
+                    color: AppColors.error,
+                  ),
+                  title: const Text(
+                    'Leave Trip',
+                    style: TextStyle(color: AppColors.error),
+                  ),
                   onTap: () {
                     Navigator.pop(context);
                     _leaveTrip(currentUserId);
@@ -254,10 +274,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           const SizedBox(height: 16),
 
           // Title
-          Text(
-            widget.trip.title,
-            style: AppTextStyles.headlineMedium,
-          ),
+          Text(widget.trip.title, style: AppTextStyles.headlineMedium),
           const SizedBox(height: 12),
 
           // Description
@@ -272,7 +289,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           // Dates
           Row(
             children: [
-              const Icon(Icons.calendar_today, size: 18, color: AppColors.textSecondary),
+              const Icon(
+                Icons.calendar_today,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${DateFormat('dd MMM').format(widget.trip.startDate)} - ${DateFormat('dd MMM yyyy').format(widget.trip.endDate)}',
@@ -285,7 +306,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           // Duration
           Row(
             children: [
-              const Icon(Icons.access_time, size: 18, color: AppColors.textSecondary),
+              const Icon(
+                Icons.access_time,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 8),
               Text(
                 '${widget.trip.durationInDays} days',
@@ -328,10 +353,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Destinations',
-                style: AppTextStyles.headlineSmall,
-              ),
+              const Text('Destinations', style: AppTextStyles.headlineSmall),
               Text(
                 '${widget.trip.destinations.length}',
                 style: AppTextStyles.headlineSmall.copyWith(
@@ -403,13 +425,16 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                           if (destination.scheduledDate != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              DateFormat('EEE, dd MMM yyyy').format(destination.scheduledDate!),
+                              DateFormat(
+                                'EEE, dd MMM yyyy',
+                              ).format(destination.scheduledDate!),
                               style: AppTextStyles.bodySmall.copyWith(
                                 color: AppColors.textSecondary,
                               ),
                             ),
                           ],
-                          if (destination.notes != null && destination.notes!.isNotEmpty) ...[
+                          if (destination.notes != null &&
+                              destination.notes!.isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Text(
                               destination.notes!,
@@ -445,10 +470,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Travelers',
-                style: AppTextStyles.headlineSmall,
-              ),
+              const Text('Travelers', style: AppTextStyles.headlineSmall),
               Text(
                 '${widget.trip.participantIds.length}',
                 style: AppTextStyles.headlineSmall.copyWith(
@@ -558,14 +580,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Itinerary',
-                style: AppTextStyles.headlineSmall,
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: AppColors.textSecondary,
-              ),
+              Text('Itinerary', style: AppTextStyles.headlineSmall),
+              Icon(Icons.chevron_right, color: AppColors.textSecondary),
             ],
           ),
           const SizedBox(height: 12),
@@ -586,13 +602,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ItineraryManagementScreen(trip: widget.trip),
+                    builder: (context) =>
+                        ItineraryManagementScreen(trip: widget.trip),
                   ),
                 );
 
                 // Refresh trip data
                 if (mounted) {
-                  setState(() {});
+                  context.read<TripDetailUIProvider>().refresh();
                 }
               },
               icon: const Icon(Icons.event_note, size: 20),
@@ -625,14 +642,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Budget',
-                style: AppTextStyles.headlineSmall,
-              ),
-              Icon(
-                Icons.chevron_right,
-                color: AppColors.textSecondary,
-              ),
+              Text('Budget', style: AppTextStyles.headlineSmall),
+              Icon(Icons.chevron_right, color: AppColors.textSecondary),
             ],
           ),
           const SizedBox(height: 12),
@@ -653,13 +664,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => BudgetOverviewScreen(trip: widget.trip),
+                    builder: (context) =>
+                        BudgetOverviewScreen(trip: widget.trip),
                   ),
                 );
 
                 // Refresh trip data
                 if (mounted) {
-                  setState(() {});
+                  context.read<TripDetailUIProvider>().refresh();
                 }
               },
               icon: const Icon(Icons.account_balance_wallet, size: 20),
@@ -701,9 +713,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             style: AppTextStyles.headlineSmall,
           ),
           const SizedBox(height: 12),
-          WeatherWidget(
-            cityName: firstDestination.name,
-          ),
+          WeatherWidget(cityName: firstDestination.name),
         ],
       ),
     );
@@ -715,7 +725,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       builder: (context, authProvider, child) {
         final currentUserId = authProvider.user?.uid;
         final isOwner = currentUserId == widget.trip.userId;
-        final isParticipant = currentUserId != null &&
+        final isParticipant =
+            currentUserId != null &&
             widget.trip.participantIds.contains(currentUserId);
 
         return Scaffold(
@@ -727,20 +738,21 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               icon: const Icon(Icons.arrow_back, color: AppColors.black),
               onPressed: () => Navigator.pop(context),
             ),
-            title: const Text('Trip Details', style: AppTextStyles.headlineSmall),
+            title: const Text(
+              'Trip Details',
+              style: AppTextStyles.headlineSmall,
+            ),
             actions: [
               if (isParticipant)
                 IconButton(
                   icon: const Icon(Icons.more_vert, color: AppColors.black),
-                  onPressed: () => _showOptionsMenu(context, currentUserId, isOwner),
+                  onPressed: () =>
+                      _showOptionsMenu(context, currentUserId, isOwner),
                 ),
             ],
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(1),
-              child: Container(
-                color: AppColors.divider,
-                height: 1,
-              ),
+              child: Container(color: AppColors.divider, height: 1),
             ),
           ),
           body: ListView(
@@ -760,7 +772,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               const SizedBox(height: 80), // Space for bottom button
             ],
           ),
-          bottomSheet: currentUserId != null && !isParticipant && widget.trip.isPublic
+          bottomSheet:
+              currentUserId != null && !isParticipant && widget.trip.isPublic
               ? Container(
                   color: AppColors.white,
                   padding: const EdgeInsets.all(16),
