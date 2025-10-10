@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/trip_model.dart';
+import '../../core/providers/add_edit_itinerary_item_ui_provider.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -12,17 +14,15 @@ class AddEditItineraryItemScreen extends StatefulWidget {
   final Trip trip;
   final ItineraryItem? item; // Null for add mode, not null for edit mode
 
-  const AddEditItineraryItemScreen({
-    super.key,
-    required this.trip,
-    this.item,
-  });
+  const AddEditItineraryItemScreen({super.key, required this.trip, this.item});
 
   @override
-  State<AddEditItineraryItemScreen> createState() => _AddEditItineraryItemScreenState();
+  State<AddEditItineraryItemScreen> createState() =>
+      _AddEditItineraryItemScreenState();
 }
 
-class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen> {
+class _AddEditItineraryItemScreenState
+    extends State<AddEditItineraryItemScreen> {
   static const String _tag = 'AddEditItineraryItemScreen';
 
   final TripService _tripService = TripService();
@@ -33,11 +33,6 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
   late TextEditingController _locationController;
   late TextEditingController _notesController;
 
-  late ItineraryType _selectedType;
-  late DateTime _startTime;
-  late DateTime _endTime;
-  bool _isSubmitting = false;
-
   @override
   void initState() {
     super.initState();
@@ -45,13 +40,33 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
     final bool isEditMode = widget.item != null;
 
     _titleController = TextEditingController(text: widget.item?.title ?? '');
-    _descriptionController = TextEditingController(text: widget.item?.description ?? '');
-    _locationController = TextEditingController(text: widget.item?.location ?? '');
+    _descriptionController = TextEditingController(
+      text: widget.item?.description ?? '',
+    );
+    _locationController = TextEditingController(
+      text: widget.item?.location ?? '',
+    );
     _notesController = TextEditingController(text: widget.item?.notes ?? '');
 
-    _selectedType = widget.item?.type ?? ItineraryType.activity;
-    _startTime = widget.item?.startTime ?? widget.trip.startDate;
-    _endTime = widget.item?.endTime ?? widget.trip.startDate.add(const Duration(hours: 1));
+    // Load item data into provider if in edit mode
+    if (widget.item != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.read<AddEditItineraryItemUIProvider>().loadItem(
+          type: widget.item!.type,
+          startTime: widget.item!.startTime,
+          endTime: widget.item!.endTime,
+        );
+      });
+    } else {
+      // Set default start/end time for add mode
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final provider = context.read<AddEditItineraryItemUIProvider>();
+        provider.setStartTime(widget.trip.startDate);
+        provider.setEndTime(
+          widget.trip.startDate.add(const Duration(hours: 1)),
+        );
+      });
+    }
 
     AppLogger.debug(_tag, 'Add/Edit itinerary item screen initialized', {
       'mode': isEditMode ? 'edit' : 'add',
@@ -60,11 +75,12 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
   }
 
   Future<void> _selectStartTime() async {
+    final uiProvider = context.read<AddEditItineraryItemUIProvider>();
     HapticHelper.lightImpact();
 
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: _startTime,
+      initialDate: uiProvider.startTime,
       firstDate: widget.trip.startDate,
       lastDate: widget.trip.endDate,
       builder: (context, child) {
@@ -88,7 +104,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
 
     final selectedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_startTime),
+      initialTime: TimeOfDay.fromDateTime(uiProvider.startTime),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -106,29 +122,25 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
 
     if (selectedTime == null) return;
 
-    setState(() {
-      _startTime = DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        selectedTime.hour,
-        selectedTime.minute,
-      );
+    final newStartTime = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
 
-      // Auto-adjust end time if it's before start time
-      if (_endTime.isBefore(_startTime)) {
-        _endTime = _startTime.add(const Duration(hours: 1));
-      }
-    });
+    uiProvider.setStartTime(newStartTime);
   }
 
   Future<void> _selectEndTime() async {
+    final uiProvider = context.read<AddEditItineraryItemUIProvider>();
     HapticHelper.lightImpact();
 
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: _endTime,
-      firstDate: _startTime,
+      initialDate: uiProvider.endTime,
+      firstDate: uiProvider.startTime,
       lastDate: widget.trip.endDate,
       builder: (context, child) {
         return Theme(
@@ -151,7 +163,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
 
     final selectedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_endTime),
+      initialTime: TimeOfDay.fromDateTime(uiProvider.endTime),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -169,23 +181,26 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
 
     if (selectedTime == null) return;
 
-    setState(() {
-      _endTime = DateTime(
-        selectedDate.year,
-        selectedDate.month,
-        selectedDate.day,
-        selectedTime.hour,
-        selectedTime.minute,
-      );
-    });
+    final newEndTime = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selectedTime.hour,
+      selectedTime.minute,
+    );
+
+    uiProvider.setEndTime(newEndTime);
   }
 
   Future<void> _submit() async {
+    final uiProvider = context.read<AddEditItineraryItemUIProvider>();
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    if (_endTime.isBefore(_startTime) || _endTime.isAtSameMomentAs(_startTime)) {
+    if (uiProvider.endTime.isBefore(uiProvider.startTime) ||
+        uiProvider.endTime.isAtSameMomentAs(uiProvider.startTime)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('End time must be after start time'),
@@ -195,7 +210,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    uiProvider.setSubmitting(true);
     await HapticHelper.mediumImpact();
 
     bool success;
@@ -207,12 +222,12 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        startTime: _startTime,
-        endTime: _endTime,
+        startTime: uiProvider.startTime,
+        endTime: uiProvider.endTime,
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),
-        type: _selectedType,
+        type: uiProvider.selectedType,
         notes: _notesController.text.trim().isEmpty
             ? null
             : _notesController.text.trim(),
@@ -226,8 +241,8 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        startTime: _startTime,
-        endTime: _endTime,
+        startTime: uiProvider.startTime,
+        endTime: uiProvider.endTime,
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),
@@ -246,21 +261,25 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.item == null
-              ? 'Activity added successfully'
-              : 'Activity updated successfully'),
+          content: Text(
+            widget.item == null
+                ? 'Activity added successfully'
+                : 'Activity updated successfully',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
     } else {
       await HapticHelper.error();
-      setState(() => _isSubmitting = false);
+      uiProvider.setSubmitting(false);
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.item == null
-              ? 'Failed to add activity'
-              : 'Failed to update activity'),
+          content: Text(
+            widget.item == null
+                ? 'Failed to add activity'
+                : 'Failed to update activity',
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -281,255 +300,265 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
   Widget build(BuildContext context) {
     final isEditMode = widget.item != null;
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.black),
-          onPressed: () {
-            HapticHelper.lightImpact();
-            Navigator.pop(context);
-          },
-        ),
-        title: Text(
-          isEditMode ? 'Edit Activity' : 'Add Activity',
-          style: AppTextStyles.headlineSmall,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
-        ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // Activity Type Selector
-            Text(
-              'Activity Type',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildTypeSelector(),
-            const SizedBox(height: 24),
-
-            // Title
-            Text(
-              'Title',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _titleController,
-              style: AppTextStyles.bodyMedium,
-              decoration: InputDecoration(
-                hintText: 'Enter activity title',
-                hintStyle: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a title';
-                }
-                return null;
+    return Consumer<AddEditItineraryItemUIProvider>(
+      builder: (context, uiProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: AppColors.black),
+              onPressed: () {
+                HapticHelper.lightImpact();
+                Navigator.pop(context);
               },
             ),
-            const SizedBox(height: 24),
-
-            // Description
-            Text(
-              'Description (Optional)',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+            title: Text(
+              isEditMode ? 'Edit Activity' : 'Add Activity',
+              style: AppTextStyles.headlineSmall,
             ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _descriptionController,
-              style: AppTextStyles.bodyMedium,
-              maxLines: 3,
-              decoration: InputDecoration(
-                hintText: 'Add details about this activity',
-                hintStyle: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(color: AppColors.divider, height: 1),
             ),
-            const SizedBox(height: 24),
-
-            // Time Selection
-            Row(
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(24),
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Start Time',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildTimeButton(
-                        label: DateFormat('MMM d, h:mm a').format(_startTime),
-                        onTap: _selectStartTime,
-                      ),
-                    ],
+                // Activity Type Selector
+                Text(
+                  'Activity Type',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'End Time',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildTimeButton(
-                        label: DateFormat('MMM d, h:mm a').format(_endTime),
-                        onTap: _selectEndTime,
-                      ),
-                    ],
+                const SizedBox(height: 12),
+                _buildTypeSelector(uiProvider),
+                const SizedBox(height: 24),
+
+                // Title
+                Text(
+                  'Title',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _titleController,
+                  style: AppTextStyles.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Enter activity title',
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.grey50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a title';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Description
+                Text(
+                  'Description (Optional)',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _descriptionController,
+                  style: AppTextStyles.bodyMedium,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: 'Add details about this activity',
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.grey50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Time Selection
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Start Time',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildTimeButton(
+                            label: DateFormat(
+                              'MMM d, h:mm a',
+                            ).format(uiProvider.startTime),
+                            onTap: _selectStartTime,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'End Time',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _buildTimeButton(
+                            label: DateFormat(
+                              'MMM d, h:mm a',
+                            ).format(uiProvider.endTime),
+                            onTap: _selectEndTime,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // Location
+                Text(
+                  'Location (Optional)',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _locationController,
+                  style: AppTextStyles.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Enter location',
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.location_on,
+                      color: AppColors.grey600,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.grey50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Notes
+                Text(
+                  'Notes (Optional)',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _notesController,
+                  style: AppTextStyles.bodyMedium,
+                  maxLines: 4,
+                  decoration: InputDecoration(
+                    hintText: 'Add any additional notes or reminders',
+                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    filled: true,
+                    fillColor: AppColors.grey50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding: const EdgeInsets.all(16),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Submit Button
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: uiProvider.isSubmitting ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.black,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: uiProvider.isSubmitting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.white,
+                              ),
+                            ),
+                          )
+                        : Text(
+                            isEditMode ? 'Update Activity' : 'Add Activity',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
-            const SizedBox(height: 24),
-
-            // Location
-            Text(
-              'Location (Optional)',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _locationController,
-              style: AppTextStyles.bodyMedium,
-              decoration: InputDecoration(
-                hintText: 'Enter location',
-                hintStyle: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-                prefixIcon: const Icon(Icons.location_on, color: AppColors.grey600),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Notes
-            Text(
-              'Notes (Optional)',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _notesController,
-              style: AppTextStyles.bodyMedium,
-              maxLines: 4,
-              decoration: InputDecoration(
-                hintText: 'Add any additional notes or reminders',
-                hintStyle: AppTextStyles.bodyMedium.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.all(16),
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Submit Button
-            SizedBox(
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.black,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
-                        ),
-                      )
-                    : Text(
-                        isEditMode ? 'Update Activity' : 'Add Activity',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          color: AppColors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-              ),
-            ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTypeSelector() {
+  Widget _buildTypeSelector(AddEditItineraryItemUIProvider uiProvider) {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
       children: ItineraryType.values.map((type) {
-        final isSelected = _selectedType == type;
+        final isSelected = uiProvider.selectedType == type;
         return InkWell(
           onTap: () {
             HapticHelper.selectionClick();
-            setState(() => _selectedType = type);
+            uiProvider.setType(type);
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
@@ -563,7 +592,9 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
                     color: isSelected
                         ? ItineraryTypeHelper.getColor(type)
                         : AppColors.textPrimary,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -574,7 +605,10 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
     );
   }
 
-  Widget _buildTimeButton({required String label, required VoidCallback onTap}) {
+  Widget _buildTimeButton({
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -589,12 +623,7 @@ class _AddEditItineraryItemScreenState extends State<AddEditItineraryItemScreen>
           children: [
             const Icon(Icons.access_time, size: 20, color: AppColors.grey600),
             const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: AppTextStyles.bodyMedium,
-              ),
-            ),
+            Expanded(child: Text(label, style: AppTextStyles.bodyMedium)),
           ],
         ),
       ),
