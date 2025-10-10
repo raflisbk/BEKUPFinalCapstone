@@ -4,6 +4,7 @@ import 'package:mockito/mockito.dart';
 import 'package:relink/core/models/chat_models.dart';
 import '../../test_setup.dart';
 
+// ignore: subtype_of_sealed_class
 class MockDocumentSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}
 
