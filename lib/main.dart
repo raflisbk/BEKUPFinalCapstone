@@ -23,6 +23,7 @@ import 'core/providers/trips_ui_provider.dart';
 import 'core/providers/add_edit_expense_ui_provider.dart';
 import 'core/providers/add_edit_itinerary_item_ui_provider.dart';
 import 'core/providers/set_budget_ui_provider.dart';
+import 'core/providers/ai_itinerary_generator_ui_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
@@ -169,6 +170,8 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AddEditItineraryItemUIProvider()),
         // Set Budget UI Provider
         ChangeNotifierProvider(create: (_) => SetBudgetUIProvider()),
+        // AI Itinerary Generator UI Provider
+        ChangeNotifierProvider(create: (_) => AIItineraryGeneratorUIProvider()),
         // User Provider
         ChangeNotifierProvider(create: (_) => UserProvider()),
         // Location Provider

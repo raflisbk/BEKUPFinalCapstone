@@ -1,42 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/models/trip_model.dart';
+import '../../core/providers/ai_itinerary_generator_ui_provider.dart';
 import '../../services/ai/ai_itinerary_service.dart';
 
 /// Screen for generating AI-powered trip itinerary
-class AIItineraryGeneratorScreen extends StatefulWidget {
+class AIItineraryGeneratorScreen extends StatelessWidget {
   final Trip trip;
 
-  const AIItineraryGeneratorScreen({
-    super.key,
-    required this.trip,
-  });
+  const AIItineraryGeneratorScreen({super.key, required this.trip});
 
-  @override
-  State<AIItineraryGeneratorScreen> createState() =>
-      _AIItineraryGeneratorScreenState();
-}
-
-class _AIItineraryGeneratorScreenState
-    extends State<AIItineraryGeneratorScreen> {
-  final AIItineraryService _aiService = AIItineraryService();
-
-  // Form state
-  int _days = 3;
-  double _budgetPerDay = 100.0;
-  final List<String> _selectedInterests = [];
-  String _pace = 'moderate';
-  int _travelers = 2;
-  String? _accommodation;
-
-  // Generation state
-  bool _isGenerating = false;
-  AIItineraryResult? _result;
-  String? _error;
+  static final AIItineraryService _aiService = AIItineraryService();
 
   // Interest options
-  final List<String> _interestOptions = [
+  static const List<String> _interestOptions = [
     'Culture & History',
     'Food & Dining',
     'Adventure & Outdoor',
@@ -53,26 +32,35 @@ class _AIItineraryGeneratorScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.auto_awesome, size: 24),
-            SizedBox(width: 8),
-            Text('AI Trip Planner'),
-          ],
-        ),
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.black,
-        elevation: 0,
-      ),
-      body: _result == null ? _buildForm() : _buildResult(),
+    return Consumer<AIItineraryGeneratorUIProvider>(
+      builder: (context, uiProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            title: const Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 24),
+                SizedBox(width: 8),
+                Text('AI Trip Planner'),
+              ],
+            ),
+            backgroundColor: AppColors.white,
+            foregroundColor: AppColors.black,
+            elevation: 0,
+          ),
+          body: uiProvider.result == null
+              ? _buildForm(context, uiProvider)
+              : _buildResult(context, uiProvider),
+        );
+      },
     );
   }
 
   /// Build form for itinerary parameters
-  Widget _buildForm() {
+  Widget _buildForm(
+    BuildContext context,
+    AIItineraryGeneratorUIProvider uiProvider,
+  ) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -93,11 +81,7 @@ class _AIItineraryGeneratorScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.psychology,
-                  color: AppColors.white,
-                  size: 32,
-                ),
+                const Icon(Icons.psychology, color: AppColors.white, size: 32),
                 const SizedBox(height: 12),
                 Text(
                   'Let AI Plan Your Perfect Trip',
@@ -121,14 +105,14 @@ class _AIItineraryGeneratorScreenState
           // Trip duration
           _buildSectionTitle('Trip Duration'),
           const SizedBox(height: 12),
-          _buildDaysSelector(),
+          _buildDaysSelector(uiProvider),
 
           const SizedBox(height: 24),
 
           // Budget per day
           _buildSectionTitle('Daily Budget'),
           const SizedBox(height: 12),
-          _buildBudgetSlider(),
+          _buildBudgetSlider(uiProvider),
 
           const SizedBox(height: 24),
 
@@ -141,26 +125,26 @@ class _AIItineraryGeneratorScreenState
             ),
           ),
           const SizedBox(height: 12),
-          _buildInterestsGrid(),
+          _buildInterestsGrid(uiProvider),
 
           const SizedBox(height: 24),
 
           // Travel pace
           _buildSectionTitle('Travel Pace'),
           const SizedBox(height: 12),
-          _buildPaceSelector(),
+          _buildPaceSelector(uiProvider),
 
           const SizedBox(height: 24),
 
           // Number of travelers
           _buildSectionTitle('Number of Travelers'),
           const SizedBox(height: 12),
-          _buildTravelersSelector(),
+          _buildTravelersSelector(uiProvider),
 
           const SizedBox(height: 32),
 
           // Error message
-          if (_error != null) ...[
+          if (uiProvider.error != null) ...[
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -174,7 +158,7 @@ class _AIItineraryGeneratorScreenState
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      _error!,
+                      uiProvider.error!,
                       style: TextStyle(color: Colors.red.shade700),
                     ),
                   ),
@@ -189,7 +173,9 @@ class _AIItineraryGeneratorScreenState
             width: double.infinity,
             height: 56,
             child: ElevatedButton(
-              onPressed: _isGenerating ? null : _generateItinerary,
+              onPressed: uiProvider.isGenerating
+                  ? null
+                  : () => _generateItinerary(context, uiProvider),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.black,
                 foregroundColor: AppColors.white,
@@ -198,7 +184,7 @@ class _AIItineraryGeneratorScreenState
                 ),
                 elevation: 0,
               ),
-              child: _isGenerating
+              child: uiProvider.isGenerating
                   ? const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -272,13 +258,11 @@ class _AIItineraryGeneratorScreenState
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: AppTextStyles.titleMedium.copyWith(
-        fontWeight: FontWeight.bold,
-      ),
+      style: AppTextStyles.titleMedium.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
-  Widget _buildDaysSelector() {
+  Widget _buildDaysSelector(AIItineraryGeneratorUIProvider uiProvider) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -287,10 +271,10 @@ class _AIItineraryGeneratorScreenState
       ),
       child: Row(
         children: [1, 2, 3, 5, 7].map((days) {
-          final isSelected = _days == days;
+          final isSelected = uiProvider.days == days;
           return Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _days = days),
+              onTap: () => uiProvider.setDays(days),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
@@ -326,20 +310,20 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Widget _buildBudgetSlider() {
+  Widget _buildBudgetSlider(AIItineraryGeneratorUIProvider uiProvider) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              '\$${_budgetPerDay.toStringAsFixed(0)} per day',
+              '\$${uiProvider.budgetPerDay.toStringAsFixed(0)} per day',
               style: AppTextStyles.titleMedium.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
-              'Total: \$${(_budgetPerDay * _days).toStringAsFixed(0)}',
+              'Total: \$${(uiProvider.budgetPerDay * uiProvider.days).toStringAsFixed(0)}',
               style: AppTextStyles.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -347,13 +331,13 @@ class _AIItineraryGeneratorScreenState
           ],
         ),
         Slider(
-          value: _budgetPerDay,
+          value: uiProvider.budgetPerDay,
           min: 30,
           max: 500,
           divisions: 94,
           activeColor: AppColors.black,
-          label: '\$${_budgetPerDay.toStringAsFixed(0)}',
-          onChanged: (value) => setState(() => _budgetPerDay = value),
+          label: '\$${uiProvider.budgetPerDay.toStringAsFixed(0)}',
+          onChanged: (value) => uiProvider.setBudgetPerDay(value),
         ),
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,22 +350,14 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Widget _buildInterestsGrid() {
+  Widget _buildInterestsGrid(AIItineraryGeneratorUIProvider uiProvider) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: _interestOptions.map((interest) {
-        final isSelected = _selectedInterests.contains(interest);
+        final isSelected = uiProvider.selectedInterests.contains(interest);
         return GestureDetector(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                _selectedInterests.remove(interest);
-              } else {
-                _selectedInterests.add(interest);
-              }
-            });
-          },
+          onTap: () => uiProvider.toggleInterest(interest),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -405,19 +381,31 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Widget _buildPaceSelector() {
+  Widget _buildPaceSelector(AIItineraryGeneratorUIProvider uiProvider) {
     final paces = {
-      'relaxed': {'icon': Icons.weekend, 'label': 'Relaxed', 'desc': 'Take it easy'},
-      'moderate': {'icon': Icons.directions_walk, 'label': 'Moderate', 'desc': 'Balanced pace'},
-      'fast': {'icon': Icons.directions_run, 'label': 'Fast-paced', 'desc': 'See it all'},
+      'relaxed': {
+        'icon': Icons.weekend,
+        'label': 'Relaxed',
+        'desc': 'Take it easy',
+      },
+      'moderate': {
+        'icon': Icons.directions_walk,
+        'label': 'Moderate',
+        'desc': 'Balanced pace',
+      },
+      'fast': {
+        'icon': Icons.directions_run,
+        'label': 'Fast-paced',
+        'desc': 'See it all',
+      },
     };
 
     return Row(
       children: paces.entries.map((entry) {
-        final isSelected = _pace == entry.key;
+        final isSelected = uiProvider.pace == entry.key;
         return Expanded(
           child: GestureDetector(
-            onTap: () => setState(() => _pace = entry.key),
+            onTap: () => uiProvider.setPace(entry.key),
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 4),
               padding: const EdgeInsets.all(16),
@@ -462,7 +450,7 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Widget _buildTravelersSelector() {
+  Widget _buildTravelersSelector(AIItineraryGeneratorUIProvider uiProvider) {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -472,10 +460,10 @@ class _AIItineraryGeneratorScreenState
       child: Row(
         children: [1, 2, 3, 4, '5+'].map((count) {
           final value = count is int ? count : 5;
-          final isSelected = _travelers == value;
+          final isSelected = uiProvider.travelers == value;
           return Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _travelers = value),
+              onTap: () => uiProvider.setTravelers(value),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
@@ -499,63 +487,54 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Future<void> _generateItinerary() async {
+  Future<void> _generateItinerary(
+    BuildContext context,
+    AIItineraryGeneratorUIProvider uiProvider,
+  ) async {
     // Validate
-    if (_selectedInterests.length < 3) {
-      setState(() {
-        _error = 'Please select at least 3 interests';
-      });
+    if (uiProvider.selectedInterests.length < 3) {
+      uiProvider.setError('Please select at least 3 interests');
       return;
     }
 
-    if (widget.trip.destinations.isEmpty) {
-      setState(() {
-        _error = 'Please add at least one destination to your trip';
-      });
+    if (trip.destinations.isEmpty) {
+      uiProvider.setError('Please add at least one destination to your trip');
       return;
     }
 
-    setState(() {
-      _isGenerating = true;
-      _error = null;
-    });
+    uiProvider.startGeneration();
 
     try {
-      final destination = widget.trip.destinations.first;
-      
+      final destination = trip.destinations.first;
+
       final params = ItineraryGenerationParams(
         destination: destination.name,
         destinationId: destination.id,
-        days: _days,
-        budgetPerDay: _budgetPerDay,
-        interests: _selectedInterests,
-        pace: _pace,
-        travelers: _travelers,
-        startDate: widget.trip.startDate,
-        accommodation: _accommodation,
+        days: uiProvider.days,
+        budgetPerDay: uiProvider.budgetPerDay,
+        interests: uiProvider.selectedInterests.toList(),
+        pace: uiProvider.pace,
+        travelers: uiProvider.travelers,
+        startDate: trip.startDate,
       );
 
       final result = await _aiService.generateItinerary(params);
 
-      if (mounted) {
-        setState(() {
-          _result = result;
-          _isGenerating = false;
-        });
-      }
+      uiProvider.setResult(result);
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to generate itinerary: ${e.toString()}';
-          _isGenerating = false;
-        });
-      }
+      uiProvider.setError('Failed to generate itinerary: ${e.toString()}');
+      uiProvider.setGenerating(false);
     }
   }
 
   /// Build result view with generated itinerary
-  Widget _buildResult() {
-    if (_result == null) return const SizedBox();
+  Widget _buildResult(
+    BuildContext context,
+    AIItineraryGeneratorUIProvider uiProvider,
+  ) {
+    if (uiProvider.result == null) return const SizedBox();
+
+    final result = uiProvider.result!;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -591,7 +570,7 @@ class _AIItineraryGeneratorScreenState
                         ),
                       ),
                       Text(
-                        '${_result!.itinerary.length} days • \$${_result!.totalEstimatedCost.toStringAsFixed(0)} total',
+                        '${result.itinerary.length} days • \$${result.totalEstimatedCost.toStringAsFixed(0)} total',
                         style: AppTextStyles.bodyMedium.copyWith(
                           color: AppColors.white.withValues(alpha: 0.9),
                         ),
@@ -610,7 +589,7 @@ class _AIItineraryGeneratorScreenState
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: _applyToTrip,
+                  onPressed: () => _applyToTrip(context, uiProvider),
                   icon: const Icon(Icons.add),
                   label: const Text('Add to Trip'),
                   style: ElevatedButton.styleFrom(
@@ -622,7 +601,7 @@ class _AIItineraryGeneratorScreenState
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                onPressed: () => setState(() => _result = null),
+                onPressed: () => uiProvider.resetResult(),
                 icon: const Icon(Icons.refresh),
                 label: const Text('Regenerate'),
                 style: OutlinedButton.styleFrom(
@@ -635,7 +614,7 @@ class _AIItineraryGeneratorScreenState
           const SizedBox(height: 24),
 
           // Cost breakdown
-          _buildCostBreakdown(),
+          _buildCostBreakdown(result),
 
           const SizedBox(height: 24),
 
@@ -646,12 +625,12 @@ class _AIItineraryGeneratorScreenState
           ),
           const SizedBox(height: 16),
 
-          ..._result!.itinerary.map((day) => _buildDayCard(day)),
+          ...result.itinerary.map((day) => _buildDayCard(day)),
 
           const SizedBox(height: 24),
 
           // Key tips
-          if (_result!.keyTips.isNotEmpty) ...[
+          if (result.keyTips.isNotEmpty) ...[
             Text(
               '💡 Key Tips',
               style: AppTextStyles.titleMedium.copyWith(
@@ -659,7 +638,7 @@ class _AIItineraryGeneratorScreenState
               ),
             ),
             const SizedBox(height: 12),
-            ..._result!.keyTips.map((tip) => _buildTipItem(tip)),
+            ...result.keyTips.map((tip) => _buildTipItem(tip)),
             const SizedBox(height: 24),
           ],
 
@@ -669,8 +648,8 @@ class _AIItineraryGeneratorScreenState
     );
   }
 
-  Widget _buildCostBreakdown() {
-    final breakdown = _result!.costBreakdown;
+  Widget _buildCostBreakdown(AIItineraryResult result) {
+    final breakdown = result.costBreakdown;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -802,10 +781,7 @@ class _AIItineraryGeneratorScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  day.summary,
-                  style: AppTextStyles.bodyMedium,
-                ),
+                Text(day.summary, style: AppTextStyles.bodyMedium),
                 const SizedBox(height: 12),
                 Text(
                   '${day.activities.length} activities',
@@ -829,27 +805,25 @@ class _AIItineraryGeneratorScreenState
         children: [
           const Icon(Icons.check_circle, size: 20, color: Colors.green),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              tip,
-              style: AppTextStyles.bodyMedium,
-            ),
-          ),
+          Expanded(child: Text(tip, style: AppTextStyles.bodyMedium)),
         ],
       ),
     );
   }
 
-  Future<void> _applyToTrip() async {
-    if (_result == null) return;
+  Future<void> _applyToTrip(
+    BuildContext context,
+    AIItineraryGeneratorUIProvider uiProvider,
+  ) async {
+    if (uiProvider.result == null) return;
 
     try {
       await _aiService.applyToTrip(
-        tripId: widget.trip.id,
-        itinerary: _result!,
+        tripId: trip.id,
+        itinerary: uiProvider.result!,
       );
 
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Itinerary added to your trip!'),
@@ -860,7 +834,7 @@ class _AIItineraryGeneratorScreenState
         Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
+      if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to add itinerary: $e'),
