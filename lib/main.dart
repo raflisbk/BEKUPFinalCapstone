@@ -11,6 +11,7 @@ import 'core/providers/auth_provider.dart';
 import 'core/providers/auth_ui_provider.dart';
 import 'core/providers/onboarding_ui_provider.dart';
 import 'core/providers/destination_detail_ui_provider.dart';
+import 'core/providers/destinations_list_ui_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
@@ -124,49 +125,31 @@ class RelinkApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         // Theme Provider
-        ChangeNotifierProvider(
-          create: (_) => ThemeProvider()..initialize(),
-        ),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()..initialize()),
         // Auth Provider
-        ChangeNotifierProvider(
-          create: (_) => AuthProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         // Auth UI Provider
-        ChangeNotifierProvider(
-          create: (_) => AuthUIProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => AuthUIProvider()),
         // Onboarding UI Provider
-        ChangeNotifierProvider(
-          create: (_) => OnboardingUIProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => OnboardingUIProvider()),
         // Destination Detail UI Provider
-        ChangeNotifierProvider(
-          create: (_) => DestinationDetailUIProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => DestinationDetailUIProvider()),
+        // Destinations List UI Provider
+        ChangeNotifierProvider(create: (_) => DestinationsListUIProvider()),
         // User Provider
-        ChangeNotifierProvider(
-          create: (_) => UserProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
         // Location Provider
-        ChangeNotifierProvider(
-          create: (_) => LocationProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => LocationProvider()),
         // Chat Provider
-        ChangeNotifierProvider(
-          create: (_) => ChatProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
         // Route Provider - NEW
-        ChangeNotifierProvider(
-          create: (_) => RouteProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => RouteProvider()),
         // Analytics Provider - NEW
         ChangeNotifierProvider(
           create: (_) => AnalyticsProvider()..initialize(),
         ),
         // Indonesia Tourism Provider - NEW
-        ChangeNotifierProvider(
-          create: (_) => IndonesiaTourismProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => IndonesiaTourismProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, child) {
