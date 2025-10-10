@@ -142,12 +142,6 @@ void main() {
   });
 
   group('ItineraryDay Model', () {
-    late DateTime now;
-
-    setUp(() {
-      now = DateTime.now();
-    });
-
     test('should create day with activities', () {
       final day = ItineraryDay(
         date: DateTime(2025, 3, 1),
@@ -224,12 +218,6 @@ void main() {
   });
 
   group('ItineraryActivity Model', () {
-    late DateTime now;
-
-    setUp(() {
-      now = DateTime.now();
-    });
-
     test('should create activity with all fields', () {
       final activity = ItineraryActivity(
         id: 'act123',
