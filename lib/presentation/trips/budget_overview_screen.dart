@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:provider/provider.dart';
 import '../../core/models/trip_model.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/haptic_helper.dart';
+import '../../core/providers/budget_overview_ui_provider.dart';
 import 'add_edit_expense_screen.dart';
 import 'set_budget_screen.dart';
 
@@ -14,10 +16,7 @@ import 'set_budget_screen.dart';
 class BudgetOverviewScreen extends StatefulWidget {
   final Trip trip;
 
-  const BudgetOverviewScreen({
-    super.key,
-    required this.trip,
-  });
+  const BudgetOverviewScreen({super.key, required this.trip});
 
   @override
   State<BudgetOverviewScreen> createState() => _BudgetOverviewScreenState();
@@ -48,7 +47,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
     );
 
     if (result == true && mounted) {
-      setState(() {}); // Refresh
+      context.read<BudgetOverviewUIProvider>().refresh();
     }
   }
 
@@ -72,7 +71,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
     );
 
     if (result == true && mounted) {
-      setState(() {}); // Refresh
+      context.read<BudgetOverviewUIProvider>().refresh();
     }
   }
 
@@ -81,15 +80,13 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditExpenseScreen(
-          trip: widget.trip,
-          expense: expense,
-        ),
+        builder: (context) =>
+            AddEditExpenseScreen(trip: widget.trip, expense: expense),
       ),
     );
 
     if (result == true && mounted) {
-      setState(() {}); // Refresh
+      context.read<BudgetOverviewUIProvider>().refresh();
     }
   }
 
@@ -134,9 +131,8 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
 
     if (success) {
       await HapticHelper.success();
-      setState(() {
-        widget.trip.expenses.removeWhere((e) => e.id == expense.id);
-      });
+      widget.trip.expenses.removeWhere((e) => e.id == expense.id);
+      context.read<BudgetOverviewUIProvider>().refresh();
 
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
@@ -164,7 +160,8 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
     }
 
     for (var expense in widget.trip.expenses) {
-      totals[expense.category] = (totals[expense.category] ?? 0.0) + expense.amount;
+      totals[expense.category] =
+          (totals[expense.category] ?? 0.0) + expense.amount;
     }
 
     return totals;
@@ -186,7 +183,10 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
             Navigator.pop(context);
           },
         ),
-        title: const Text('Budget & Expenses', style: AppTextStyles.headlineSmall),
+        title: const Text(
+          'Budget & Expenses',
+          style: AppTextStyles.headlineSmall,
+        ),
         actions: [
           if (hasBudget)
             IconButton(
@@ -197,10 +197,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
+          child: Container(color: AppColors.divider, height: 1),
         ),
       ),
       body: !hasBudget
@@ -250,10 +247,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'No Budget Set',
-                style: AppTextStyles.titleLarge,
-              ),
+              const Text('No Budget Set', style: AppTextStyles.titleLarge),
               const SizedBox(height: 8),
               Text(
                 'Set a budget to start tracking your trip expenses and stay within your spending limits.',
@@ -270,7 +264,10 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.black,
                   foregroundColor: AppColors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -341,8 +338,8 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                   isOverBudget
                       ? AppColors.error
                       : percentage > 80
-                          ? AppColors.warning
-                          : AppColors.success,
+                      ? AppColors.warning
+                      : AppColors.success,
                 ),
               ),
             ),
@@ -365,7 +362,9 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                       Text(
                         currencyFormat.format(totalSpent),
                         style: AppTextStyles.titleMedium.copyWith(
-                          color: isOverBudget ? AppColors.error : AppColors.black,
+                          color: isOverBudget
+                              ? AppColors.error
+                              : AppColors.black,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -392,7 +391,9 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                       Text(
                         currencyFormat.format(remaining.abs()),
                         style: AppTextStyles.titleMedium.copyWith(
-                          color: isOverBudget ? AppColors.error : AppColors.success,
+                          color: isOverBudget
+                              ? AppColors.error
+                              : AppColors.success,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -494,10 +495,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                 color: AppColors.grey400,
               ),
               const SizedBox(height: 16),
-              const Text(
-                'No expenses yet',
-                style: AppTextStyles.titleMedium,
-              ),
+              const Text('No expenses yet', style: AppTextStyles.titleMedium),
               const SizedBox(height: 8),
               Text(
                 'Add your first expense to start tracking',
@@ -568,7 +566,9 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: BudgetCategoryHelper.getColor(expense.category).withValues(alpha: 0.1),
+                color: BudgetCategoryHelper.getColor(
+                  expense.category,
+                ).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
@@ -582,10 +582,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    expense.description,
-                    style: AppTextStyles.titleSmall,
-                  ),
+                  Text(expense.description, style: AppTextStyles.titleSmall),
                   const SizedBox(height: 4),
                   Row(
                     children: [
@@ -595,7 +592,10 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
                           color: AppColors.textSecondary,
                         ),
                       ),
-                      const Text(' • ', style: TextStyle(color: AppColors.textSecondary)),
+                      const Text(
+                        ' • ',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                       Text(
                         DateFormat('MMM d').format(expense.date),
                         style: AppTextStyles.bodySmall.copyWith(
@@ -659,7 +659,9 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
               leading: const Icon(Icons.delete, color: AppColors.error),
               title: Text(
                 'Delete',
-                style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.error,
+                ),
               ),
               onTap: () {
                 Navigator.pop(context);
