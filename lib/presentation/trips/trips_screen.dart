@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/trips_ui_provider.dart';
 import '../../core/models/trip_model.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -10,45 +11,36 @@ import '../../core/utils/logger.dart';
 import 'create_trip_screen.dart';
 import 'trip_detail_screen.dart';
 
-class TripsScreen extends StatefulWidget {
+class TripsScreen extends StatelessWidget {
   const TripsScreen({super.key});
 
-  @override
-  State<TripsScreen> createState() => _TripsScreenState();
-}
-
-class _TripsScreenState extends State<TripsScreen> {
   static const String _tag = 'TripsScreen';
 
-  final TripService _tripService = TripService();
-  TripFilter _selectedFilter = TripFilter.all;
-
-  void _navigateToCreateTrip() {
+  void _navigateToCreateTrip(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const CreateEditTripScreen(), // No trip = create mode
+        builder: (context) =>
+            const CreateEditTripScreen(), // No trip = create mode
       ),
     );
   }
 
-  void _navigateToTripDetail(Trip trip) {
+  void _navigateToTripDetail(BuildContext context, Trip trip) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => TripDetailScreen(trip: trip),
-      ),
+      MaterialPageRoute(builder: (context) => TripDetailScreen(trip: trip)),
     );
   }
 
-  Widget _buildFilterChips() {
+  Widget _buildFilterChips(BuildContext context, TripsUIProvider uiProvider) {
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: ListView(
         scrollDirection: Axis.horizontal,
         children: TripFilter.values.map((filter) {
-          final isSelected = _selectedFilter == filter;
+          final isSelected = uiProvider.selectedFilter == filter;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
@@ -56,9 +48,7 @@ class _TripsScreenState extends State<TripsScreen> {
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) {
-                  setState(() {
-                    _selectedFilter = filter;
-                  });
+                  uiProvider.setFilter(filter);
                   AppLogger.debug(_tag, 'Filter changed', {
                     'filter': filter.toString(),
                   });
@@ -83,9 +73,9 @@ class _TripsScreenState extends State<TripsScreen> {
     );
   }
 
-  Widget _buildTripCard(Trip trip) {
+  Widget _buildTripCard(BuildContext context, Trip trip) {
     return GestureDetector(
-      onTap: () => _navigateToTripDetail(trip),
+      onTap: () => _navigateToTripDetail(context, trip),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
@@ -101,18 +91,13 @@ class _TripsScreenState extends State<TripsScreen> {
               height: 160,
               decoration: const BoxDecoration(
                 color: AppColors.grey50,
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(16),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Stack(
                 children: [
                   // Placeholder
                   const Center(
-                    child: Text(
-                      '🗺️',
-                      style: TextStyle(fontSize: 48),
-                    ),
+                    child: Text('🗺️', style: TextStyle(fontSize: 48)),
                   ),
 
                   // Status badge
@@ -238,141 +223,149 @@ class _TripsScreenState extends State<TripsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.grey50,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        title: const Text('My Trips', style: AppTextStyles.headlineSmall),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: AppColors.black),
-            onPressed: _navigateToCreateTrip,
-            tooltip: 'Create Trip',
+    final tripService = TripService();
+
+    return Consumer<TripsUIProvider>(
+      builder: (context, uiProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.grey50,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            title: const Text('My Trips', style: AppTextStyles.headlineSmall),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add, color: AppColors.black),
+                onPressed: () => _navigateToCreateTrip(context),
+                tooltip: 'Create Trip',
+              ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(color: AppColors.divider, height: 1),
+            ),
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          const SizedBox(height: 8),
+          body: Column(
+            children: [
+              const SizedBox(height: 8),
 
-          // Filter chips
-          _buildFilterChips(),
-          const SizedBox(height: 8),
+              // Filter chips
+              _buildFilterChips(context, uiProvider),
+              const SizedBox(height: 8),
 
-          // Trips list
-          Expanded(
-            child: Consumer<AuthProvider>(
-              builder: (context, authProvider, child) {
-                final userId = authProvider.user?.uid;
+              // Trips list
+              Expanded(
+                child: Consumer<AuthProvider>(
+                  builder: (context, authProvider, child) {
+                    final userId = authProvider.user?.uid;
 
-                if (userId == null) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('👤', style: TextStyle(fontSize: 64)),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Please login to view trips',
-                          style: AppTextStyles.bodyLarge.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return StreamBuilder<List<Trip>>(
-                  stream: _tripService.getTripsStream(
-                    userId: userId,
-                    filter: _selectedFilter,
-                  ),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            AppColors.black,
-                          ),
-                        ),
-                      );
-                    }
-
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          'Error loading trips',
-                          style: AppTextStyles.bodyMedium.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final trips = snapshot.data ?? [];
-
-                    if (trips.isEmpty) {
+                    if (userId == null) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('🗺️', style: TextStyle(fontSize: 64)),
+                            const Text('👤', style: TextStyle(fontSize: 64)),
                             const SizedBox(height: 16),
-                            const Text(
-                              'No trips yet',
-                              style: AppTextStyles.headlineSmall,
-                            ),
-                            const SizedBox(height: 8),
                             Text(
-                              'Start planning your next adventure',
-                              style: AppTextStyles.bodyMedium.copyWith(
+                              'Please login to view trips',
+                              style: AppTextStyles.bodyLarge.copyWith(
                                 color: AppColors.textSecondary,
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                            ElevatedButton(
-                              onPressed: _navigateToCreateTrip,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.black,
-                                foregroundColor: AppColors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 32,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                              ),
-                              child: const Text('Create Trip'),
                             ),
                           ],
                         ),
                       );
                     }
 
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      itemCount: trips.length,
-                      itemBuilder: (context, index) {
-                        return _buildTripCard(trips[index]);
+                    return StreamBuilder<List<Trip>>(
+                      stream: tripService.getTripsStream(
+                        userId: userId,
+                        filter: uiProvider.selectedFilter,
+                      ),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.black,
+                              ),
+                            ),
+                          );
+                        }
+
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Error loading trips',
+                              style: AppTextStyles.bodyMedium.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          );
+                        }
+
+                        final trips = snapshot.data ?? [];
+
+                        if (trips.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  '🗺️',
+                                  style: TextStyle(fontSize: 64),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'No trips yet',
+                                  style: AppTextStyles.headlineSmall,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Start planning your next adventure',
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                ElevatedButton(
+                                  onPressed: () =>
+                                      _navigateToCreateTrip(context),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.black,
+                                    foregroundColor: AppColors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 32,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(24),
+                                    ),
+                                  ),
+                                  child: const Text('Create Trip'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount: trips.length,
+                          itemBuilder: (context, index) {
+                            return _buildTripCard(context, trips[index]);
+                          },
+                        );
                       },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
