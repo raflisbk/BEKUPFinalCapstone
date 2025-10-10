@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/models/trip_model.dart';
+import '../../core/providers/itinerary_management_ui_provider.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -13,20 +15,17 @@ import 'add_edit_itinerary_item_screen.dart';
 class ItineraryManagementScreen extends StatefulWidget {
   final Trip trip;
 
-  const ItineraryManagementScreen({
-    super.key,
-    required this.trip,
-  });
+  const ItineraryManagementScreen({super.key, required this.trip});
 
   @override
-  State<ItineraryManagementScreen> createState() => _ItineraryManagementScreenState();
+  State<ItineraryManagementScreen> createState() =>
+      _ItineraryManagementScreenState();
 }
 
 class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
   static const String _tag = 'ItineraryManagementScreen';
 
   final TripService _tripService = TripService();
-  bool _isReordering = false;
 
   @override
   void initState() {
@@ -47,7 +46,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     );
 
     if (result == true && mounted) {
-      setState(() {}); // Refresh list
+      context.read<ItineraryManagementUIProvider>().refresh();
     }
   }
 
@@ -56,15 +55,13 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     final result = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditItineraryItemScreen(
-          trip: widget.trip,
-          item: item,
-        ),
+        builder: (context) =>
+            AddEditItineraryItemScreen(trip: widget.trip, item: item),
       ),
     );
 
     if (result == true && mounted) {
-      setState(() {}); // Refresh list
+      context.read<ItineraryManagementUIProvider>().refresh();
     }
   }
 
@@ -109,9 +106,10 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
 
     if (success) {
       await HapticHelper.success();
-      setState(() {
-        widget.trip.itinerary.removeWhere((i) => i.id == item.id);
-      });
+      widget.trip.itinerary.removeWhere((i) => i.id == item.id);
+      if (mounted) {
+        context.read<ItineraryManagementUIProvider>().refresh();
+      }
 
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,32 +142,31 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     if (!mounted) return;
 
     if (success) {
-      setState(() {
-        final index = widget.trip.itinerary.indexWhere((i) => i.id == item.id);
-        if (index != -1) {
-          widget.trip.itinerary[index] = ItineraryItem(
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            type: item.type,
-            startTime: item.startTime,
-            endTime: item.endTime,
-            location: item.location,
-            locationId: item.locationId,
-            notes: item.notes,
-            isCompleted: !item.isCompleted,
-            order: item.order,
-          );
-        }
-      });
+      final index = widget.trip.itinerary.indexWhere((i) => i.id == item.id);
+      if (index != -1) {
+        widget.trip.itinerary[index] = ItineraryItem(
+          id: item.id,
+          title: item.title,
+          description: item.description,
+          type: item.type,
+          startTime: item.startTime,
+          endTime: item.endTime,
+          location: item.location,
+          locationId: item.locationId,
+          notes: item.notes,
+          isCompleted: !item.isCompleted,
+          order: item.order,
+        );
+      }
+      if (mounted) {
+        context.read<ItineraryManagementUIProvider>().refresh();
+      }
     }
   }
 
   void _toggleReorderMode() {
     HapticHelper.lightImpact();
-    setState(() {
-      _isReordering = !_isReordering;
-    });
+    context.read<ItineraryManagementUIProvider>().toggleReorderMode();
   }
 
   Future<void> _reorderItems(int oldIndex, int newIndex) async {
@@ -177,10 +174,12 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
       newIndex -= 1;
     }
 
-    setState(() {
-      final item = widget.trip.itinerary.removeAt(oldIndex);
-      widget.trip.itinerary.insert(newIndex, item);
-    });
+    final item = widget.trip.itinerary.removeAt(oldIndex);
+    widget.trip.itinerary.insert(newIndex, item);
+
+    if (mounted) {
+      context.read<ItineraryManagementUIProvider>().refresh();
+    }
 
     HapticHelper.mediumImpact();
 
@@ -215,49 +214,52 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final groupedItems = _groupByDate();
-    final isEmpty = widget.trip.itinerary.isEmpty;
+    return Consumer<ItineraryManagementUIProvider>(
+      builder: (context, uiProvider, child) {
+        final groupedItems = _groupByDate();
+        final isEmpty = widget.trip.itinerary.isEmpty;
 
-    return Scaffold(
-      backgroundColor: AppColors.grey50,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.black),
-          onPressed: () {
-            HapticHelper.lightImpact();
-            Navigator.pop(context);
-          },
-        ),
-        title: const Text('Itinerary', style: AppTextStyles.headlineSmall),
-        actions: [
-          if (!isEmpty)
-            IconButton(
-              icon: Icon(
-                _isReordering ? Icons.check : Icons.reorder,
-                color: AppColors.black,
-              ),
-              onPressed: _toggleReorderMode,
-              tooltip: _isReordering ? 'Done' : 'Reorder',
+        return Scaffold(
+          backgroundColor: AppColors.grey50,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.black),
+              onPressed: () {
+                HapticHelper.lightImpact();
+                Navigator.pop(context);
+              },
             ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
+            title: const Text('Itinerary', style: AppTextStyles.headlineSmall),
+            actions: [
+              if (!isEmpty)
+                IconButton(
+                  icon: Icon(
+                    uiProvider.isReordering ? Icons.check : Icons.reorder,
+                    color: AppColors.black,
+                  ),
+                  onPressed: _toggleReorderMode,
+                  tooltip: uiProvider.isReordering ? 'Done' : 'Reorder',
+                ),
+            ],
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(color: AppColors.divider, height: 1),
+            ),
           ),
-        ),
-      ),
-      body: isEmpty ? _buildEmptyState() : _buildItineraryList(groupedItems),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addItineraryItem,
-        backgroundColor: AppColors.black,
-        foregroundColor: AppColors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Activity'),
-      ),
+          body: isEmpty
+              ? _buildEmptyState()
+              : _buildItineraryList(groupedItems, uiProvider),
+          floatingActionButton: FloatingActionButton.extended(
+            onPressed: _addItineraryItem,
+            backgroundColor: AppColors.black,
+            foregroundColor: AppColors.white,
+            icon: const Icon(Icons.add),
+            label: const Text('Add Activity'),
+          ),
+        );
+      },
     );
   }
 
@@ -284,10 +286,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'No Activities Yet',
-                style: AppTextStyles.titleLarge,
-              ),
+              const Text('No Activities Yet', style: AppTextStyles.titleLarge),
               const SizedBox(height: 8),
               Text(
                 'Start planning your trip by adding activities, accommodations, and transport.',
@@ -304,7 +303,10 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.black,
                   foregroundColor: AppColors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -317,7 +319,10 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     );
   }
 
-  Widget _buildItineraryList(Map<String, List<ItineraryItem>> groupedItems) {
+  Widget _buildItineraryList(
+    Map<String, List<ItineraryItem>> groupedItems,
+    ItineraryManagementUIProvider uiProvider,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 80, top: 16),
       itemCount: groupedItems.length,
@@ -333,7 +338,10 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
             children: [
               // Date Header
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Text(
                   DateFormat('EEEE, MMMM d, yyyy').format(date),
                   style: AppTextStyles.titleMedium.copyWith(
@@ -343,7 +351,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
               ),
 
               // Items for this date
-              if (_isReordering)
+              if (uiProvider.isReordering)
                 ReorderableListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
@@ -351,7 +359,11 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                   onReorder: _reorderItems,
                   itemBuilder: (context, itemIndex) {
                     final item = items[itemIndex];
-                    return _buildItineraryCard(item, key: ValueKey(item.id));
+                    return _buildItineraryCard(
+                      item,
+                      uiProvider,
+                      key: ValueKey(item.id),
+                    );
                   },
                 )
               else
@@ -361,7 +373,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                   itemCount: items.length,
                   itemBuilder: (context, itemIndex) {
                     final item = items[itemIndex];
-                    return _buildItineraryCard(item);
+                    return _buildItineraryCard(item, uiProvider);
                   },
                 ),
 
@@ -373,7 +385,11 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
     );
   }
 
-  Widget _buildItineraryCard(ItineraryItem item, {Key? key}) {
+  Widget _buildItineraryCard(
+    ItineraryItem item,
+    ItineraryManagementUIProvider uiProvider, {
+    Key? key,
+  }) {
     final timeFormat = DateFormat('h:mm a');
     final startTime = timeFormat.format(item.startTime);
     final endTime = timeFormat.format(item.endTime);
@@ -390,14 +406,14 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
         ),
       ),
       child: InkWell(
-        onTap: _isReordering ? null : () => _editItineraryItem(item),
+        onTap: uiProvider.isReordering ? null : () => _editItineraryItem(item),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               // Reorder handle or Completion checkbox
-              if (_isReordering)
+              if (uiProvider.isReordering)
                 Container(
                   margin: const EdgeInsets.only(right: 12),
                   child: const Icon(
@@ -413,15 +429,23 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                     height: 24,
                     margin: const EdgeInsets.only(right: 12),
                     decoration: BoxDecoration(
-                      color: item.isCompleted ? AppColors.success : AppColors.white,
+                      color: item.isCompleted
+                          ? AppColors.success
+                          : AppColors.white,
                       border: Border.all(
-                        color: item.isCompleted ? AppColors.success : AppColors.grey300,
+                        color: item.isCompleted
+                            ? AppColors.success
+                            : AppColors.grey300,
                         width: 2,
                       ),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: item.isCompleted
-                        ? const Icon(Icons.check, size: 16, color: AppColors.white)
+                        ? const Icon(
+                            Icons.check,
+                            size: 16,
+                            color: AppColors.white,
+                          )
                         : null,
                   ),
                 ),
@@ -431,7 +455,9 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: ItineraryTypeHelper.getColor(item.type).withValues(alpha: 0.1),
+                  color: ItineraryTypeHelper.getColor(
+                    item.type,
+                  ).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -450,7 +476,9 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                     Text(
                       item.title,
                       style: AppTextStyles.titleSmall.copyWith(
-                        decoration: item.isCompleted ? TextDecoration.lineThrough : null,
+                        decoration: item.isCompleted
+                            ? TextDecoration.lineThrough
+                            : null,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -498,7 +526,7 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
               ),
 
               // Actions
-              if (!_isReordering)
+              if (!uiProvider.isReordering)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, color: AppColors.grey600),
                   color: AppColors.white,
@@ -524,7 +552,11 @@ class _ItineraryManagementScreenState extends State<ItineraryManagementScreen> {
                       value: 'delete',
                       child: Row(
                         children: [
-                          const Icon(Icons.delete, size: 20, color: AppColors.error),
+                          const Icon(
+                            Icons.delete,
+                            size: 20,
+                            color: AppColors.error,
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             'Delete',
