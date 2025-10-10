@@ -207,7 +207,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
 
           // Sort options
           DropdownButtonFormField<DestinationSort>(
-            value: listUIProvider.filter.sortBy,
+            initialValue: listUIProvider.filter.sortBy,
             decoration: InputDecoration(
               labelText: 'Sort by',
               border: OutlineInputBorder(

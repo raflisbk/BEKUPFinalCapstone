@@ -309,7 +309,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
 
                 // Category
                 DropdownButtonFormField<String>(
-                  value: uiProvider.selectedCategory,
+                  initialValue: uiProvider.selectedCategory,
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     border: OutlineInputBorder(),
@@ -356,8 +356,9 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
                         ),
                         validator: (value) {
                           if (value?.isEmpty ?? true) return 'Required';
-                          if (double.tryParse(value!) == null)
+                          if (double.tryParse(value!) == null) {
                             return 'Invalid number';
+                          }
                           return null;
                         },
                       ),
@@ -373,8 +374,9 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
                         ),
                         validator: (value) {
                           if (value?.isEmpty ?? true) return 'Required';
-                          if (double.tryParse(value!) == null)
+                          if (double.tryParse(value!) == null) {
                             return 'Invalid number';
+                          }
                           return null;
                         },
                       ),
