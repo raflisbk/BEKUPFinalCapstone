@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/destination_detail_ui_provider.dart';
 import '../../services/destination_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
@@ -25,31 +26,30 @@ class DestinationDetailNewScreen extends StatefulWidget {
 class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen> {
   final DestinationService _destinationService = DestinationService();
 
-  bool _isBookmarked = false;
-  bool _isLoadingBookmark = false;
-
   @override
   void initState() {
     super.initState();
-    _checkBookmarkStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkBookmarkStatus();
+    });
   }
 
   Future<void> _checkBookmarkStatus() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final detailUIProvider = Provider.of<DestinationDetailUIProvider>(context, listen: false);
     final userId = authProvider.user?.uid;
 
     if (userId != null) {
       final bookmark = await _destinationService.getUserBookmarks(userId);
       if (mounted) {
-        setState(() {
-          _isBookmarked = bookmark?.isBookmarked(widget.destinationId) ?? false;
-        });
+        detailUIProvider.setBookmarkStatus(bookmark?.isBookmarked(widget.destinationId) ?? false);
       }
     }
   }
 
   Future<void> _toggleBookmark() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final detailUIProvider = Provider.of<DestinationDetailUIProvider>(context, listen: false);
     final userId = authProvider.user?.uid;
 
     if (userId == null) {
@@ -59,20 +59,18 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
       return;
     }
 
-    setState(() => _isLoadingBookmark = true);
+    detailUIProvider.setLoadingBookmark(true);
     await HapticHelper.buttonTap();
 
     final success = await _destinationService.toggleBookmark(userId, widget.destinationId);
 
     if (success) {
       await HapticHelper.success();
-      setState(() {
-        _isBookmarked = !_isBookmarked;
-        _isLoadingBookmark = false;
-      });
+      detailUIProvider.toggleBookmark();
+      detailUIProvider.setLoadingBookmark(false);
     } else {
       await HapticHelper.error();
-      setState(() => _isLoadingBookmark = false);
+      detailUIProvider.setLoadingBookmark(false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update bookmark')),
@@ -83,50 +81,54 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: StreamBuilder<Destination?>(
-        stream: _destinationService.getDestinationStream(widget.destinationId),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return _buildLoadingState();
-          }
+    return Consumer<DestinationDetailUIProvider>(
+      builder: (context, detailUIProvider, child) {
+        return Scaffold(
+          body: StreamBuilder<Destination?>(
+            stream: _destinationService.getDestinationStream(widget.destinationId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return _buildLoadingState();
+              }
 
-          if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
-            return _buildErrorState();
-          }
+              if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+                return _buildErrorState();
+              }
 
-          final destination = snapshot.data!;
+              final destination = snapshot.data!;
 
-          return CustomScrollView(
-            slivers: [
-              // App bar with image
-              _buildSliverAppBar(destination),
+              return CustomScrollView(
+                slivers: [
+                  // App bar with image
+                  _buildSliverAppBar(destination, detailUIProvider),
 
-              // Content
-              SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(destination),
-                    _buildStats(destination),
-                    _buildDescription(destination),
-                    _buildFacilities(destination),
-                    _buildActivities(destination),
-                    _buildOpeningHours(destination),
-                    _buildLocation(destination),
-                    _buildReviews(destination),
-                    const SizedBox(height: 100),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+                  // Content
+                  SliverToBoxAdapter(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(destination),
+                        _buildStats(destination),
+                        _buildDescription(destination),
+                        _buildFacilities(destination),
+                        _buildActivities(destination),
+                        _buildOpeningHours(destination),
+                        _buildLocation(destination),
+                        _buildReviews(destination),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildSliverAppBar(Destination destination) {
+  Widget _buildSliverAppBar(Destination destination, DestinationDetailUIProvider detailUIProvider) {
     return SliverAppBar(
       expandedHeight: 350,
       pinned: true,
@@ -165,7 +167,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
                 ),
               ],
             ),
-            child: _isLoadingBookmark
+            child: detailUIProvider.isLoadingBookmark
                 ? const Padding(
                     padding: EdgeInsets.all(12.0),
                     child: SizedBox(
@@ -176,7 +178,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
                   )
                 : IconButton(
                     icon: Icon(
-                      _isBookmarked ? Icons.bookmark : Icons.bookmark_outline,
+                      detailUIProvider.isBookmarked ? Icons.bookmark : Icons.bookmark_outline,
                     ),
                     onPressed: _toggleBookmark,
                   ),

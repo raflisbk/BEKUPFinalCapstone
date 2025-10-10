@@ -10,6 +10,7 @@ import 'core/utils/connectivity_service.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/auth_ui_provider.dart';
 import 'core/providers/onboarding_ui_provider.dart';
+import 'core/providers/destination_detail_ui_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
@@ -137,6 +138,10 @@ class RelinkApp extends StatelessWidget {
         // Onboarding UI Provider
         ChangeNotifierProvider(
           create: (_) => OnboardingUIProvider(),
+        ),
+        // Destination Detail UI Provider
+        ChangeNotifierProvider(
+          create: (_) => DestinationDetailUIProvider(),
         ),
         // User Provider
         ChangeNotifierProvider(
