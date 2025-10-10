@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
+import '../../core/providers/onboarding_ui_provider.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -17,7 +19,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const String _tag = 'OnboardingScreen';
 
   final PageController _pageController = PageController();
-  int _currentPage = 0;
 
   final List<OnboardingData> _pages = [
     OnboardingData(
@@ -54,105 +55,107 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Skip Button
-            Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Align(
-                alignment: Alignment.topRight,
-                child: TextButton(
-                  onPressed: () {
-                    AppLogger.action('User tapped "Skip" button', {
-                      'skippedPage': _currentPage + 1,
-                    });
-                    _navigateToAuth();
-                  },
-                  child: Text(
-                    'Skip',
-                    style: AppTextStyles.labelLarge.copyWith(
-                      color: AppColors.textTertiary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Pages
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                  AppLogger.action('User swiped to onboarding page ${index + 1}', {
-                    'page': index + 1,
-                    'title': _pages[index].title.replaceAll('\n', ' '),
-                  });
-                },
-                itemCount: _pages.length,
-                itemBuilder: (context, index) {
-                  return _OnboardingPage(data: _pages[index]);
-                },
-              ),
-            ),
-
-            // Bottom Section
-            Padding(
-              padding: const EdgeInsets.all(40.0),
-              child: Column(
-                children: [
-                  // Page Indicator
-                  SmoothPageIndicator(
-                    controller: _pageController,
-                    count: _pages.length,
-                    effect: const ExpandingDotsEffect(
-                      dotHeight: 8,
-                      dotWidth: 8,
-                      activeDotColor: AppColors.black,
-                      dotColor: AppColors.grey300,
-                      expansionFactor: 4,
-                      spacing: 8,
-                    ),
-                  ),
-
-                  const SizedBox(height: 48),
-
-                  // Next/Get Started Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: ElevatedButton(
+    return Consumer<OnboardingUIProvider>(
+      builder: (context, onboardingUIProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Skip Button
+                Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: TextButton(
                       onPressed: () {
-                        if (_currentPage == _pages.length - 1) {
-                          AppLogger.action('User tapped "Get Started" button');
-                          _navigateToAuth();
-                        } else {
-                          AppLogger.action('User tapped "Next" button', {
-                            'currentPage': _currentPage + 1,
-                            'nextPage': _currentPage + 2,
-                          });
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeInOut,
-                          );
-                        }
+                        AppLogger.action('User tapped "Skip" button', {
+                          'skippedPage': onboardingUIProvider.currentPage + 1,
+                        });
+                        _navigateToAuth();
                       },
                       child: Text(
-                        _currentPage == _pages.length - 1 ? 'Get Started' : 'Next',
+                        'Skip',
+                        style: AppTextStyles.labelLarge.copyWith(
+                          color: AppColors.textTertiary,
+                        ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+
+                // Pages
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      onboardingUIProvider.setCurrentPage(index);
+                      AppLogger.action('User swiped to onboarding page ${index + 1}', {
+                        'page': index + 1,
+                        'title': _pages[index].title.replaceAll('\n', ' '),
+                      });
+                    },
+                    itemCount: _pages.length,
+                    itemBuilder: (context, index) {
+                      return _OnboardingPage(data: _pages[index]);
+                    },
+                  ),
+                ),
+
+                // Bottom Section
+                Padding(
+                  padding: const EdgeInsets.all(40.0),
+                  child: Column(
+                    children: [
+                      // Page Indicator
+                      SmoothPageIndicator(
+                        controller: _pageController,
+                        count: _pages.length,
+                        effect: const ExpandingDotsEffect(
+                          dotHeight: 8,
+                          dotWidth: 8,
+                          activeDotColor: AppColors.black,
+                          dotColor: AppColors.grey300,
+                          expansionFactor: 4,
+                          spacing: 8,
+                        ),
+                      ),
+
+                      const SizedBox(height: 48),
+
+                      // Next/Get Started Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            if (onboardingUIProvider.isLastPage(_pages.length)) {
+                              AppLogger.action('User tapped "Get Started" button');
+                              _navigateToAuth();
+                            } else {
+                              AppLogger.action('User tapped "Next" button', {
+                                'currentPage': onboardingUIProvider.currentPage + 1,
+                                'nextPage': onboardingUIProvider.currentPage + 2,
+                              });
+                              _pageController.nextPage(
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeInOut,
+                              );
+                            }
+                          },
+                          child: Text(
+                            onboardingUIProvider.isLastPage(_pages.length) ? 'Get Started' : 'Next',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

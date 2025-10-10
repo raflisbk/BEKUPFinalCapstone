@@ -8,12 +8,15 @@ import 'core/utils/logger.dart';
 import 'core/database/hive_service.dart';
 import 'core/utils/connectivity_service.dart';
 import 'core/providers/auth_provider.dart';
+import 'core/providers/auth_ui_provider.dart';
+import 'core/providers/onboarding_ui_provider.dart';
 import 'core/providers/user_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
 import 'core/providers/route_provider.dart';
 import 'core/providers/analytics_provider.dart';
+import 'core/providers/indonesia_tourism_provider.dart';
 import 'services/cache/image_cache_service.dart';
 import 'services/cache/upload_queue_service.dart';
 import 'services/sync/sync_queue_manager.dart';
@@ -127,6 +130,14 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => AuthProvider(),
         ),
+        // Auth UI Provider
+        ChangeNotifierProvider(
+          create: (_) => AuthUIProvider(),
+        ),
+        // Onboarding UI Provider
+        ChangeNotifierProvider(
+          create: (_) => OnboardingUIProvider(),
+        ),
         // User Provider
         ChangeNotifierProvider(
           create: (_) => UserProvider(),
@@ -146,6 +157,10 @@ class RelinkApp extends StatelessWidget {
         // Analytics Provider - NEW
         ChangeNotifierProvider(
           create: (_) => AnalyticsProvider()..initialize(),
+        ),
+        // Indonesia Tourism Provider - NEW
+        ChangeNotifierProvider(
+          create: (_) => IndonesiaTourismProvider(),
         ),
       ],
       child: Consumer<ThemeProvider>(
