@@ -114,9 +114,9 @@ void main() {
                         labelText: 'Password',
                         suffixIcon: IconButton(
                           icon: Icon(
-                            // ignore: dead_code
                             obscurePassword
                                 ? Icons.visibility
+                                // ignore: dead_code
                                 : Icons.visibility_off,
                           ),
                           onPressed: () {
@@ -160,8 +160,8 @@ void main() {
 
                 return Column(
                   children: [
-                    // ignore: dead_code
                     if (isLoading)
+                      // ignore: dead_code
                       const CircularProgressIndicator()
                     else
                       ElevatedButton(
