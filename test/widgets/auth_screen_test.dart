@@ -114,6 +114,7 @@ void main() {
                         labelText: 'Password',
                         suffixIcon: IconButton(
                           icon: Icon(
+                            // ignore: dead_code
                             obscurePassword
                                 ? Icons.visibility
                                 : Icons.visibility_off,
@@ -159,6 +160,7 @@ void main() {
 
                 return Column(
                   children: [
+                    // ignore: dead_code
                     if (isLoading)
                       const CircularProgressIndicator()
                     else
