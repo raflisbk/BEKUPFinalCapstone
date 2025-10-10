@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/trip_model.dart';
+import '../../core/providers/set_budget_ui_provider.dart';
 import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -12,10 +14,7 @@ import '../../core/utils/haptic_helper.dart';
 class SetBudgetScreen extends StatefulWidget {
   final Trip trip;
 
-  const SetBudgetScreen({
-    super.key,
-    required this.trip,
-  });
+  const SetBudgetScreen({super.key, required this.trip});
 
   @override
   State<SetBudgetScreen> createState() => _SetBudgetScreenState();
@@ -28,17 +27,20 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _totalBudgetController;
-  late String _currency;
-  bool _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
 
-    _currency = widget.trip.budget?.currency ?? 'USD';
     _totalBudgetController = TextEditingController(
       text: widget.trip.budget?.totalBudget.toStringAsFixed(2) ?? '',
     );
+
+    // Load currency into provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currency = widget.trip.budget?.currency ?? 'USD';
+      context.read<SetBudgetUIProvider>().loadCurrency(currency);
+    });
 
     AppLogger.debug(_tag, 'Set budget screen initialized', {
       'tripId': widget.trip.id,
@@ -47,6 +49,8 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
   }
 
   Future<void> _submit() async {
+    final uiProvider = context.read<SetBudgetUIProvider>();
+
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -62,13 +66,13 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
       return;
     }
 
-    setState(() => _isSubmitting = true);
+    uiProvider.setSubmitting(true);
     await HapticHelper.mediumImpact();
 
     final success = await _tripService.setTripBudget(
       tripId: widget.trip.id,
       totalBudget: totalBudget,
-      currency: _currency,
+      currency: uiProvider.currency,
     );
 
     if (!mounted) return;
@@ -80,21 +84,25 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.trip.budget == null
-              ? 'Budget set successfully'
-              : 'Budget updated successfully'),
+          content: Text(
+            widget.trip.budget == null
+                ? 'Budget set successfully'
+                : 'Budget updated successfully',
+          ),
           backgroundColor: AppColors.success,
         ),
       );
     } else {
       await HapticHelper.error();
-      setState(() => _isSubmitting = false);
+      uiProvider.setSubmitting(false);
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(widget.trip.budget == null
-              ? 'Failed to set budget'
-              : 'Failed to update budget'),
+          content: Text(
+            widget.trip.budget == null
+                ? 'Failed to set budget'
+                : 'Failed to update budget',
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -111,198 +119,215 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
   @override
   Widget build(BuildContext context) {
     final isEditMode = widget.trip.budget != null;
-    final currencySymbol = _currency == 'IDR' ? 'Rp' : '\$';
 
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        backgroundColor: AppColors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: AppColors.black),
-          onPressed: () {
-            HapticHelper.lightImpact();
-            Navigator.pop(context);
-          },
-        ),
-        title: Text(
-          isEditMode ? 'Edit Budget' : 'Set Budget',
-          style: AppTextStyles.headlineSmall,
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: AppColors.divider,
-            height: 1,
-          ),
-        ),
-      ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            // Info Card
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.grey50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: AppColors.info,
-                    size: 24,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Set a budget for your trip to track expenses and stay within your spending limits.',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
+    return Consumer<SetBudgetUIProvider>(
+      builder: (context, uiProvider, child) {
+        final currencySymbol = uiProvider.currency == 'IDR' ? 'Rp' : '\$';
 
-            // Currency Selector
-            Text(
-              'Currency',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildCurrencySelector(),
-            const SizedBox(height: 24),
-
-            // Total Budget
-            Text(
-              'Total Budget',
-              style: AppTextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _totalBudgetController,
-              style: AppTextStyles.headlineSmall.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-              ],
-              decoration: InputDecoration(
-                hintText: '0.00',
-                hintStyle: AppTextStyles.headlineSmall.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-                prefixIcon: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    currencySymbol,
-                    style: AppTextStyles.headlineSmall.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                filled: true,
-                fillColor: AppColors.grey50,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.black, width: 2),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.border, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.black, width: 2),
-                ),
-                contentPadding: const EdgeInsets.all(20),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a budget amount';
-                }
-                final amount = double.tryParse(value.trim());
-                if (amount == null || amount <= 0) {
-                  return 'Please enter a valid amount';
-                }
-                return null;
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            backgroundColor: AppColors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: AppColors.black),
+              onPressed: () {
+                HapticHelper.lightImpact();
+                Navigator.pop(context);
               },
             ),
-            const SizedBox(height: 24),
-
-            // Budget Tips
-            _buildBudgetTips(),
-            const SizedBox(height: 32),
-
-            // Current Spending (if editing)
-            if (isEditMode && widget.trip.expenses.isNotEmpty) ...[
-              _buildCurrentSpending(),
-              const SizedBox(height: 32),
-            ],
-
-            // Submit Button
-            SizedBox(
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.black,
-                  foregroundColor: AppColors.white,
-                  shape: RoundedRectangleBorder(
+            title: Text(
+              isEditMode ? 'Edit Budget' : 'Set Budget',
+              style: AppTextStyles.headlineSmall,
+            ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(1),
+              child: Container(color: AppColors.divider, height: 1),
+            ),
+          ),
+          body: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                // Info Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.grey50,
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
                   ),
-                  elevation: 0,
-                ),
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: AppColors.info,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Set a budget for your trip to track expenses and stay within your spending limits.',
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      )
-                    : Text(
-                        isEditMode ? 'Update Budget' : 'Set Budget',
-                        style: AppTextStyles.titleMedium.copyWith(
-                          color: AppColors.white,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Currency Selector
+                Text(
+                  'Currency',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _buildCurrencySelector(uiProvider),
+                const SizedBox(height: 24),
+
+                // Total Budget
+                Text(
+                  'Total Budget',
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _totalBudgetController,
+                  style: AppTextStyles.headlineSmall.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'^\d+\.?\d{0,2}'),
+                    ),
+                  ],
+                  decoration: InputDecoration(
+                    hintText: '0.00',
+                    hintStyle: AppTextStyles.headlineSmall.copyWith(
+                      color: AppColors.textTertiary,
+                    ),
+                    prefixIcon: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        currencySymbol,
+                        style: AppTextStyles.headlineSmall.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-              ),
+                    ),
+                    filled: true,
+                    fillColor: AppColors.grey50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.black,
+                        width: 2,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.border,
+                        width: 1,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.black,
+                        width: 2,
+                      ),
+                    ),
+                    contentPadding: const EdgeInsets.all(20),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a budget amount';
+                    }
+                    final amount = double.tryParse(value.trim());
+                    if (amount == null || amount <= 0) {
+                      return 'Please enter a valid amount';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 24),
+
+                // Budget Tips
+                _buildBudgetTips(),
+                const SizedBox(height: 32),
+
+                // Current Spending (if editing)
+                if (isEditMode && widget.trip.expenses.isNotEmpty) ...[
+                  _buildCurrentSpending(uiProvider),
+                  const SizedBox(height: 32),
+                ],
+
+                // Submit Button
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: uiProvider.isSubmitting ? null : _submit,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.black,
+                      foregroundColor: AppColors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: uiProvider.isSubmitting
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                AppColors.white,
+                              ),
+                            ),
+                          )
+                        : Text(
+                            isEditMode ? 'Update Budget' : 'Set Budget',
+                            style: AppTextStyles.titleMedium.copyWith(
+                              color: AppColors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildCurrencySelector() {
+  Widget _buildCurrencySelector(SetBudgetUIProvider uiProvider) {
     final currencies = ['USD', 'IDR', 'EUR', 'GBP'];
 
     return Row(
       children: currencies.map((currency) {
-        final isSelected = _currency == currency;
+        final isSelected = uiProvider.currency == currency;
         return Expanded(
           child: Padding(
             padding: const EdgeInsets.only(right: 8),
             child: InkWell(
               onTap: () {
                 HapticHelper.selectionClick();
-                setState(() => _currency = currency);
+                uiProvider.setCurrency(currency);
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
@@ -344,7 +369,11 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.lightbulb_outline, size: 20, color: AppColors.warning),
+              const Icon(
+                Icons.lightbulb_outline,
+                size: 20,
+                color: AppColors.warning,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Budget Tips',
@@ -391,11 +420,11 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
     );
   }
 
-  Widget _buildCurrentSpending() {
+  Widget _buildCurrentSpending(SetBudgetUIProvider uiProvider) {
     final totalSpent = widget.trip.totalSpent;
     final currencyFormat = NumberFormat.currency(
-      symbol: _currency == 'IDR' ? 'Rp ' : '\$',
-      decimalDigits: _currency == 'IDR' ? 0 : 2,
+      symbol: uiProvider.currency == 'IDR' ? 'Rp ' : '\$',
+      decimalDigits: uiProvider.currency == 'IDR' ? 0 : 2,
     );
 
     return Container(
