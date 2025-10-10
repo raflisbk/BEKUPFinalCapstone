@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/providers/ai_recommendations_ui_provider.dart';
 import '../../services/ai/ai_recommendation_service.dart';
 import '../destinations/destination_detail_new_screen.dart';
 
@@ -20,10 +21,6 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
   final AIRecommendationService _aiService = AIRecommendationService();
 
   late TabController _tabController;
-  List<DestinationRecommendation>? _personalizedRecs;
-  List<DestinationRecommendation>? _trendingRecs;
-  bool _isLoading = true;
-  String? _error;
 
   @override
   void initState() {
@@ -39,10 +36,10 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
   }
 
   Future<void> _loadRecommendations() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
+    final uiProvider = context.read<AIRecommendationsUIProvider>();
+
+    uiProvider.setLoading(true);
+    uiProvider.clearError();
 
     try {
       final authProvider = context.read<AuthProvider>();
@@ -56,10 +53,8 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       final cached = await _aiService.getCachedRecommendations(userId);
 
       if (cached != null && mounted) {
-        setState(() {
-          _personalizedRecs = cached;
-          _isLoading = false;
-        });
+        uiProvider.setPersonalizedRecs(cached);
+        uiProvider.setLoading(false);
       }
 
       // Load fresh recommendations in background
@@ -71,54 +66,55 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       final trending = await _aiService.getTrendingDestinations(limit: 10);
 
       if (mounted) {
-        setState(() {
-          _personalizedRecs = personalized;
-          _trendingRecs = trending;
-          _isLoading = false;
-        });
+        uiProvider.setRecommendations(
+          personalized: personalized,
+          trending: trending,
+          loading: false,
+        );
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _isLoading = false;
-        });
+        uiProvider.setError(e.toString());
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: const Row(
-          children: [
-            Icon(Icons.psychology, size: 24),
-            SizedBox(width: 8),
-            Text('AI Recommendations'),
-          ],
-        ),
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.black,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.black,
-          unselectedLabelColor: AppColors.textSecondary,
-          indicatorColor: AppColors.black,
-          tabs: const [
-            Tab(text: 'For You'),
-            Tab(text: 'Trending'),
-          ],
-        ),
-      ),
-      body: _buildBody(),
+    return Consumer<AIRecommendationsUIProvider>(
+      builder: (context, uiProvider, child) {
+        return Scaffold(
+          backgroundColor: AppColors.white,
+          appBar: AppBar(
+            title: const Row(
+              children: [
+                Icon(Icons.psychology, size: 24),
+                SizedBox(width: 8),
+                Text('AI Recommendations'),
+              ],
+            ),
+            backgroundColor: AppColors.white,
+            foregroundColor: AppColors.black,
+            elevation: 0,
+            bottom: TabBar(
+              controller: _tabController,
+              labelColor: AppColors.black,
+              unselectedLabelColor: AppColors.textSecondary,
+              indicatorColor: AppColors.black,
+              tabs: const [
+                Tab(text: 'For You'),
+                Tab(text: 'Trending'),
+              ],
+            ),
+          ),
+          body: _buildBody(uiProvider),
+        );
+      },
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading && _personalizedRecs == null) {
+  Widget _buildBody(AIRecommendationsUIProvider uiProvider) {
+    if (uiProvider.isLoading && uiProvider.personalizedRecs == null) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -134,18 +130,14 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       );
     }
 
-    if (_error != null) {
+    if (uiProvider.error != null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.error_outline,
-                size: 64,
-                color: Colors.red,
-              ),
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
               const SizedBox(height: 16),
               const Text(
                 'Failed to load recommendations',
@@ -153,7 +145,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                _error!,
+                uiProvider.error!,
                 style: AppTextStyles.bodySmall.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -178,14 +170,15 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
     return TabBarView(
       controller: _tabController,
       children: [
-        _buildPersonalizedTab(),
-        _buildTrendingTab(),
+        _buildPersonalizedTab(uiProvider),
+        _buildTrendingTab(uiProvider),
       ],
     );
   }
 
-  Widget _buildPersonalizedTab() {
-    if (_personalizedRecs == null || _personalizedRecs!.isEmpty) {
+  Widget _buildPersonalizedTab(AIRecommendationsUIProvider uiProvider) {
+    if (uiProvider.personalizedRecs == null ||
+        uiProvider.personalizedRecs!.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -221,13 +214,13 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       color: AppColors.black,
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: _personalizedRecs!.length + 1,
+        itemCount: uiProvider.personalizedRecs!.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildPersonalizedHeader();
           }
 
-          final rec = _personalizedRecs![index - 1];
+          final rec = uiProvider.personalizedRecs![index - 1];
           return _buildRecommendationCard(rec);
         },
       ),
@@ -240,27 +233,18 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            AppColors.black,
-            AppColors.black.withValues(alpha: 0.8),
-          ],
+          colors: [AppColors.black, AppColors.black.withValues(alpha: 0.8)],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.stars,
-            color: AppColors.white,
-            size: 32,
-          ),
+          const Icon(Icons.stars, color: AppColors.white, size: 32),
           const SizedBox(height: 12),
           Text(
             'Picked Just for You',
-            style: AppTextStyles.headlineSmall.copyWith(
-              color: AppColors.white,
-            ),
+            style: AppTextStyles.headlineSmall.copyWith(color: AppColors.white),
           ),
           const SizedBox(height: 8),
           Text(
@@ -274,8 +258,8 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
     );
   }
 
-  Widget _buildTrendingTab() {
-    if (_trendingRecs == null || _trendingRecs!.isEmpty) {
+  Widget _buildTrendingTab(AIRecommendationsUIProvider uiProvider) {
+    if (uiProvider.trendingRecs == null || uiProvider.trendingRecs!.isEmpty) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.black),
       );
@@ -286,13 +270,13 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       color: AppColors.black,
       child: ListView.builder(
         padding: const EdgeInsets.all(20),
-        itemCount: _trendingRecs!.length + 1,
+        itemCount: uiProvider.trendingRecs!.length + 1,
         itemBuilder: (context, index) {
           if (index == 0) {
             return _buildTrendingHeader();
           }
 
-          final rec = _trendingRecs![index - 1];
+          final rec = uiProvider.trendingRecs![index - 1];
           return _buildRecommendationCard(rec);
         },
       ),
@@ -305,27 +289,18 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.orange.shade700,
-            Colors.orange.shade500,
-          ],
+          colors: [Colors.orange.shade700, Colors.orange.shade500],
         ),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.trending_up,
-            color: AppColors.white,
-            size: 32,
-          ),
+          const Icon(Icons.trending_up, color: AppColors.white, size: 32),
           const SizedBox(height: 12),
           Text(
             'Trending Now',
-            style: AppTextStyles.headlineSmall.copyWith(
-              color: AppColors.white,
-            ),
+            style: AppTextStyles.headlineSmall.copyWith(color: AppColors.white),
           ),
           const SizedBox(height: 8),
           Text(
