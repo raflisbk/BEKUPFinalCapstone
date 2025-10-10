@@ -37,9 +37,4 @@ class DestinationDetailUIProvider extends ChangeNotifier {
     _isLoadingBookmark = false;
     notifyListeners();
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

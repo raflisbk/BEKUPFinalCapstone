@@ -35,9 +35,4 @@ class AuthUIProvider extends ChangeNotifier {
     _isPasswordVisible = false;
     notifyListeners();
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

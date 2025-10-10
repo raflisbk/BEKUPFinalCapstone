@@ -25,9 +25,4 @@ class OnboardingUIProvider extends ChangeNotifier {
     _currentPage = 0;
     notifyListeners();
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

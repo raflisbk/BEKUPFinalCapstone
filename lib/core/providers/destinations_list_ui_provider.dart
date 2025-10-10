@@ -46,9 +46,4 @@ class DestinationsListUIProvider extends ChangeNotifier {
     _showFilters = false;
     notifyListeners();
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }

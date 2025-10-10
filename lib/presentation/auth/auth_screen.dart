@@ -27,11 +27,9 @@ class _AuthScreenState extends State<AuthScreen> {
   void initState() {
     super.initState();
     final authUIProvider = Provider.of<AuthUIProvider>(context, listen: false);
-    AppLogger.debug(
-      _tag,
-      'Auth screen initialized',
-      {'mode': authUIProvider.isLogin ? 'login' : 'signup'},
-    );
+    AppLogger.debug(_tag, 'Auth screen initialized', {
+      'mode': authUIProvider.isLogin ? 'login' : 'signup',
+    });
   }
 
   void _toggleAuthMode(BuildContext context) {
@@ -39,10 +37,9 @@ class _AuthScreenState extends State<AuthScreen> {
     authUIProvider.toggleAuthMode();
     // Clear form when switching modes
     _formKey.currentState?.reset();
-    AppLogger.action(
-      'User toggled auth mode',
-      {'newMode': authUIProvider.isLogin ? 'login' : 'signup'},
-    );
+    AppLogger.action('User toggled auth mode', {
+      'newMode': authUIProvider.isLogin ? 'login' : 'signup',
+    });
   }
 
   Future<void> _handleGuestMode(BuildContext context) async {
@@ -59,7 +56,10 @@ class _AuthScreenState extends State<AuthScreen> {
       Navigator.pushReplacementNamed(context, '/main');
     } else {
       // ignore: use_build_context_synchronously
-      _showErrorSnackBar(context, authProvider.errorMessage ?? 'Failed to continue as guest');
+      _showErrorSnackBar(
+        context,
+        authProvider.errorMessage ?? 'Failed to continue as guest',
+      );
     }
   }
 
@@ -98,7 +98,10 @@ class _AuthScreenState extends State<AuthScreen> {
       Navigator.pushReplacementNamed(context, '/main');
     } else {
       // ignore: use_build_context_synchronously
-      _showErrorSnackBar(context, authProvider.errorMessage ?? 'Authentication failed');
+      _showErrorSnackBar(
+        context,
+        authProvider.errorMessage ?? 'Authentication failed',
+      );
     }
   }
 
@@ -129,13 +132,18 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.resetPassword(_emailController.text.trim());
+    final success = await authProvider.resetPassword(
+      _emailController.text.trim(),
+    );
 
     if (!mounted) return;
 
     if (success) {
       // ignore: use_build_context_synchronously
-      _showSuccessSnackBar(context, 'Password reset email sent. Check your inbox.');
+      _showSuccessSnackBar(
+        context,
+        'Password reset email sent. Check your inbox.',
+      );
     } else if (authProvider.errorMessage != null) {
       // ignore: use_build_context_synchronously
       _showErrorSnackBar(context, authProvider.errorMessage!);
@@ -282,7 +290,9 @@ class _AuthScreenState extends State<AuthScreen> {
                       duration: const Duration(milliseconds: 600),
                       delay: const Duration(milliseconds: 300),
                       child: _GuestModeCard(
-                        onTap: authProvider.isLoading ? () {} : () => _handleGuestMode(context),
+                        onTap: authProvider.isLoading
+                            ? () {}
+                            : () => _handleGuestMode(context),
                       ),
                     ),
 
@@ -294,9 +304,13 @@ class _AuthScreenState extends State<AuthScreen> {
                       delay: const Duration(milliseconds: 400),
                       child: Row(
                         children: [
-                          const Expanded(child: Divider(color: AppColors.divider)),
+                          const Expanded(
+                            child: Divider(color: AppColors.divider),
+                          ),
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
                             child: Text(
                               'or continue with',
                               style: AppTextStyles.labelMedium.copyWith(
@@ -304,7 +318,9 @@ class _AuthScreenState extends State<AuthScreen> {
                               ),
                             ),
                           ),
-                          const Expanded(child: Divider(color: AppColors.divider)),
+                          const Expanded(
+                            child: Divider(color: AppColors.divider),
+                          ),
                         ],
                       ),
                     ),
@@ -392,7 +408,9 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
-                            onPressed: authProvider.isLoading ? null : () => _handleForgotPassword(context),
+                            onPressed: authProvider.isLoading
+                                ? null
+                                : () => _handleForgotPassword(context),
                             child: const Text('Forgot password?'),
                           ),
                         ),
@@ -404,22 +422,32 @@ class _AuthScreenState extends State<AuthScreen> {
                     // Sign In/Up Button
                     FadeInUp(
                       duration: const Duration(milliseconds: 600),
-                      delay: Duration(milliseconds: authUIProvider.isLogin ? 800 : 800),
+                      delay: Duration(
+                        milliseconds: authUIProvider.isLogin ? 800 : 800,
+                      ),
                       child: SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: authProvider.isLoading ? null : () => _handleAuth(context),
+                          onPressed: authProvider.isLoading
+                              ? null
+                              : () => _handleAuth(context),
                           child: authProvider.isLoading
                               ? const SizedBox(
                                   height: 24,
                                   width: 24,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      AppColors.white,
+                                    ),
                                   ),
                                 )
-                              : Text(authUIProvider.isLogin ? 'Sign In' : 'Create Account'),
+                              : Text(
+                                  authUIProvider.isLogin
+                                      ? 'Sign In'
+                                      : 'Create Account',
+                                ),
                         ),
                       ),
                     ),
@@ -429,12 +457,16 @@ class _AuthScreenState extends State<AuthScreen> {
                     // Google Sign In
                     FadeInUp(
                       duration: const Duration(milliseconds: 600),
-                      delay: Duration(milliseconds: authUIProvider.isLogin ? 900 : 900),
+                      delay: Duration(
+                        milliseconds: authUIProvider.isLogin ? 900 : 900,
+                      ),
                       child: SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: OutlinedButton.icon(
-                          onPressed: authProvider.isLoading ? null : () => _handleGoogleSignIn(context),
+                          onPressed: authProvider.isLoading
+                              ? null
+                              : () => _handleGoogleSignIn(context),
                           icon: const Icon(Icons.g_mobiledata, size: 28),
                           label: const Text('Continue with Google'),
                         ),
@@ -446,19 +478,27 @@ class _AuthScreenState extends State<AuthScreen> {
                     // Toggle Login/Signup
                     FadeInUp(
                       duration: const Duration(milliseconds: 600),
-                      delay: Duration(milliseconds: authUIProvider.isLogin ? 1000 : 1000),
+                      delay: Duration(
+                        milliseconds: authUIProvider.isLogin ? 1000 : 1000,
+                      ),
                       child: Center(
                         child: TextButton(
-                          onPressed: authProvider.isLoading ? null : () => _toggleAuthMode(context),
+                          onPressed: authProvider.isLoading
+                              ? null
+                              : () => _toggleAuthMode(context),
                           child: RichText(
                             text: TextSpan(
-                              text: authUIProvider.isLogin ? "Don't have an account? " : "Already have an account? ",
+                              text: authUIProvider.isLogin
+                                  ? "Don't have an account? "
+                                  : "Already have an account? ",
                               style: AppTextStyles.bodyMedium.copyWith(
                                 color: AppColors.textSecondary,
                               ),
                               children: [
                                 TextSpan(
-                                  text: authUIProvider.isLogin ? 'Sign Up' : 'Sign In',
+                                  text: authUIProvider.isLogin
+                                      ? 'Sign Up'
+                                      : 'Sign In',
                                   style: const TextStyle(
                                     color: AppColors.black,
                                     fontWeight: FontWeight.w600,
@@ -473,7 +513,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
                     const SizedBox(height: 40),
                   ],
-                  ),
                 ),
               ),
             ),
@@ -499,10 +538,7 @@ class _GuestModeCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.grey50,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: AppColors.border,
-            width: 1.5,
-          ),
+          border: Border.all(color: AppColors.border, width: 1.5),
         ),
         child: Row(
           children: [
