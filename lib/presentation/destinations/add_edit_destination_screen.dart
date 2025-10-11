@@ -85,20 +85,21 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
     try {
       final List<XFile> images = await _imagePicker.pickMultiImage();
 
+      if (!mounted) return;
+
       if (images.isNotEmpty && images.length <= 5) {
         uiProvider.setImageFiles(images.map((img) => File(img.path)).toList());
         HapticHelper.success();
       } else if (images.length > 5) {
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Maximum 5 images allowed')),
         );
       }
     } catch (e) {
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error picking images: $e')));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error picking images: $e')),
+      );
     }
   }
 

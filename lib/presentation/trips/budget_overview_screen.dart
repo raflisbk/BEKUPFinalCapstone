@@ -131,10 +131,11 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
 
     if (success) {
       await HapticHelper.success();
+      if (!mounted) return;
+
       widget.trip.expenses.removeWhere((e) => e.id == expense.id);
       context.read<BudgetOverviewUIProvider>().refresh();
 
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Expense deleted'),
@@ -143,7 +144,8 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
       );
     } else {
       await HapticHelper.error();
-      // ignore: use_build_context_synchronously
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to delete expense'),
