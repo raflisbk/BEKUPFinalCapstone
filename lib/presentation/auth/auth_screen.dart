@@ -44,6 +44,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Future<void> _handleGuestMode(BuildContext context) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     AppLogger.action('User selected guest mode');
 
     final success = await authProvider.signInAsGuest();
@@ -52,13 +54,16 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (success) {
       AppLogger.navigation(_tag, '/main', {'mode': 'guest'});
-      // ignore: use_build_context_synchronously
-      Navigator.pushReplacementNamed(context, '/main');
+      navigator.pushReplacementNamed('/main');
     } else {
-      // ignore: use_build_context_synchronously
-      _showErrorSnackBar(
-        context,
-        authProvider.errorMessage ?? 'Failed to continue as guest',
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            authProvider.errorMessage ?? 'Failed to continue as guest',
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
@@ -71,6 +76,8 @@ class _AuthScreenState extends State<AuthScreen> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final authUIProvider = Provider.of<AuthUIProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     final mode = authUIProvider.isLogin ? 'login' : 'signup';
     AppLogger.action('User tapped $mode button');
 
@@ -94,19 +101,24 @@ class _AuthScreenState extends State<AuthScreen> {
     if (success) {
       AppLogger.info(_tag, 'Navigating to main screen after $mode');
       AppLogger.navigation(_tag, '/main', {'authMode': mode});
-      // ignore: use_build_context_synchronously
-      Navigator.pushReplacementNamed(context, '/main');
+      navigator.pushReplacementNamed('/main');
     } else {
-      // ignore: use_build_context_synchronously
-      _showErrorSnackBar(
-        context,
-        authProvider.errorMessage ?? 'Authentication failed',
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            authProvider.errorMessage ?? 'Authentication failed',
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     }
   }
 
   void _handleGoogleSignIn(BuildContext context) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
     AppLogger.action('User tapped Google Sign-In button');
 
     final success = await authProvider.signInWithGoogle();
@@ -115,19 +127,30 @@ class _AuthScreenState extends State<AuthScreen> {
 
     if (success) {
       AppLogger.navigation(_tag, '/main', {'authMode': 'google'});
-      // ignore: use_build_context_synchronously
-      Navigator.pushReplacementNamed(context, '/main');
+      navigator.pushReplacementNamed('/main');
     } else if (authProvider.errorMessage != null) {
-      // ignore: use_build_context_synchronously
-      _showErrorSnackBar(context, authProvider.errorMessage!);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage!),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
   void _handleForgotPassword(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     AppLogger.action('User tapped forgot password');
 
     if (_emailController.text.trim().isEmpty) {
-      _showErrorSnackBar(context, 'Please enter your email address first');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email address first'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
       return;
     }
 
@@ -139,35 +162,22 @@ class _AuthScreenState extends State<AuthScreen> {
     if (!mounted) return;
 
     if (success) {
-      // ignore: use_build_context_synchronously
-      _showSuccessSnackBar(
-        context,
-        'Password reset email sent. Check your inbox.',
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Password reset email sent. Check your inbox.'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } else if (authProvider.errorMessage != null) {
-      // ignore: use_build_context_synchronously
-      _showErrorSnackBar(context, authProvider.errorMessage!);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(authProvider.errorMessage!),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-  }
-
-  void _showErrorSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  void _showSuccessSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   String? _validateEmail(String? value) {

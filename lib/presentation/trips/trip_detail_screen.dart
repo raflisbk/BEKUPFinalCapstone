@@ -190,15 +190,15 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   leading: const Icon(Icons.edit, color: AppColors.black),
                   title: const Text('Edit Trip'),
                   onTap: () async {
-                    Navigator.pop(context);
+                    final navigator = Navigator.of(context);
+                    final provider = context.read<TripDetailUIProvider>();
+                    navigator.pop();
                     await HapticHelper.lightImpact();
 
                     if (!mounted) return;
 
                     // Navigate to edit screen
-                    final result = await Navigator.push<bool>(
-                      // ignore: use_build_context_synchronously
-                      context,
+                    final result = await navigator.push<bool>(
                       MaterialPageRoute(
                         builder: (context) =>
                             CreateEditTripScreen(trip: widget.trip),
@@ -207,7 +207,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
                     // Refresh trip data if edited successfully
                     if (result == true && mounted) {
-                      context.read<TripDetailUIProvider>().refresh();
+                      provider.refresh();
                     }
                   },
                 ),
