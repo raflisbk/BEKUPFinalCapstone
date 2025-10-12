@@ -1,6 +1,10 @@
 # 🚀 ReLink Setup Guide
 
-Panduan lengkap untuk setup ReLink app dari awal, termasuk konfigurasi Firebase, Google Cloud Platform, dan services lainnya.
+Panduan lengkap untuk setup ReLink dari awal, termasuk konfigurasi Firebase, Google Cloud Platform, dan services lainnya.
+
+> 📚 **Related Guides:**
+> - **Quick Start** (15 min): [QUICK_START.md](QUICK_START.md) - Untuk setup cepat
+> - **Firebase Setup** (detailed): [FIREBASE_SETUP_GUIDE.md](FIREBASE_SETUP_GUIDE.md) - Panduan lengkap Firebase & GCP dengan troubleshooting
 
 ---
 
@@ -47,6 +51,7 @@ Sebelum memulai, pastikan Anda sudah memiliki:
 Di Firebase Console, enable services berikut:
 
 #### **Authentication**
+
 1. Pergi ke **Authentication** → **Sign-in method**
 2. Enable providers:
    - ✅ **Email/Password**
@@ -54,6 +59,7 @@ Di Firebase Console, enable services berikut:
    - ✅ **Phone** (opsional untuk SMS verification)
 
 #### **Firestore Database**
+
 1. Pergi ke **Firestore Database**
 2. Klik **"Create database"**
 3. Pilih mode: **Start in test mode** (untuk development)
@@ -63,6 +69,7 @@ Di Firebase Console, enable services berikut:
 **Security Rules** (Production): Lihat `firestore.rules` di repository
 
 #### **Firebase Storage**
+
 1. Pergi ke **Storage**
 2. Klik **"Get started"**
 3. Pilih mode: **Start in test mode**
@@ -72,6 +79,7 @@ Di Firebase Console, enable services berikut:
 **Storage Rules** (Production): Lihat `storage.rules` di repository
 
 #### **Cloud Messaging (FCM)**
+
 1. Pergi ke **Cloud Messaging**
 2. Note: FCM sudah enabled secara default
 3. Download **Server Key** untuk push notifications (di Project Settings → Cloud Messaging)
@@ -105,9 +113,11 @@ Di Firebase Console, enable services berikut:
 #### **Restrict API Key (Recommended)**
 
 **Application Restrictions**:
+
 - Set application restrictions untuk Android/iOS dengan package name dan SHA-1 fingerprint
 
 **API Restrictions**:
+
 ```
 ✅ Maps SDK for Android
 ✅ Maps SDK for iOS
@@ -146,6 +156,7 @@ Pastikan **Generative Language API** enabled di GCP
 ### 1. Create `.env` File
 
 Copy file `.env.example` menjadi `.env`:
+
 ```bash
 cp .env.example .env
 ```
@@ -215,16 +226,19 @@ flutter devices
 ### 2. Run App
 
 **Development mode**:
+
 ```bash
 flutter run
 ```
 
 **Specific device**:
+
 ```bash
 flutter run -d <device-id>
 ```
 
 **Release mode**:
+
 ```bash
 flutter run --release
 ```
@@ -281,20 +295,24 @@ Before Production:
 ## 🐛 Troubleshooting
 
 ### Google Maps tidak muncul
+
 - Cek API key di `.env` sudah benar
 - Cek Maps SDK for Android/iOS sudah enabled
 - Cek billing sudah active di GCP
 
 ### Places API tidak return hasil
+
 - Cek Places API sudah enabled
 - Cek billing sudah active
 - Cek quota belum exceeded
 
 ### Firebase authentication gagal
+
 - Cek `google-services.json` sudah ada di `android/app/`
 - Cek package name sama dengan Firebase console
 
 ### Build gagal
+
 ```bash
 flutter clean
 flutter pub get
