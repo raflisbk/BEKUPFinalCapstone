@@ -7,15 +7,16 @@ import { getStorage } from "firebase/storage";
 import { getMessaging } from "firebase/messaging";
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// TODO: Replace with your new Firebase project configuration
+// Get this from: Firebase Console → Project Settings → Your apps → Web app
 const firebaseConfig = {
-  apiKey: "AIzaSyBugpuZTTIJKRBLejc1Tb9o7BMdIuEaKmM",
-  authDomain: "relink-app-a96f3.firebaseapp.com",
-  projectId: "relink-app-a96f3",
-  storageBucket: "relink-app-a96f3.firebasestorage.app",
-  messagingSenderId: "809876881035",
-  appId: "1:809876881035:web:f2c5f579fca42bc8955e8e",
-  measurementId: "G-VYJGMVWC92"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "YOUR_MEASUREMENT_ID"
 };
 
 // Initialize Firebase

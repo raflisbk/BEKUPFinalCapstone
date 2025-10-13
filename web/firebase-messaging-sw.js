@@ -5,14 +5,16 @@ importScripts('https://www.gstatic.com/firebasejs/11.1.0/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/11.1.0/firebase-messaging-compat.js');
 
 // Initialize the Firebase app in the service worker
+// TODO: Replace with your new Firebase project configuration
+// Get this from: Firebase Console → Project Settings → Your apps → Web app
 firebase.initializeApp({
-  apiKey: "AIzaSyBugpuZTTIJKRBLejc1Tb9o7BMdIuEaKmM",
-  authDomain: "relink-app-a96f3.firebaseapp.com",
-  projectId: "relink-app-a96f3",
-  storageBucket: "relink-app-a96f3.firebasestorage.app",
-  messagingSenderId: "809876881035",
-  appId: "1:809876881035:web:f2c5f579fca42bc8955e8e",
-  measurementId: "G-VYJGMVWC92"
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID",
+  measurementId: "YOUR_MEASUREMENT_ID"
 });
 
 // Retrieve an instance of Firebase Messaging
