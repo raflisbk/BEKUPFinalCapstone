@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/models/review_model.dart';
 import '../../services/review_service.dart';
@@ -400,6 +401,55 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               color: AppColors.textSecondary,
             ),
           ),
+
+          // Photo gallery
+          if (review.photoUrls.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: review.photoUrls.length,
+                itemBuilder: (context, index) {
+                  return Padding(
+                    padding: EdgeInsets.only(
+                      right: index < review.photoUrls.length - 1 ? 8 : 0,
+                    ),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticHelper.lightImpact();
+                        _showPhotoGallery(review.photoUrls, index);
+                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: review.photoUrls[index],
+                          width: 120,
+                          height: 120,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: AppColors.grey50,
+                            child: const Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: AppColors.grey50,
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Helpful button
@@ -448,6 +498,18 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  void _showPhotoGallery(List<String> photoUrls, int initialIndex) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PhotoGalleryViewer(
+          photoUrls: photoUrls,
+          initialIndex: initialIndex,
+        ),
       ),
     );
   }
@@ -614,6 +676,90 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Full-screen photo gallery viewer
+class PhotoGalleryViewer extends StatefulWidget {
+  final List<String> photoUrls;
+  final int initialIndex;
+
+  const PhotoGalleryViewer({
+    super.key,
+    required this.photoUrls,
+    this.initialIndex = 0,
+  });
+
+  @override
+  State<PhotoGalleryViewer> createState() => _PhotoGalleryViewerState();
+}
+
+class _PhotoGalleryViewerState extends State<PhotoGalleryViewer> {
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(
+          '${_currentIndex + 1} / ${widget.photoUrls.length}',
+          style: const TextStyle(color: Colors.white),
+        ),
+        centerTitle: true,
+      ),
+      body: PageView.builder(
+        controller: _pageController,
+        itemCount: widget.photoUrls.length,
+        onPageChanged: (index) {
+          setState(() => _currentIndex = index);
+        },
+        itemBuilder: (context, index) {
+          return Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: CachedNetworkImage(
+                imageUrl: widget.photoUrls[index],
+                fit: BoxFit.contain,
+                placeholder: (context, url) => const Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                errorWidget: (context, url, error) => const Center(
+                  child: Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.white54,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
