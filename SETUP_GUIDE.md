@@ -1,4 +1,7 @@
-# 🚀 ReLink - Complete Setup Guide (Manual)
+# 🚀 ReLink - Com7. [Part 7: Setup Gemini AI](#part-7-setup-gemini-ai)
+8. [Part 8: Setup Cloudinary (Image Storage)](#part-8-setup-cloudinary-image-storage)
+9. [Part 9: Testing](#part-9-testing)
+10. [Troubleshooting](#troubleshooting)te Setup Guide (Manual)
 
 Panduan lengkap step-by-step untuk setup ReLink app dari awal sampai siap dijalankan.
 
@@ -681,7 +684,183 @@ GEMINI_API_KEY=AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX  # Your Gemini API key
 
 ---
 
-## Part 8: Testing
+## Part 8: Setup Cloudinary (Image Storage)
+
+**Estimasi: 15 menit**
+
+Cloudinary adalah layanan cloud storage untuk gambar dan video yang lebih cost-effective dibandingkan Firebase Storage. Dengan Cloudinary, Anda mendapat **25GB storage + 25GB bandwidth GRATIS** setiap bulan!
+
+### Step 8.1: Create Cloudinary Account
+
+1. **Go to Cloudinary:**
+   - Open: https://cloudinary.com/
+   - Click **"Sign Up for Free"**
+
+2. **Fill Registration Form:**
+   - **First Name:** Nama depan Anda
+   - **Last Name:** Nama belakang Anda
+   - **Email:** Email Anda (gunakan email yang sama dengan Firebase)
+   - **Company:** Optional, bisa kosong atau isi "Personal"
+   - **Password:** Password yang kuat
+   - Check **"I agree to the Terms of Use and Privacy Policy"**
+   - Click **"Sign Up for Free"**
+
+3. **Email Verification:**
+   - Check email Anda untuk verification link
+   - Click link di email untuk verify account
+   - Login ke Cloudinary Console
+
+### Step 8.2: Get Cloudinary Credentials
+
+Setelah login, Anda akan berada di Cloudinary Dashboard.
+
+1. **Find Dashboard Credentials:**
+   - Di halaman utama, Anda akan lihat section **"Account Details"**
+   - **CATAT informasi berikut:**
+
+```
+Cloud Name: your-cloud-name
+API Key: 123456789012345
+API Secret: AbCdEfGhIjKlMnOpQrStUvWxYz
+```
+
+**PENTING:** Jangan share API Secret dengan siapa pun!
+
+### Step 8.3: Create Upload Preset
+
+Upload preset adalah konfigurasi untuk upload gambar (resize, format, quality, dll).
+
+1. **Go to Settings:**
+   - Click **gear icon (⚙️)** di top right
+   - Atau go to: https://console.cloudinary.com/settings
+
+2. **Upload Tab:**
+   - Click **"Upload"** tab di sidebar kiri
+   - Scroll ke **"Upload presets"** section
+   - Click **"Add upload preset"**
+
+3. **Configure Upload Preset:**
+   - **Upload preset name:** `relink_app_preset` (CATAT INI)
+   - **Signing Mode:** Pilih **"Unsigned"** (untuk mobile app)
+   - **Access Mode:** **"Public"** (gambar bisa diakses public)
+
+4. **Image Transformations (Optional but Recommended):**
+   - **Folder:** `relink` (semua upload akan masuk folder ini)
+   - **Format:** **"Auto"** (Cloudinary akan otomatis pilih format terbaik)
+   - **Quality:** **"Auto"** (otomatis optimize quality)
+   - **Max dimensions:** 
+     - **Width:** `1920` (max width)
+     - **Height:** `1920` (max height)
+   - **Crop mode:** **"Limit"** (tidak akan crop, hanya resize jika terlalu besar)
+
+5. **Click "Save"**
+
+### Step 8.4: Configure Folder Structure
+
+1. **Go to Media Library:**
+   - Click **"Media Library"** di sidebar
+   - Atau go to: https://console.cloudinary.com/console/media_library
+
+2. **Create Folders:**
+   - Click **"Create Folder"** atau **folder icon**
+   - Create these folders:
+     - `avatars` (untuk profile pictures)
+     - `gallery` (untuk photo gallery)
+     - `destinations` (untuk destination covers)
+     - `chat_images` (untuk chat photos)
+     - `review_photos` (untuk review photos)
+     - `temp` (untuk temporary uploads)
+
+### Step 8.5: Update .env File
+
+1. **Open `.env` file di root project**
+2. **Add Cloudinary Configuration:**
+
+```bash
+# -----------------------------------------------
+# CLOUDINARY (Image Storage) - FREE 25GB/month
+# -----------------------------------------------
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_SECRET=AbCdEfGhIjKlMnOpQrStUvWxYz
+CLOUDINARY_UPLOAD_PRESET=relink_app_preset
+
+# Optional: Cloudinary settings
+CLOUDINARY_SECURE=true
+CLOUDINARY_USE_FILENAME=true
+CLOUDINARY_UNIQUE_FILENAME=true
+```
+
+**Replace dengan credentials Anda yang sebenarnya!**
+
+### Step 8.6: Test Cloudinary Integration
+
+1. **Install Dependencies:**
+```bash
+flutter pub get
+```
+
+2. **Test Upload (Optional):**
+   - Run app: `flutter run`
+   - Try upload photo di profile atau gallery
+   - Check Cloudinary Media Library - foto harus muncul
+
+### Step 8.7: Understand Cloudinary Benefits
+
+#### ✅ **Cost Comparison:**
+
+**Firebase Storage:**
+- 1GB storage: $0.026/month
+- 1GB bandwidth: $0.12/month
+- **10GB = ~$1.46/month**
+
+**Cloudinary FREE Tier:**
+- **25GB storage: FREE**
+- **25GB bandwidth: FREE** 
+- Image optimization: FREE
+- Transformations: FREE
+- **Total: $0/month!** 💚
+
+#### ✅ **Features You Get FREE:**
+
+1. **Automatic Image Optimization:**
+   - WebP/AVIF format conversion
+   - Quality optimization
+   - Responsive images
+
+2. **On-the-fly Transformations:**
+   - Resize, crop, rotate
+   - Apply filters and effects
+   - Face detection and cropping
+
+3. **CDN (Content Delivery Network):**
+   - Global edge locations
+   - Fast image delivery worldwide
+
+4. **AI-Powered Features:**
+   - Auto-tagging
+   - Object detection
+   - Background removal
+
+### Step 8.8: Monitor Usage
+
+1. **Check Usage Dashboard:**
+   - Go to: https://console.cloudinary.com/console
+   - **Usage** tab shows:
+     - Storage used
+     - Bandwidth used
+     - Transformations used
+     - Credits remaining
+
+2. **Set Usage Alerts (Recommended):**
+   - **Settings** → **Notifications**
+   - Set alerts at 80% of free tier limits
+
+**✅ Checkpoint:** Cloudinary storage ready dengan 25GB FREE!
+
+---
+
+## Part 9: Testing
 
 **Estimasi: 10 menit**
 
@@ -708,7 +887,7 @@ flutter run
 - Android Emulator
 - Physical Android device
 
-### Step 8.4: Test Features
+### Step 9.4: Test Features
 
 #### Test 1: Firebase Connection
 - App should launch without errors
@@ -727,7 +906,19 @@ flutter run
 - Navigate ke screen dengan map
 - Map harus load dengan benar
 
-**✅ SELESAI! App Anda siap digunakan!** 🎉
+#### Test 5: Cloudinary Image Upload
+- Go to Profile screen
+- Try upload/change profile picture
+- Check Cloudinary Media Library - image should appear in `avatars` folder
+- Try upload photo to gallery
+- Check `gallery` folder in Cloudinary
+
+#### Test 6: Image Optimization
+- Upload large image (>5MB)
+- Check final uploaded image size - should be optimized
+- Try different URL transformations
+
+**✅ SELESAI! App Anda siap digunakan dengan cloud storage yang cost-effective!** 🎉
 
 ---
 
@@ -781,6 +972,48 @@ flutter run
 - Check Firestore Rules di Firebase Console
 - Update rules sesuai Part 3.2
 
+### Problem 7: "Cloudinary upload failed" 
+
+**Solution:**
+```bash
+# Check .env file
+grep CLOUDINARY .env
+
+# Should show:
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_SECRET=secret
+CLOUDINARY_UPLOAD_PRESET=relink_app_preset
+```
+
+- Check Cloudinary credentials benar
+- Check upload preset exists dan unsigned
+- Check internet connection
+
+### Problem 8: "Cloudinary image not loading"
+
+**Solution:**
+- Check image URL format: should be `https://res.cloudinary.com/...`
+- Check image exists di Cloudinary Media Library
+- Try different transformation parameters
+- Check network connectivity
+
+### Problem 9: "Upload preset not found"
+
+**Solution:**
+- Go to Cloudinary Console → Settings → Upload
+- Create new upload preset dengan nama `relink_app_preset`
+- Set Signing Mode = "Unsigned"
+- Update `.env` dengan preset name yang benar
+
+### Problem 10: "Exceeded free tier limits"
+
+**Solution:**
+- Check usage di Cloudinary Dashboard
+- Optimize images before upload
+- Delete old/unused images
+- Consider upgrade plan jika perlu
+
 ---
 
 ## 📚 Additional Resources
@@ -822,6 +1055,13 @@ flutter run
 ### API Keys:
 - [x] Google Maps API key
 - [x] Gemini AI API key
+- [x] Cloudinary credentials
+
+### Cloud Storage:
+- [x] Cloudinary account created
+- [x] Upload preset configured
+- [x] Folder structure created
+- [x] Environment variables set
 
 ### Testing:
 - [x] App runs without errors
@@ -829,18 +1069,27 @@ flutter run
 - [x] Authentication working
 - [x] Firestore working
 - [x] Google Maps working
+- [x] Cloudinary image upload working
 
 ---
 
 **🎉 CONGRATULATIONS!**
 
-ReLink app Anda sekarang sudah fully configured dan siap untuk development!
+ReLink app Anda sekarang sudah fully configured dengan cloud storage yang cost-effective dan siap untuk development!
 
 **Estimated Cost:**
 - Firebase: **FREE** (up to 50K Firestore reads/day, unlimited Auth users)
 - Google Maps: **FREE** (up to $200/month usage)
 - Gemini AI: **FREE** (60 requests/minute)
-- **Total: $0/month** untuk usage normal! 💚
+- Cloudinary: **FREE** (25GB storage + 25GB bandwidth/month)
+- **Total: $0/month** untuk usage normal dengan storage yang generous! 💚
+
+### Monthly Free Tier Limits:
+- **Firebase Firestore:** 50,000 document reads, 20,000 writes
+- **Google Maps:** $200 credit (~28,500 map loads)
+- **Gemini AI:** 60 requests/minute, 1500 requests/day
+- **Cloudinary:** 25GB storage, 25GB bandwidth, unlimited transformations
+- **Total Storage:** 25GB images + unlimited Firestore documents
 
 ---
 

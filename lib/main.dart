@@ -58,6 +58,15 @@ void main() async {
     AppLogger.debug(tag, 'Initializing environment configuration');
     await EnvConfig.load();
 
+    // Validate configuration
+    AppLogger.debug(tag, 'Validating configuration');
+    final configValid = EnvConfig.validateConfiguration();
+    if (!configValid) {
+      AppLogger.warning(tag, 'Some services may not work properly due to missing configuration');
+    }
+
+    AppLogger.info(tag, 'Configuration summary', EnvConfig.getSanitizedConfig());
+
     // Initialize Firebase
     AppLogger.debug(tag, 'Initializing Firebase');
     await Firebase.initializeApp(

@@ -61,6 +61,10 @@ dependencies:
   # AI Integration
   google_generative_ai: ^0.4.7
 
+  # Cloudinary Integration - REPLACE Firebase Storage
+  cloudinary_public: ^0.23.1
+  crypto: ^3.0.5
+
   # Local Storage
   shared_preferences: ^2.3.2
   

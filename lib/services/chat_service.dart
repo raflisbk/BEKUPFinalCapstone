@@ -1,15 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image/image.dart' as img;
 import '../core/models/chat_models.dart';
 import '../core/utils/logger.dart';
+import 'cloudinary_service.dart';
 
-/// Service for managing chat operations
+/// Service for managing chat operations with Cloudinary storage
 class ChatService {
   static const String _tag = 'ChatService';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Collection references
   CollectionReference get _conversationsCollection =>
@@ -164,18 +165,16 @@ class ChatService {
         return null;
       }
 
-      // Upload to Firebase Storage
-      final fileName = 'chat_images/$conversationId/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final storageRef = FirebaseStorage.instance.ref().child(fileName);
+      // Upload to Cloudinary
+      final fileName = 'chat_${conversationId}_${DateTime.now().millisecondsSinceEpoch}';
 
-      AppLogger.debug(_tag, 'Uploading image', {'path': fileName});
+      AppLogger.debug(_tag, 'Uploading image to Cloudinary', {'fileName': fileName});
 
-      final uploadTask = await storageRef.putFile(
-        optimizedImage,
-        SettableMetadata(contentType: 'image/jpeg'),
+      final imageUrl = await _cloudinaryService.uploadFile(
+        file: optimizedImage,
+        folder: 'chat_images',
+        fileName: fileName,
       );
-
-      final imageUrl = await uploadTask.ref.getDownloadURL();
 
       AppLogger.info(_tag, 'Image uploaded successfully', {
         'url': imageUrl,
@@ -761,5 +760,36 @@ class ChatService {
       AppLogger.error(_tag, 'Failed to update group info', e, stackTrace);
       return false;
     }
+  }
+
+  /// Initialize service
+  Future<void> initialize() async {
+    await _cloudinaryService.initialize();
+    AppLogger.info(_tag, 'Chat Service initialized with Cloudinary');
+  }
+
+  /// Get optimized image URL for chat images
+  String getOptimizedImageUrl({
+    required String originalUrl,
+    int? width,
+    int? height,
+    String quality = 'auto',
+  }) {
+    return _cloudinaryService.getOptimizedImageUrl(
+      secureUrl: originalUrl,
+      width: width,
+      height: height,
+      quality: quality,
+    );
+  }
+
+  /// Get thumbnail URL for chat preview
+  String getThumbnailUrl(String originalUrl, {int size = 100}) {
+    return getOptimizedImageUrl(
+      originalUrl: originalUrl,
+      width: size,
+      height: size,
+      quality: 'auto',
+    );
   }
 }

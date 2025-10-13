@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../core/config/env_config.dart';
 import '../../core/utils/logger.dart';
 
 /// Service for managing Google Gemini AI operations
@@ -23,9 +23,9 @@ class GeminiService {
     }
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'];
+      final apiKey = EnvConfig.geminiApiKey;
       
-      if (apiKey == null || apiKey.isEmpty) {
+      if (apiKey.isEmpty) {
         throw Exception('GEMINI_API_KEY not found in .env file');
       }
 

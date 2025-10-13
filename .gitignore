@@ -47,13 +47,47 @@ app.*.map.json
 # Firebase config files (DO NOT COMMIT THESE)
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+web/firebase-config.js
 
-# API Keys
+# API Keys and Sensitive Data (CRITICAL SECURITY)
 .env
 *.env
+.env.*
+!.env.example
+!.env.template
 
-# Local settings
+# Local settings and secrets
 .vscode/settings.json
+.vscode/launch.json
+.vs/
+*.key
+*.pem
+*.p12
+*.keystore
+key.properties
+
+# Sensitive logs and dumps
+*.log
+*.dump
+crash-reports/
+debug/
+
+# Platform-specific secrets
+android/key.properties
+android/upload-keystore.jks
+android/app-release.apk
+ios/fastlane/report.xml
+ios/fastlane/test_output/
+ios/Runner.xcworkspace/xcshareddata/
+ios/Pods/
+
+# Database and cache files that might contain sensitive data
+*.db
+*.sqlite
+*.sqlite3
+cache/
+tmp/
+temp/
 
 # Ignore all markdown files EXCEPT README.md and docs folder
 *.md

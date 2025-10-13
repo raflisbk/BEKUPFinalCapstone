@@ -1,16 +1,16 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image/image.dart' as img;
 import '../core/models/review_model.dart';
 import '../core/utils/logger.dart';
+import 'cloudinary_service.dart';
 
-/// Service for managing destination reviews
+/// Service for managing destination reviews with Cloudinary storage
 class ReviewService {
   static const String _tag = 'ReviewService';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Collection references
   CollectionReference get _reviewsCollection =>
@@ -384,18 +384,16 @@ class ReviewService {
           continue;
         }
 
-        // Upload to Firebase Storage
-        final fileName = 'review_photos/$destinationId/$userId/${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
-        final storageRef = _storage.ref().child(fileName);
+        // Upload to Cloudinary
+        final fileName = 'review_${destinationId}_${userId}_${DateTime.now().millisecondsSinceEpoch}_$i';
 
-        AppLogger.debug(_tag, 'Uploading photo ${i + 1}/${photoFiles.length}');
+        AppLogger.debug(_tag, 'Uploading photo ${i + 1}/${photoFiles.length} to Cloudinary');
 
-        final uploadTask = await storageRef.putFile(
-          optimizedImage,
-          SettableMetadata(contentType: 'image/jpeg'),
+        final photoUrl = await _cloudinaryService.uploadFile(
+          file: optimizedImage,
+          folder: 'review_photos',
+          fileName: fileName,
         );
-
-        final photoUrl = await uploadTask.ref.getDownloadURL();
         photoUrls.add(photoUrl);
 
         // Clean up optimized file
@@ -460,5 +458,36 @@ class ReviewService {
       AppLogger.error(_tag, 'Failed to optimize image', e, stackTrace);
       return null;
     }
+  }
+
+  /// Initialize service
+  Future<void> initialize() async {
+    await _cloudinaryService.initialize();
+    AppLogger.info(_tag, 'Review Service initialized with Cloudinary');
+  }
+
+  /// Get optimized image URL for review photos
+  String getOptimizedImageUrl({
+    required String originalUrl,
+    int? width,
+    int? height,
+    String quality = 'auto',
+  }) {
+    return _cloudinaryService.getOptimizedImageUrl(
+      secureUrl: originalUrl,
+      width: width,
+      height: height,
+      quality: quality,
+    );
+  }
+
+  /// Get thumbnail URL for review photo preview
+  String getThumbnailUrl(String originalUrl, {int size = 150}) {
+    return getOptimizedImageUrl(
+      originalUrl: originalUrl,
+      width: size,
+      height: size,
+      quality: 'auto',
+    );
   }
 }

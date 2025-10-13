@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/config/env_config.dart';
 import '../../core/utils/logger.dart';
 import '../../core/models/route_model.dart';
 import './gemini_service.dart';
@@ -47,7 +47,7 @@ class AINavigationService {
     }
 
     try {
-      _googleMapsApiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+      _googleMapsApiKey = EnvConfig.googleMapsApiKey;
       
       if (_googleMapsApiKey.isEmpty) {
         throw Exception('GOOGLE_MAPS_API_KEY not found in .env file');

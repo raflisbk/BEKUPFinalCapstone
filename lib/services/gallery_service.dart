@@ -1,29 +1,29 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../core/models/gallery_model.dart';
 import '../core/utils/logger.dart';
+import 'cloudinary_service.dart';
 
-/// Service for managing photo gallery
+/// Service for managing photo gallery with Cloudinary storage
 class GalleryService {
   static const String _tag = 'GalleryService';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   CollectionReference get _photosCollection => _firestore.collection('photos');
   CollectionReference get _commentsCollection => _firestore.collection('photo_comments');
 
-  /// Upload photo to Firebase Storage
+  /// Upload photo to Cloudinary
   Future<String?> uploadPhoto(File imageFile, String userId) async {
     try {
-      AppLogger.debug(_tag, 'Uploading photo to storage');
+      AppLogger.debug(_tag, 'Uploading photo to Cloudinary');
 
-      final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = _storage.ref().child('gallery').child(userId).child(fileName);
-
-      final uploadTask = await ref.putFile(imageFile);
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
+      final photoId = '${userId}_${DateTime.now().millisecondsSinceEpoch}';
+      final downloadUrl = await _cloudinaryService.uploadGalleryPhoto(
+        file: imageFile,
+        photoId: photoId,
+      );
 
       AppLogger.info(_tag, 'Photo uploaded successfully', {
         'url': downloadUrl,
@@ -133,12 +133,20 @@ class GalleryService {
         await doc.reference.delete();
       }
 
-      // Delete from Storage
+      // Delete from Cloudinary
       try {
-        final ref = _storage.refFromURL(imageUrl);
-        await ref.delete();
+        // Extract public ID from Cloudinary URL
+        final uri = Uri.parse(imageUrl);
+        final pathSegments = uri.pathSegments;
+        final uploadIndex = pathSegments.indexOf('upload');
+        
+        if (uploadIndex != -1) {
+          final publicIdParts = pathSegments.sublist(uploadIndex + 1);
+          final publicId = publicIdParts.join('/').split('.').first; // Remove extension
+          await _cloudinaryService.deleteFile(publicId);
+        }
       } catch (e) {
-        AppLogger.warning(_tag, 'Failed to delete image from storage', {
+        AppLogger.warning(_tag, 'Failed to delete image from Cloudinary', {
           'error': e.toString(),
         });
       }
@@ -368,5 +376,54 @@ class GalleryService {
         .map((snapshot) {
       return snapshot.docs.map((doc) => Photo.fromFirestore(doc)).toList();
     });
+  }
+
+  /// Get optimized image URL with specific dimensions
+  String getOptimizedImageUrl({
+    required String originalUrl,
+    int? width,
+    int? height,
+    String quality = 'auto',
+  }) {
+    return _cloudinaryService.getOptimizedImageUrl(
+      secureUrl: originalUrl,
+      width: width,
+      height: height,
+      quality: quality,
+    );
+  }
+
+  /// Get thumbnail URL for gallery grid
+  String getThumbnailUrl(String originalUrl, {int size = 200}) {
+    return getOptimizedImageUrl(
+      originalUrl: originalUrl,
+      width: size,
+      height: size,
+      quality: 'auto',
+    );
+  }
+
+  /// Get medium-sized image URL for preview
+  String getMediumImageUrl(String originalUrl) {
+    return getOptimizedImageUrl(
+      originalUrl: originalUrl,
+      width: 600,
+      quality: 'auto',
+    );
+  }
+
+  /// Get full-size image URL for detail view
+  String getFullSizeUrl(String originalUrl) {
+    return getOptimizedImageUrl(
+      originalUrl: originalUrl,
+      width: 1920,
+      quality: '90',
+    );
+  }
+
+  /// Initialize service
+  Future<void> initialize() async {
+    await _cloudinaryService.initialize();
+    AppLogger.info(_tag, 'Gallery Service initialized with Cloudinary');
   }
 }
