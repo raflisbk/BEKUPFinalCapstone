@@ -1,0 +1,64 @@
+# Firebase ignore file
+# Files and directories to exclude from deployment
+
+# Git
+.git
+.gitignore
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+!build/web/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# System
+.DS_Store
+Thumbs.db
+*.log
+
+# Documentation (optional - exclude if you don't want to deploy docs)
+*.md
+!README.md
+
+# Test
+test/
+coverage/
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Android
+android/
+ios/
+macos/
+windows/
+linux/
+
+# Misc
+.metadata
+pubspec.lock
+analysis_options.yaml
