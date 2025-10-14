@@ -27,7 +27,7 @@ class WeatherWidget extends StatefulWidget {
 class _WeatherWidgetState extends State<WeatherWidget> {
   static const String _tag = 'WeatherWidget';
 
-  final WeatherService _weatherService = WeatherService();
+  final WeatherService _weatherService = WeatherService.instance;
   WeatherInfo? _weatherInfo;
   bool _isLoading = true;
   String? _errorMessage;
@@ -53,12 +53,12 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     });
 
     try {
-      WeatherInfo? weather;
+      Map<String, dynamic>? weatherData;
 
       if (widget.cityName != null) {
-        weather = await _weatherService.getWeatherByCity(widget.cityName!);
+        weatherData = await _weatherService.getCurrentWeatherByCity(cityName: widget.cityName!);
       } else if (widget.latitude != null && widget.longitude != null) {
-        weather = await _weatherService.getWeatherByCoordinates(
+        weatherData = await _weatherService.getCurrentWeatherByCoordinates(
           latitude: widget.latitude!,
           longitude: widget.longitude!,
         );
@@ -66,14 +66,14 @@ class _WeatherWidgetState extends State<WeatherWidget> {
 
       if (mounted) {
         setState(() {
-          _weatherInfo = weather;
+          _weatherInfo = weatherData != null ? _parseWeatherData(weatherData) : null;
           _isLoading = false;
         });
 
-        if (weather != null) {
+        if (_weatherInfo != null) {
           AppLogger.info(_tag, 'Weather loaded successfully', {
-            'location': weather.locationName,
-            'temperature': weather.temperature,
+            'location': _weatherInfo!.locationName,
+            'temperature': _weatherInfo!.temperature,
           });
         }
       }
@@ -86,6 +86,22 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         });
       }
     }
+  }
+
+  /// Parse weather data from service response to WeatherInfo model
+  WeatherInfo _parseWeatherData(Map<String, dynamic> data) {
+    return WeatherInfo(
+      locationName: data['location'] ?? 'Unknown',
+      temperature: (data['temperature'] ?? 0).toDouble(),
+      feelsLike: (data['feels_like'] ?? 0).toDouble(),
+      humidity: data['humidity'] ?? 0,
+      condition: data['condition'] ?? 'Unknown',
+      description: data['description'] ?? 'No description',
+      icon: data['icon'] ?? '01d',
+      windSpeed: (data['wind_speed'] ?? 0).toDouble(),
+      timestamp: data['timestamp'] ?? DateTime.now(),
+      forecast: [],
+    );
   }
 
   @override

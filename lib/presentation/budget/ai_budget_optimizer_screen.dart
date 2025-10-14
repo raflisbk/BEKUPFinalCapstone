@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/trip_model.dart' as trip_models;
 import '../../services/ai/ai_budget_service.dart';
+import '../../core/models/budget_ai_models.dart';
 
 class AIBudgetOptimizerScreen extends StatefulWidget {
   final trip_models.Trip? trip;
@@ -18,7 +19,6 @@ class AIBudgetOptimizerScreen extends StatefulWidget {
 
 class _AIBudgetOptimizerScreenState extends State<AIBudgetOptimizerScreen>
     with SingleTickerProviderStateMixin {
-  final AIBudgetService _aiBudgetService = AIBudgetService();
   
   late TabController _tabController;
   bool _isOptimizing = false;
@@ -55,23 +55,25 @@ class _AIBudgetOptimizerScreenState extends State<AIBudgetOptimizerScreen>
     
     try {
       final results = await Future.wait([
-        _aiBudgetService.optimizeBudget(
-          trip: widget.trip!,
-          totalBudget: widget.trip!.budget?.totalBudget ?? 1000,
+        AIBudgetService.optimizeBudget(
+          totalBudget: widget.trip?.budget?.totalBudget ?? 1000.0,
+          destination: widget.trip?.title ?? 'Unknown',
+          durationDays: 7,
+          tripStyle: 'leisure',
         ),
-        _aiBudgetService.getSpendingRecommendation(trip: widget.trip!),
-        _aiBudgetService.analyzeBudgetHealth(trip: widget.trip!),
-        _aiBudgetService.getMoneySavingTips(
-          destination: widget.trip!.title,
-          dailyBudget: (widget.trip!.budget?.totalBudget ?? 1000) / 7,
+        AIBudgetService.getSpendingRecommendation(trip: widget.trip?.toMap() ?? {}),
+        AIBudgetService.analyzeBudgetHealth(trip: widget.trip?.toMap() ?? {}),
+        AIBudgetService.getMoneySavingTips(
+          destination: widget.trip?.title ?? 'Unknown',
+          tripStyle: 'leisure',
         ),
       ]);
       
       setState(() {
-        _optimizationResult = results[0] as BudgetOptimizationResult;
-        _spendingRecommendation = results[1] as SpendingRecommendation;
-        _healthReport = results[2] as BudgetHealthReport;
-        _savingTips = results[3] as List<MoneySavingTip>;
+        _optimizationResult = BudgetOptimizationResult.fromMap(results[0] as Map<String, dynamic>);
+        _spendingRecommendation = SpendingRecommendation.fromMap(results[1] as Map<String, dynamic>);
+        _healthReport = BudgetHealthReport.fromMap(results[2] as Map<String, dynamic>);
+        _savingTips = (results[3] as List<dynamic>).map((tip) => MoneySavingTip.fromMap(tip)).toList();
       });
     } catch (e) {
       _showError('Failed to load budget data: $e');

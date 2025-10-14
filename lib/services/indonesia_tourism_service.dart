@@ -1,644 +1,559 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../core/models/destination_model.dart';
+import 'dart:async';
 import '../core/utils/logger.dart';
-import '../core/config/env_config.dart';
+import 'destination_service.dart';
 
-/// Indonesian provinces for tourism
-enum IndonesianProvince {
-  bali,
-  yogyakarta,
-  jakarta,
-  jawaBarat,
-  jawaTimur,
-  jawaTengah,
-  sumateraUtara,
-  sumateraBarat,
-  sulawesiSelatan,
-  ntb,
-  ntt,
-  kalimantan,
-  papua,
-}
-
-/// Tourism categories in Indonesia
-enum TourismCategory {
-  beach,
-  mountain,
-  culture,
-  culinary,
-  nature,
-  historical,
-  religious,
-  adventure,
-  urban,
-  rural,
-}
-
-/// Extension for province display names
-extension IndonesianProvinceExt on IndonesianProvince {
-  String get displayName {
-    switch (this) {
-      case IndonesianProvince.bali:
-        return 'Bali';
-      case IndonesianProvince.yogyakarta:
-        return 'D.I. Yogyakarta';
-      case IndonesianProvince.jakarta:
-        return 'DKI Jakarta';
-      case IndonesianProvince.jawaBarat:
-        return 'Jawa Barat';
-      case IndonesianProvince.jawaTimur:
-        return 'Jawa Timur';
-      case IndonesianProvince.jawaTengah:
-        return 'Jawa Tengah';
-      case IndonesianProvince.sumateraUtara:
-        return 'Sumatera Utara';
-      case IndonesianProvince.sumateraBarat:
-        return 'Sumatera Barat';
-      case IndonesianProvince.sulawesiSelatan:
-        return 'Sulawesi Selatan';
-      case IndonesianProvince.ntb:
-        return 'Nusa Tenggara Barat';
-      case IndonesianProvince.ntt:
-        return 'Nusa Tenggara Timur';
-      case IndonesianProvince.kalimantan:
-        return 'Kalimantan';
-      case IndonesianProvince.papua:
-        return 'Papua';
-    }
-  }
-
-  String get searchQuery {
-    switch (this) {
-      case IndonesianProvince.bali:
-        return 'Bali, Indonesia';
-      case IndonesianProvince.yogyakarta:
-        return 'Yogyakarta, Indonesia';
-      case IndonesianProvince.jakarta:
-        return 'Jakarta, Indonesia';
-      case IndonesianProvince.jawaBarat:
-        return 'West Java, Indonesia';
-      case IndonesianProvince.jawaTimur:
-        return 'East Java, Indonesia';
-      case IndonesianProvince.jawaTengah:
-        return 'Central Java, Indonesia';
-      case IndonesianProvince.sumateraUtara:
-        return 'North Sumatra, Indonesia';
-      case IndonesianProvince.sumateraBarat:
-        return 'West Sumatra, Indonesia';
-      case IndonesianProvince.sulawesiSelatan:
-        return 'South Sulawesi, Indonesia';
-      case IndonesianProvince.ntb:
-        return 'Lombok, Indonesia';
-      case IndonesianProvince.ntt:
-        return 'Flores, Indonesia';
-      case IndonesianProvince.kalimantan:
-        return 'Kalimantan, Indonesia';
-      case IndonesianProvince.papua:
-        return 'Papua, Indonesia';
-    }
-  }
-}
-
-/// Extension for tourism categories
-extension TourismCategoryExt on TourismCategory {
-  String get displayName {
-    switch (this) {
-      case TourismCategory.beach:
-        return 'Pantai';
-      case TourismCategory.mountain:
-        return 'Gunung';
-      case TourismCategory.culture:
-        return 'Budaya';
-      case TourismCategory.culinary:
-        return 'Kuliner';
-      case TourismCategory.nature:
-        return 'Alam';
-      case TourismCategory.historical:
-        return 'Sejarah';
-      case TourismCategory.religious:
-        return 'Religi';
-      case TourismCategory.adventure:
-        return 'Petualangan';
-      case TourismCategory.urban:
-        return 'Perkotaan';
-      case TourismCategory.rural:
-        return 'Pedesaan';
-    }
-  }
-
-  String get placeType {
-    switch (this) {
-      case TourismCategory.beach:
-        return 'beach';
-      case TourismCategory.mountain:
-        return 'mountain';
-      case TourismCategory.culture:
-        return 'museum';
-      case TourismCategory.culinary:
-        return 'restaurant';
-      case TourismCategory.nature:
-        return 'park';
-      case TourismCategory.historical:
-        return 'historical_landmark';
-      case TourismCategory.religious:
-        return 'place_of_worship';
-      case TourismCategory.adventure:
-        return 'tourist_attraction';
-      case TourismCategory.urban:
-        return 'shopping_mall';
-      case TourismCategory.rural:
-        return 'natural_feature';
-    }
-  }
-}
-
-/// Service for Indonesia Tourism data using Google Places API
+/// Indonesia Tourism Service
+/// Handles tourism data specific to Indonesia with provinces, cities, and popular destinations
 class IndonesiaTourismService {
   static const String _tag = 'IndonesiaTourismService';
+  
+  // Singleton pattern
+  static IndonesiaTourismService? _instance;
+  static IndonesiaTourismService get instance => _instance ??= IndonesiaTourismService._internal();
+  
+  IndonesiaTourismService._internal();
 
-  late final String _apiKey = EnvConfig.googleMapsApiKey;
+  // Popular provinces in Indonesia
+  static const List<Map<String, dynamic>> _provinces = [
+    {
+      'id': 'jawa-barat',
+      'name': 'Jawa Barat',
+      'code': 'JB',
+      'capital': 'Bandung',
+      'popular_cities': ['Bandung', 'Bogor', 'Depok', 'Bekasi', 'Cirebon'],
+      'tourism_highlights': ['Tangkuban Perahu', 'Kawah Putih', 'Braga Street', 'Situ Patenggang'],
+    },
+    {
+      'id': 'dki-jakarta',
+      'name': 'DKI Jakarta',
+      'code': 'JK',
+      'capital': 'Jakarta',
+      'popular_cities': ['Jakarta Pusat', 'Jakarta Selatan', 'Jakarta Barat', 'Jakarta Utara', 'Jakarta Timur'],
+      'tourism_highlights': ['Monas', 'Kota Tua', 'Ancol', 'Ragunan Zoo'],
+    },
+    {
+      'id': 'jawa-tengah',
+      'name': 'Jawa Tengah',
+      'code': 'JT',
+      'capital': 'Semarang',
+      'popular_cities': ['Semarang', 'Solo', 'Yogyakarta', 'Magelang', 'Tegal'],
+      'tourism_highlights': ['Borobudur', 'Prambanan', 'Lawang Sewu', 'Dieng Plateau'],
+    },
+    {
+      'id': 'jawa-timur',
+      'name': 'Jawa Timur',
+      'code': 'JI',
+      'capital': 'Surabaya',
+      'popular_cities': ['Surabaya', 'Malang', 'Kediri', 'Madiun', 'Jember'],
+      'tourism_highlights': ['Mount Bromo', 'Ijen Crater', 'Tumpak Sewu', 'Jatim Park'],
+    },
+    {
+      'id': 'bali',
+      'name': 'Bali',
+      'code': 'BA',
+      'capital': 'Denpasar',
+      'popular_cities': ['Denpasar', 'Ubud', 'Sanur', 'Kuta', 'Canggu'],
+      'tourism_highlights': ['Tanah Lot', 'Uluwatu', 'Tegallalang Rice Terraces', 'Mount Batur'],
+    },
+    {
+      'id': 'nusa-tenggara-barat',
+      'name': 'Nusa Tenggara Barat',
+      'code': 'NB',
+      'capital': 'Mataram',
+      'popular_cities': ['Mataram', 'Lombok', 'Sumbawa', 'Dompu'],
+      'tourism_highlights': ['Gili Islands', 'Mount Rinjani', 'Senggigi Beach', 'Sasak Village'],
+    },
+    {
+      'id': 'sumatera-utara',
+      'name': 'Sumatera Utara',
+      'code': 'SU',
+      'capital': 'Medan',
+      'popular_cities': ['Medan', 'Pematangsiantar', 'Binjai', 'Tanjung Balai'],
+      'tourism_highlights': ['Lake Toba', 'Bukit Lawang', 'Samosir Island', 'Berastagi'],
+    },
+    {
+      'id': 'sulawesi-selatan',
+      'name': 'Sulawesi Selatan',
+      'code': 'SN',
+      'capital': 'Makassar',
+      'popular_cities': ['Makassar', 'Parepare', 'Palopo', 'Watampone'],
+      'tourism_highlights': ['Losari Beach', 'Bantimurung', 'Toraja Land', 'Rammang-Rammang'],
+    },
+    {
+      'id': 'kalimantan-timur',
+      'name': 'Kalimantan Timur',
+      'code': 'KI',
+      'capital': 'Samarinda',
+      'popular_cities': ['Samarinda', 'Balikpapan', 'Bontang', 'Sangatta'],
+      'tourism_highlights': ['Derawan Islands', 'Mahakam River', 'Samboja Lestari', 'Kutai National Park'],
+    },
+    {
+      'id': 'papua',
+      'name': 'Papua',
+      'code': 'PA',
+      'capital': 'Jayapura',
+      'popular_cities': ['Jayapura', 'Merauke', 'Sorong', 'Nabire'],
+      'tourism_highlights': ['Raja Ampat', 'Puncak Jaya', 'Baliem Valley', 'Cenderawasih Bay'],
+    },
+  ];
 
-  static const String _placesApiBaseUrl = 'https://maps.googleapis.com/maps/api/place';
+  // Popular destination categories in Indonesia
+  static const List<Map<String, dynamic>> _categories = [
+    {
+      'id': 'wisata-alam',
+      'name': 'Wisata Alam',
+      'description': 'Destinasi alam seperti gunung, danau, hutan, dan taman nasional',
+      'icon': 'nature_people',
+      'color': '#4CAF50',
+      'examples': ['Gunung Bromo', 'Danau Toba', 'Raja Ampat', 'Taman Nasional Komodo'],
+    },
+    {
+      'id': 'wisata-pantai',
+      'name': 'Wisata Pantai',
+      'description': 'Pantai-pantai indah di seluruh Indonesia',
+      'icon': 'beach_access',
+      'color': '#2196F3',
+      'examples': ['Kuta Beach', 'Sanur Beach', 'Gili Trawangan', 'Pink Beach'],
+    },
+    {
+      'id': 'wisata-budaya',
+      'name': 'Wisata Budaya',
+      'description': 'Destinasi bersejarah dan budaya Indonesia',
+      'icon': 'account_balance',
+      'color': '#FF9800',
+      'examples': ['Borobudur', 'Prambanan', 'Keraton Yogyakarta', 'Taman Mini'],
+    },
+    {
+      'id': 'wisata-kuliner',
+      'name': 'Wisata Kuliner',
+      'description': 'Destinasi untuk menikmati kuliner khas Indonesia',
+      'icon': 'restaurant',
+      'color': '#F44336',
+      'examples': ['Malioboro Street', 'Braga Street', 'Pasar Santa', 'Jalan Alor'],
+    },
+    {
+      'id': 'wisata-gunung',
+      'name': 'Wisata Gunung',
+      'description': 'Gunung-gunung untuk hiking dan pendakian',
+      'icon': 'terrain',
+      'color': '#795548',
+      'examples': ['Gunung Rinjani', 'Gunung Semeru', 'Gunung Merapi', 'Gunung Batur'],
+    },
+    {
+      'id': 'wisata-religi',
+      'name': 'Wisata Religi',
+      'description': 'Tempat-tempat ibadah dan ziarah',
+      'icon': 'place_of_worship',
+      'color': '#9C27B0',
+      'examples': ['Masjid Istiqlal', 'Candi Borobudur', 'Wihara Dharma Bhakti', 'Gereja Katedral'],
+    },
+    {
+      'id': 'wisata-modern',
+      'name': 'Wisata Modern',
+      'description': 'Destinasi modern seperti mall, taman hiburan, dan gedung pencakar langit',
+      'icon': 'location_city',
+      'color': '#607D8B',
+      'examples': ['Ancol', 'Dufan', 'Central Park', 'Sky Bridge'],
+    },
+    {
+      'id': 'eco-tourism',
+      'name': 'Eco Tourism',
+      'description': 'Wisata ramah lingkungan dan konservasi',
+      'icon': 'eco',
+      'color': '#8BC34A',
+      'examples': ['Taman Nasional Ujung Kulon', 'Bukit Lawang', 'Tangkoko Nature Reserve'],
+    },
+  ];
 
-  /// Popular Indonesian tourist destinations curated list
-  static final Map<String, List<Map<String, dynamic>>> _curatedDestinations = {
-    'Bali': [
-      {
-        'name': 'Tanah Lot Temple',
-        'description': 'Pura ikonik di atas batu karang di tepi laut, terkenal dengan sunset yang memukau',
-        'category': 'religious',
-        'placeId': 'ChIJoVqUSa4i0i0RwY7Ye7wGDuY',
-      },
-      {
-        'name': 'Uluwatu Temple',
-        'description': 'Pura megah di tepi tebing dengan pemandangan Samudra Hindia',
-        'category': 'religious',
-        'placeId': 'ChIJ_SqRPl1D0i0ROFPrw_BI4KU',
-      },
-      {
-        'name': 'Tegallalang Rice Terrace',
-        'description': 'Sawah terasering hijau yang menjadi ikon Ubud, Bali',
-        'category': 'nature',
-        'placeId': 'ChIJSe5hoa760i0RkG7Ye7wGDuY',
-      },
-      {
-        'name': 'Kuta Beach',
-        'description': 'Pantai terkenal dengan ombak yang cocok untuk surfing',
-        'category': 'beach',
-        'placeId': 'ChIJLa4sGkME0i0RMJPrw_BI4KU',
-      },
-      {
-        'name': 'Mount Batur',
-        'description': 'Gunung berapi aktif populer untuk pendakian sunrise',
-        'category': 'mountain',
-        'placeId': 'ChIJVy-I3S8Q0i0R4G7Ye7wGDuY',
-      },
-    ],
-    'Yogyakarta': [
-      {
-        'name': 'Borobudur Temple',
-        'description': 'Candi Buddha terbesar di dunia, warisan UNESCO',
-        'category': 'historical',
-        'placeId': 'ChIJvyaSi5nYi2kRJGr-Ys-CjgM',
-      },
-      {
-        'name': 'Prambanan Temple',
-        'description': 'Kompleks candi Hindu terbesar di Indonesia',
-        'category': 'historical',
-        'placeId': 'ChIJq7smVZbYi2kRoFPrw_BI4KU',
-      },
-      {
-        'name': 'Malioboro Street',
-        'description': 'Jalan legendaris pusat belanja dan kuliner Yogyakarta',
-        'category': 'urban',
-        'placeId': 'ChIJBwaBQMnYi2kR0G7Ye7wGDuY',
-      },
-      {
-        'name': 'Taman Sari Water Castle',
-        'description': 'Bekas taman istana Kesultanan Yogyakarta',
-        'category': 'historical',
-        'placeId': 'ChIJe-I3S8Q0i0R4G7Ye7wGDuY',
-      },
-      {
-        'name': 'Mount Merapi',
-        'description': 'Gunung berapi paling aktif di Indonesia',
-        'category': 'mountain',
-        'placeId': 'ChIJVyaSi5nYi2kRJGr-Ys-CjgM',
-      },
-    ],
-    'Jakarta': [
-      {
-        'name': 'National Monument (Monas)',
-        'description': 'Monumen ikonik setinggi 132 meter di pusat Jakarta',
-        'category': 'historical',
-        'placeId': 'ChIJlSz5TIr3aS4R4IpFJ8IpCQw',
-      },
-      {
-        'name': 'Kota Tua Jakarta',
-        'description': 'Kawasan bersejarah dengan bangunan kolonial Belanda',
-        'category': 'historical',
-        'placeId': 'ChIJNd9MlY34aS4RwC1-4_VGrbg',
-      },
-      {
-        'name': 'Ancol Dreamland',
-        'description': 'Taman rekreasi tepi pantai terbesar di Indonesia',
-        'category': 'beach',
-        'placeId': 'ChIJo3qcpS34aS4R8FPrw_BI4KU',
-      },
-      {
-        'name': 'Thousand Islands (Kepulauan Seribu)',
-        'description': 'Kepulauan eksotis dengan pantai berpasir putih',
-        'category': 'beach',
-        'placeId': 'ChIJE3Pwcy34aS4RkG7Ye7wGDuY',
-      },
-    ],
-    'West Java': [
-      {
-        'name': 'Tangkuban Perahu',
-        'description': 'Gunung berapi dengan kawah yang bisa dikunjungi',
-        'category': 'mountain',
-        'placeId': 'ChIJQT-aSh_ZaS4RMJPrw_BI4KU',
-      },
-      {
-        'name': 'Kawah Putih',
-        'description': 'Danau kawah berwarna putih kehijauan yang memukau',
-        'category': 'nature',
-        'placeId': 'ChIJJ2sD_Rv3aS4R4G7Ye7wGDuY',
-      },
-      {
-        'name': 'Bandung City',
-        'description': 'Kota kembang dengan factory outlets dan kuliner',
-        'category': 'urban',
-        'placeId': 'ChIJEw_FpBbZaS4RoFPrw_BI4KU',
-      },
-    ],
-    'East Java': [
-      {
-        'name': 'Mount Bromo',
-        'description': 'Gunung berapi ikonik dengan pemandangan sunrise spektakuler',
-        'category': 'mountain',
-        'placeId': 'ChIJsUfrNmQq1S0RwY7Ye7wGDuY',
-      },
-      {
-        'name': 'Ijen Crater',
-        'description': 'Kawah dengan blue fire fenomena api biru',
-        'category': 'mountain',
-        'placeId': 'ChIJ-Vq0zMQq1S0R4G7Ye7wGDuY',
-      },
-    ],
-    'Lombok': [
-      {
-        'name': 'Mount Rinjani',
-        'description': 'Gunung tertinggi kedua di Indonesia dengan danau Segara Anak',
-        'category': 'mountain',
-        'placeId': 'ChIJlwfrNmQq1S0RwY7Ye7wGDuY',
-      },
-      {
-        'name': 'Gili Islands',
-        'description': 'Tiga pulau cantik: Gili Trawangan, Meno, dan Air',
-        'category': 'beach',
-        'placeId': 'ChIJ2e_OOa4p1S0RMJPrw_BI4KU',
-      },
-      {
-        'name': 'Senggigi Beach',
-        'description': 'Pantai dengan sunset indah di Lombok Barat',
-        'category': 'beach',
-        'placeId': 'ChIJVy-I3S8Q0i0R4G7Ye7wGDuY',
-      },
-    ],
-    'North Sumatra': [
-      {
-        'name': 'Lake Toba',
-        'description': 'Danau vulkanik terbesar di Asia Tenggara',
-        'category': 'nature',
-        'placeId': 'ChIJy0VJT2H5OjARsIpFJ8IpCQw',
-      },
-      {
-        'name': 'Samosir Island',
-        'description': 'Pulau di tengah Danau Toba, pusat budaya Batak',
-        'category': 'culture',
-        'placeId': 'ChIJH0VJWGH5OjAR4G7Ye7wGDuY',
-      },
-    ],
-    'West Sumatra': [
-      {
-        'name': 'Bukittinggi',
-        'description': 'Kota wisata dengan jam gadang dan ngarai sianok',
-        'category': 'urban',
-        'placeId': 'ChIJBwaBQMnYi2kR0G7Ye7wGDuY',
-      },
-      {
-        'name': 'Harau Valley',
-        'description': 'Lembah dengan tebing tinggi dan air terjun',
-        'category': 'nature',
-        'placeId': 'ChIJe-I3S8Q0i0R4G7Ye7wGDuY',
-      },
-    ],
-  };
+  // ===============================
+  // PROVINCE & CITY DATA
+  // ===============================
 
-  /// Search Indonesian tourist destinations using Google Places API
-  Future<List<Destination>> searchIndonesianDestinations({
-    IndonesianProvince? province,
-    TourismCategory? category,
-    String? keyword,
-    int limit = 20,
-  }) async {
+  /// Get all provinces
+  static Future<List<Map<String, dynamic>>> getProvinces() async {
     try {
-      if (_apiKey.isEmpty || _apiKey.contains('YOUR_')) {
-        AppLogger.warning(_tag, 'Google Maps API key not configured, using curated data');
-        return _getCuratedDestinations(province: province, category: category, limit: limit);
-      }
-
-      AppLogger.info(_tag, 'Searching Indonesian destinations', {
-        'province': province?.displayName,
-        'category': category?.displayName,
-        'keyword': keyword,
-      });
-
-      // Build search query
-      String query = keyword ?? '';
-      if (province != null) {
-        query += ' ${province.searchQuery}';
-      }
-      if (category != null) {
-        query += ' ${category.displayName}';
-      }
-
-      if (query.isEmpty) {
-        query = 'tourist attractions in Indonesia';
-      }
-
-      // Call Google Places Text Search API
-      final url = Uri.parse(
-        '$_placesApiBaseUrl/textsearch/json?query=$query&key=$_apiKey&language=id&region=id',
-      );
-
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-
-        if (data['status'] == 'OK') {
-          final results = data['results'] as List;
-
-          final destinations = <Destination>[];
-          for (var i = 0; i < results.length && i < limit; i++) {
-            final place = results[i];
-
-            // Get place details for more information
-            final destination = await _convertPlaceToDestination(place);
-            if (destination != null) {
-              destinations.add(destination);
-            }
-          }
-
-          AppLogger.success(_tag, 'Found ${destinations.length} Indonesian destinations');
-          return destinations;
-        } else {
-          AppLogger.warning(_tag, 'Google Places API returned: ${data['status']}');
-          return _getCuratedDestinations(province: province, category: category, limit: limit);
-        }
-      } else {
-        AppLogger.error(_tag, 'Failed to search destinations: ${response.statusCode}');
-        return _getCuratedDestinations(province: province, category: category, limit: limit);
-      }
+      AppLogger.debug(_tag, 'Getting all provinces');
+      
+      // In a real implementation, this might come from database
+      // For now, returning static data
+      AppLogger.success(_tag, 'Retrieved ${_provinces.length} provinces');
+      return _provinces;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Error searching Indonesian destinations', e, stackTrace);
-      return _getCuratedDestinations(province: province, category: category, limit: limit);
+      AppLogger.error(_tag, 'Failed to get provinces', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Convert Google Place to Destination model
-  Future<Destination?> _convertPlaceToDestination(Map<String, dynamic> place) async {
+  /// Get province by ID
+  static Future<Map<String, dynamic>?> getProvince(String provinceId) async {
     try {
-      final placeId = place['place_id'] as String;
-      final name = place['name'] as String;
-      final address = place['formatted_address'] as String? ?? '';
-      final rating = (place['rating'] as num?)?.toDouble() ?? 4.0;
-      final userRatingsTotal = place['user_ratings_total'] as int? ?? 0;
+      AppLogger.debug(_tag, 'Getting province: $provinceId');
+      
+      final province = _provinces.firstWhere(
+        (p) => p['id'] == provinceId,
+        orElse: () => {},
+      );
 
-      final geometry = place['geometry'];
-      final location = geometry['location'];
-      final latitude = (location['lat'] as num).toDouble();
-      final longitude = (location['lng'] as num).toDouble();
-
-      // Get photos
-      final photos = <String>[];
-      if (place['photos'] != null) {
-        final photoList = place['photos'] as List;
-        for (var photo in photoList.take(5)) {
-          final photoReference = photo['photo_reference'];
-          final photoUrl = '$_placesApiBaseUrl/photo?maxwidth=800&photo_reference=$photoReference&key=$_apiKey';
-          photos.add(photoUrl);
-        }
+      if (province.isEmpty) {
+        AppLogger.warning(_tag, 'Province not found: $provinceId');
+        return null;
       }
 
-      // Get place details for description
-      final description = await _getPlaceDescription(placeId);
-
-      return Destination(
-        id: placeId,
-        name: name,
-        description: description ?? 'Destinasi wisata populer di Indonesia',
-        location: address,
-        latitude: latitude,
-        longitude: longitude,
-        category: _getCategoryFromPlace(place),
-        images: photos.isNotEmpty ? photos : [_getDefaultImage()],
-        priceRange: 3.0,
-        rating: rating,
-        reviewCount: userRatingsTotal,
-        facilities: [],
-        activities: [],
-        openingHours: '24 hours',
-        bestTimeToVisit: 'All year',
-        isVerified: true,
-        createdBy: 'system',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      AppLogger.success(_tag, 'Retrieved province: ${province['name']}');
+      return province;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Error converting place to destination', e, stackTrace);
-      return null;
+      AppLogger.error(_tag, 'Failed to get province', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Get place description from Google Place Details API
-  Future<String?> _getPlaceDescription(String placeId) async {
+  /// Get cities by province
+  static Future<List<String>> getCitiesByProvince(String provinceId) async {
     try {
-      final url = Uri.parse(
-        '$_placesApiBaseUrl/details/json?place_id=$placeId&fields=editorial_summary&key=$_apiKey&language=id',
+      AppLogger.debug(_tag, 'Getting cities for province: $provinceId');
+      
+      final province = await getProvince(provinceId);
+      if (province == null) {
+        return [];
+      }
+
+      final cities = List<String>.from(province['popular_cities'] ?? []);
+      AppLogger.success(_tag, 'Retrieved ${cities.length} cities for province: $provinceId');
+      return cities;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get cities by province', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Search provinces by name
+  static Future<List<Map<String, dynamic>>> searchProvinces(String query) async {
+    try {
+      AppLogger.debug(_tag, 'Searching provinces: $query');
+      
+      final results = _provinces.where((province) {
+        final name = province['name'].toString().toLowerCase();
+        final searchQuery = query.toLowerCase();
+        return name.contains(searchQuery);
+      }).toList();
+
+      AppLogger.success(_tag, 'Found ${results.length} provinces for query: $query');
+      return results;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to search provinces', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // TOURISM CATEGORIES
+  // ===============================
+
+  /// Get all tourism categories
+  Future<List<Map<String, dynamic>>> getTourismCategories() async {
+    try {
+      AppLogger.debug(_tag, 'Getting tourism categories');
+      
+      AppLogger.success(_tag, 'Retrieved ${_categories.length} tourism categories');
+      return _categories;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get tourism categories', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get category by ID
+  Future<Map<String, dynamic>?> getTourismCategory(String categoryId) async {
+    try {
+      AppLogger.debug(_tag, 'Getting tourism category: $categoryId');
+      
+      final category = _categories.firstWhere(
+        (c) => c['id'] == categoryId,
+        orElse: () => {},
       );
 
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['status'] == 'OK') {
-          final result = data['result'];
-          return result['editorial_summary']?['overview'];
-        }
+      if (category.isEmpty) {
+        AppLogger.warning(_tag, 'Tourism category not found: $categoryId');
+        return null;
       }
-      return null;
-    } catch (e) {
-      return null;
+
+      AppLogger.success(_tag, 'Retrieved category: ${category['name']}');
+      return category;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get tourism category', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Get category from Google Place types
-  String _getCategoryFromPlace(Map<String, dynamic> place) {
-    final types = place['types'] as List?;
-    if (types == null) return 'other';
-
-    if (types.contains('natural_feature') || types.contains('park')) return 'nature';
-    if (types.contains('museum') || types.contains('art_gallery')) return 'culture';
-    if (types.contains('restaurant') || types.contains('cafe')) return 'culinary';
-    if (types.contains('beach')) return 'beach';
-    if (types.contains('mountain') || types.contains('hiking_area')) return 'mountain';
-    if (types.contains('place_of_worship') || types.contains('church') || types.contains('mosque')) return 'religious';
-    if (types.contains('historical_landmark') || types.contains('historical_site')) return 'historical';
-    if (types.contains('shopping_mall') || types.contains('shopping')) return 'urban';
-
-    return 'adventure';
-  }
-
-
-  /// Get curated destinations (fallback when API not available)
-  Future<List<Destination>> _getCuratedDestinations({
-    IndonesianProvince? province,
-    TourismCategory? category,
-    int limit = 20,
-  }) async {
-    AppLogger.info(_tag, 'Using curated Indonesian destinations data');
-
-    final destinations = <Destination>[];
-
-    // Filter by province
-    List<String> provinces = province != null
-        ? [province.displayName]
-        : _curatedDestinations.keys.toList();
-
-    for (var provinceName in provinces) {
-      final places = _curatedDestinations[provinceName] ?? [];
-
-      for (var place in places) {
-        // Filter by category
-        if (category != null && place['category'] != category.placeType) {
-          continue;
-        }
-
-        destinations.add(Destination(
-          id: place['placeId'],
-          name: place['name'],
-          description: place['description'],
-          location: provinceName,
-          latitude: _getDefaultLatLng(provinceName)['lat']!,
-          longitude: _getDefaultLatLng(provinceName)['lng']!,
-          category: place['category'],
-          images: [_getDefaultImage()],
-          priceRange: 3.0,
-          rating: 4.5,
-          reviewCount: 1000,
-          facilities: ['Parking', 'Restroom', 'WiFi'],
-          activities: ['Sightseeing', 'Photography'],
-          openingHours: '24 hours',
-          bestTimeToVisit: 'All year',
-          isVerified: true,
-          createdBy: 'system',
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        ));
-
-        if (destinations.length >= limit) break;
-      }
-
-      if (destinations.length >= limit) break;
-    }
-
-    return destinations;
-  }
-
-  /// Get default coordinates for provinces
-  Map<String, double> _getDefaultLatLng(String province) {
-    final coords = <String, Map<String, double>>{
-      'Bali': {'lat': -8.4095, 'lng': 115.1889},
-      'Yogyakarta': {'lat': -7.7956, 'lng': 110.3695},
-      'Jakarta': {'lat': -6.2088, 'lng': 106.8456},
-      'West Java': {'lat': -6.9175, 'lng': 107.6191},
-      'East Java': {'lat': -7.5361, 'lng': 112.2384},
-      'Lombok': {'lat': -8.6500, 'lng': 116.3242},
-      'North Sumatra': {'lat': 2.1154, 'lng': 99.5451},
-      'West Sumatra': {'lat': -0.7399, 'lng': 100.8000},
-    };
-
-    return coords[province] ?? {'lat': -6.2088, 'lng': 106.8456};
-  }
-
-  /// Get default image URL
-  String _getDefaultImage() {
-    return 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800';
-  }
+  // ===============================
+  // POPULAR DESTINATIONS
+  // ===============================
 
   /// Get popular destinations by province
-  Future<List<Destination>> getPopularDestinationsByProvince(
-    IndonesianProvince province, {
+  Future<List<Map<String, dynamic>>> getPopularDestinationsByProvince(
+    String provinceId, {
     int limit = 10,
   }) async {
-    return searchIndonesianDestinations(
-      province: province,
-      limit: limit,
-    );
-  }
+    try {
+      AppLogger.debug(_tag, 'Getting popular destinations for province: $provinceId');
+      
+      final province = await getProvince(provinceId);
+      if (province == null) {
+        return [];
+      }
 
-  /// Get destinations by category
-  Future<List<Destination>> getDestinationsByCategory(
-    TourismCategory category, {
-    IndonesianProvince? province,
-    int limit = 20,
-  }) async {
-    return searchIndonesianDestinations(
-      province: province,
-      category: category,
-      limit: limit,
-    );
-  }
-
-  /// Get trending Indonesian destinations
-  Future<List<Destination>> getTrendingDestinations({int limit = 10}) async {
-    // Mix of popular destinations from different provinces
-    final trending = <Destination>[];
-
-    final provinces = [
-      IndonesianProvince.bali,
-      IndonesianProvince.yogyakarta,
-      IndonesianProvince.jakarta,
-      IndonesianProvince.ntb,
-    ];
-
-    for (var province in provinces) {
-      final destinations = await searchIndonesianDestinations(
-        province: province,
-        limit: 3,
+      // Get destinations from DestinationService filtered by province
+      final destinations = await DestinationService.getDestinations(
+        province: province['name'],
+        limit: limit,
       );
-      trending.addAll(destinations);
 
-      if (trending.length >= limit) break;
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} popular destinations');
+      return destinations;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get popular destinations by province', e, stackTrace);
+      rethrow;
     }
-
-    return trending.take(limit).toList();
   }
 
-  /// Search destinations with keyword
-  Future<List<Destination>> searchByKeyword(
-    String keyword, {
-    IndonesianProvince? province,
+  /// Get featured destinations across Indonesia
+  Future<List<Map<String, dynamic>>> getFeaturedDestinations({
     int limit = 20,
   }) async {
-    return searchIndonesianDestinations(
-      keyword: keyword,
-      province: province,
-      limit: limit,
-    );
+    try {
+      AppLogger.debug(_tag, 'Getting featured destinations across Indonesia');
+      
+      // Get top-rated destinations from multiple provinces
+      final allDestinations = <Map<String, dynamic>>[];
+
+      for (final province in _provinces.take(5)) { // Top 5 provinces
+        try {
+          final destinations = await DestinationService.getTopRatedDestinations(
+            limit: 4, // 4 per province
+          );
+          
+          // Add province info to destinations
+          for (final dest in destinations) {
+            dest['province_info'] = {
+              'id': province['id'],
+              'name': province['name'],
+              'code': province['code'],
+            };
+          }
+          
+          allDestinations.addAll(destinations);
+        } catch (e) {
+          AppLogger.warning(_tag, 'Failed to get destinations for ${province['name']}', e);
+          continue;
+        }
+      }
+
+      // Sort by rating and take top results
+      allDestinations.sort((a, b) {
+        final ratingA = a['rating'] as double? ?? 0.0;
+        final ratingB = b['rating'] as double? ?? 0.0;
+        return ratingB.compareTo(ratingA);
+      });
+
+      final result = allDestinations.take(limit).toList();
+
+      AppLogger.success(_tag, 'Retrieved ${result.length} featured destinations');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get featured destinations', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get destinations by tourism category
+  Future<List<Map<String, dynamic>>> getDestinationsByTourismCategory(
+    String categoryId, {
+    String? provinceId,
+    int limit = 20,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting destinations by tourism category: $categoryId');
+      
+      final category = await getTourismCategory(categoryId);
+      if (category == null) {
+        return [];
+      }
+
+      String? provinceName;
+      if (provinceId != null) {
+        final province = await getProvince(provinceId);
+        provinceName = province?['name'];
+      }
+
+      final destinations = await DestinationService.getDestinationsByCategory(
+        category: category['name'],
+        limit: limit,
+      );
+
+      // Filter by province if specified
+      final filteredDestinations = provinceName != null
+          ? destinations.where((dest) => dest['province'] == provinceName).toList()
+          : destinations;
+
+      AppLogger.success(_tag, 'Retrieved ${filteredDestinations.length} destinations for category: $categoryId');
+      return filteredDestinations;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get destinations by tourism category', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // RECOMMENDATIONS
+  // ===============================
+
+  /// Get travel recommendations based on user preferences
+  Future<List<Map<String, dynamic>>> getTravelRecommendations({
+    List<String>? preferredCategories,
+    List<String>? preferredProvinces,
+    double? maxDistance,
+    double? userLat,
+    double? userLng,
+    int limit = 15,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting travel recommendations');
+      
+      final recommendations = <Map<String, dynamic>>[];
+
+      // Get destinations based on preferred categories
+      if (preferredCategories != null && preferredCategories.isNotEmpty) {
+        for (final categoryId in preferredCategories) {
+          try {
+            final categoryDestinations = await getDestinationsByTourismCategory(
+              categoryId,
+              limit: 5,
+            );
+            recommendations.addAll(categoryDestinations);
+          } catch (e) {
+            AppLogger.warning(_tag, 'Failed to get destinations for category: $categoryId', e);
+          }
+        }
+      }
+
+      // Get destinations from preferred provinces
+      if (preferredProvinces != null && preferredProvinces.isNotEmpty) {
+        for (final provinceId in preferredProvinces) {
+          try {
+            final provinceDestinations = await getPopularDestinationsByProvince(
+              provinceId,
+              limit: 5,
+            );
+            recommendations.addAll(provinceDestinations);
+          } catch (e) {
+            AppLogger.warning(_tag, 'Failed to get destinations for province: $provinceId', e);
+          }
+        }
+      }
+
+      // Get nearby destinations if location is provided
+      if (userLat != null && userLng != null) {
+        try {
+          final nearbyDestinations = await DestinationService.getNearbyDestinations(
+            latitude: userLat,
+            longitude: userLng,
+            radiusKm: maxDistance ?? 100.0,
+            limit: 10,
+          );
+          recommendations.addAll(nearbyDestinations);
+        } catch (e) {
+          AppLogger.warning(_tag, 'Failed to get nearby destinations', e);
+        }
+      }
+
+      // If no specific preferences, get featured destinations
+      if (recommendations.isEmpty) {
+        try {
+          final featured = await getFeaturedDestinations(limit: limit);
+          recommendations.addAll(featured);
+        } catch (e) {
+          AppLogger.warning(_tag, 'Failed to get featured destinations', e);
+        }
+      }
+
+      // Remove duplicates and limit results
+      final uniqueRecommendations = <String, Map<String, dynamic>>{};
+      for (final dest in recommendations) {
+        uniqueRecommendations[dest['id']] = dest;
+      }
+
+      final result = uniqueRecommendations.values.take(limit).toList();
+
+      // Sort by rating
+      result.sort((a, b) {
+        final ratingA = a['rating'] as double? ?? 0.0;
+        final ratingB = b['rating'] as double? ?? 0.0;
+        return ratingB.compareTo(ratingA);
+      });
+
+      AppLogger.success(_tag, 'Generated ${result.length} travel recommendations');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get travel recommendations', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // UTILITY METHODS
+  // ===============================
+
+  /// Get tourism statistics for Indonesia
+  static Future<Map<String, dynamic>> getTourismStatistics() async {
+    try {
+      AppLogger.debug(_tag, 'Getting tourism statistics');
+      
+      // In a real implementation, this would aggregate data from database
+      final stats = {
+        'total_provinces': _provinces.length,
+        'total_categories': _categories.length,
+        'popular_provinces': _provinces.take(5).map((p) => p['name']).toList(),
+        'popular_categories': _categories.take(5).map((c) => c['name']).toList(),
+        'last_updated': DateTime.now().toIso8601String(),
+      };
+
+      AppLogger.success(_tag, 'Retrieved tourism statistics');
+      return stats;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get tourism statistics', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Validate province and city combination
+  static Future<bool> validateProvinceCity(String provinceId, String cityName) async {
+    try {
+      final cities = await getCitiesByProvince(provinceId);
+      return cities.contains(cityName);
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to validate province-city combination', e);
+      return false;
+    }
+  }
+
+  /// Get province by city name
+  static Future<Map<String, dynamic>?> getProvinceByCity(String cityName) async {
+    try {
+      AppLogger.debug(_tag, 'Getting province for city: $cityName');
+      
+      for (final province in _provinces) {
+        final cities = List<String>.from(province['popular_cities'] ?? []);
+        if (cities.contains(cityName)) {
+          AppLogger.success(_tag, 'Found province for city: $cityName');
+          return province;
+        }
+      }
+
+      AppLogger.warning(_tag, 'No province found for city: $cityName');
+      return null;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get province by city', e, stackTrace);
+      rethrow;
+    }
   }
 }

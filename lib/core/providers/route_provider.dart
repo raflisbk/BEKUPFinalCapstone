@@ -2,13 +2,11 @@ import 'package:flutter/foundation.dart';
 import '../../services/ai/ai_route_planning_service.dart';
 import '../../services/ai/ai_navigation_service.dart';
 import '../models/route_model.dart';
+import '../models/ai_models.dart';
 import '../utils/logger.dart';
 
 class RouteProvider extends ChangeNotifier {
   static const String _tag = 'RouteProvider';
-  
-  final AIRoutePlanningService _routePlanningService = AIRoutePlanningService();
-  final AINavigationService _navigationService = AINavigationService();
   
   // Route planning state
   RoutePlan? _currentRoutePlan;
@@ -19,6 +17,7 @@ class RouteProvider extends ChangeNotifier {
   // Navigation state
   bool _isNavigating = false;
   String? _currentInstruction;
+  String? _currentNavigationSessionId;
   final List<AINavigationSuggestion> _navigationSuggestions = [];
   
   // Getters
@@ -56,16 +55,43 @@ class RouteProvider extends ChangeNotifier {
         'optimization': optimization.name,
       });
       
-      _currentRoutePlan = await _routePlanningService.createRoutePlan(
-        userId: userId,
-        tripId: tripId,
-        name: name,
-        origin: origin,
-        destination: destination,
-        waypoints: waypoints ?? [],
-        travelMode: travelMode,
-        optimization: optimization,
+      final routeResult = await AIRoutePlanningService.generateRoutePlan(
+        destinations: waypoints?.map((w) => {
+          'name': w.name,
+          'description': w.address,
+          'latitude': w.latitude,
+          'longitude': w.longitude,
+        }).toList() ?? [],
+        startLocation: origin.name,
+        endLocation: destination.name,
+        transportMode: travelMode.name.toLowerCase(),
+        optimizationCriteria: optimization.name.toLowerCase(),
       );
+      
+      // Extract just the route plan from the result
+      final routePlanData = routeResult['route_plan'] as Map<String, dynamic>?;
+      if (routePlanData != null) {
+        // Convert AI route plan to RoutePlan model
+        _currentRoutePlan = RoutePlan(
+          id: routeResult['route_plan_id']?.toString() ?? '',
+          userId: userId,
+          tripId: tripId,
+          name: name,
+          origin: origin,
+          destination: destination,
+          waypoints: waypoints ?? [],
+          travelMode: travelMode,
+          optimization: optimization,
+          steps: [], // Will be populated later if needed
+          totalDistance: '${routePlanData['total_distance'] ?? 0} km',
+          totalDuration: '${routePlanData['total_duration'] ?? 0} min',
+          estimatedCost: (routePlanData['estimated_cost'] as num?)?.toDouble() ?? 0.0,
+          aiSuggestions: [],
+          routeMetadata: routePlanData,
+          createdAt: DateTime.now(),
+          isActive: false,
+        );
+      }
       
       if (_currentRoutePlan != null) {
         _aiSuggestions = _currentRoutePlan!.aiSuggestions;
@@ -92,7 +118,14 @@ class RouteProvider extends ChangeNotifier {
       _isNavigating = true;
       notifyListeners();
       
-      await _navigationService.startNavigation(routePlan);
+      final navigationResult = await AINavigationService.startNavigationSession(
+        origin: routePlan.origin.name,
+        destination: routePlan.destination.name,
+        navigationMode: routePlan.travelMode.value,
+        routePlan: routePlan.routeMetadata,
+      );
+      
+      _currentNavigationSessionId = navigationResult['session_id'];
       
       AppLogger.success(_tag, 'Navigation started successfully');
       
@@ -109,7 +142,13 @@ class RouteProvider extends ChangeNotifier {
     try {
       AppLogger.info(_tag, 'Stopping navigation');
       
-      await _navigationService.stopNavigation();
+      if (_currentNavigationSessionId != null) {
+        await AINavigationService.endNavigationSession(
+          sessionId: _currentNavigationSessionId!,
+          endReason: 'user_stopped',
+        );
+        _currentNavigationSessionId = null;
+      }
       _isNavigating = false;
       _currentInstruction = null;
       _navigationSuggestions.clear();

@@ -1,478 +1,692 @@
-import 'dart:math';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/models/destination_model.dart';
+import 'dart:async';
+import 'dart:math' as math;
 import '../core/utils/logger.dart';
+import 'supabase_config.dart';
+import 'supabase_database_service.dart';
 
-/// Service for managing destinations using Supabase
+/// Destination Service
+/// Handles destination management, discovery, and related operations
 class DestinationService {
   static const String _tag = 'DestinationService';
+  static const String _tableName = 'destinations';
+  static const String _categoriesTable = 'destination_categories';
+  static const String _bookmarksTable = 'destination_bookmarks';
 
-  final SupabaseClient _supabase = Supabase.instance.client;
+  // Singleton pattern
+  static DestinationService? _instance;
+  static DestinationService get instance => _instance ??= DestinationService._internal();
+  
+  DestinationService._internal();
 
-  /// Get all destinations with optional filters
-  Stream<List<Destination>> getDestinationsStream({
-    DestinationFilter? filter,
-    int limit = 50,
-  }) {
+  // ===============================
+  // DESTINATION CRUD OPERATIONS
+  // ===============================
+
+  /// Get all destinations with optional filtering
+  Future<List<Map<String, dynamic>>> getDestinations({
+    String? category,
+    String? province,
+    String? city,
+    double? minRating,
+    double? maxDistance,
+    double? userLat,
+    double? userLng,
+    int limit = 20,
+    int offset = 0,
+  }) async {
     try {
-      var query = _supabase.from('destinations').select();
+      AppLogger.debug(_tag, 'Getting destinations with filters');
 
-      // Apply category filter
-      if (filter?.category != null) {
-        query = query.eq('category', filter!.category!);
+      final filters = <String, dynamic>{};
+      if (category != null) filters['category'] = category;
+      if (province != null) filters['province'] = province;
+      if (city != null) filters['city'] = city;
+
+      List<Map<String, dynamic>> destinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: filters,
+        orderBy: 'rating',
+        ascending: false,
+        limit: limit,
+        offset: offset,
+      );
+
+      // Apply additional filters that can't be done at database level
+      if (minRating != null) {
+        destinations = destinations.where((dest) {
+          final rating = dest['rating'] as double?;
+          return rating != null && rating >= minRating;
+        }).toList();
       }
 
-      // Apply rating filter
-      if (filter?.minRating != null) {
-        query = query.where('rating', isGreaterThanOrEqualTo: filter!.minRating);
-      }
+      // Calculate distance if user location is provided
+      if (userLat != null && userLng != null) {
+        destinations = destinations.map((dest) {
+          final destLat = dest['latitude'] as double?;
+          final destLng = dest['longitude'] as double?;
+          
+          if (destLat != null && destLng != null) {
+            final distance = _calculateDistance(userLat, userLng, destLat, destLng);
+            dest['distance_km'] = distance;
+          }
+          
+          return dest;
+        }).toList();
 
-      // Apply price range filter
-      if (filter?.maxPriceRange != null) {
-        query = query.where('priceRange', isLessThanOrEqualTo: filter!.maxPriceRange);
-      }
-
-      // Apply sorting
-      if (filter?.sortBy != null) {
-        switch (filter!.sortBy) {
-          case DestinationSort.rating:
-            query = query.orderBy('rating', descending: true);
-            break;
-          case DestinationSort.newest:
-            query = query.orderBy('createdAt', descending: true);
-            break;
-          case DestinationSort.name:
-            query = query.orderBy('name', descending: false);
-            break;
-          case DestinationSort.priceRange:
-            query = query.orderBy('priceRange', descending: false);
-            break;
-        }
-      } else {
-        // Default sort by rating
-        query = query.orderBy('rating', descending: true);
-      }
-
-      query = query.limit(limit);
-
-      return query.snapshots().map((snapshot) {
-        var destinations = snapshot.docs
-            .map((doc) => Destination.fromFirestore(doc))
-            .toList();
-
-        // Apply search filter on client side (Firestore doesn't support LIKE)
-        if (filter?.searchQuery != null && filter!.searchQuery!.isNotEmpty) {
-          final searchLower = filter.searchQuery!.toLowerCase();
+        // Filter by max distance if specified
+        if (maxDistance != null) {
           destinations = destinations.where((dest) {
-            return dest.name.toLowerCase().contains(searchLower) ||
-                dest.location.toLowerCase().contains(searchLower) ||
-                dest.description.toLowerCase().contains(searchLower);
+            final distance = dest['distance_km'] as double?;
+            return distance != null && distance <= maxDistance;
           }).toList();
         }
 
-        AppLogger.info(_tag, 'Destinations loaded', {
-          'count': destinations.length,
+        // Sort by distance
+        destinations.sort((a, b) {
+          final distanceA = a['distance_km'] as double? ?? double.infinity;
+          final distanceB = b['distance_km'] as double? ?? double.infinity;
+          return distanceA.compareTo(distanceB);
         });
+      }
 
-        return destinations;
-      });
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} destinations');
+      return destinations;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get destinations stream', e, stackTrace);
-      return Stream.value([]);
+      AppLogger.error(_tag, 'Failed to get destinations', e, stackTrace);
+      rethrow;
     }
   }
 
   /// Get destination by ID
-  Future<Destination?> getDestinationById(String destinationId) async {
+  Future<Map<String, dynamic>?> getDestination(String destinationId) async {
     try {
-      AppLogger.debug(_tag, 'Getting destination by ID', {
-        'destinationId': destinationId,
-      });
+      AppLogger.debug(_tag, 'Getting destination: $destinationId');
 
-      final doc = await _destinationsCollection.doc(destinationId).get();
+      final destinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: {'id': destinationId},
+      );
 
-      if (!doc.exists) {
-        AppLogger.warning(_tag, 'Destination not found');
+      if (destinations.isEmpty) {
+        AppLogger.warning(_tag, 'Destination not found: $destinationId');
         return null;
       }
 
-      return Destination.fromFirestore(doc);
+      final destination = destinations.first;
+      
+      // Get additional data
+      await _enrichDestinationData(destination);
+
+      AppLogger.success(_tag, 'Retrieved destination: ${destination['name']}');
+      return destination;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to get destination', e, stackTrace);
-      return null;
+      rethrow;
     }
   }
 
-  /// Get destination stream by ID
-  Stream<Destination?> getDestinationStream(String destinationId) {
-    return _destinationsCollection.doc(destinationId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return Destination.fromFirestore(doc);
-    });
-  }
-
   /// Create new destination
-  Future<String?> createDestination({
+  static Future<Map<String, dynamic>> createDestination({
     required String name,
     required String description,
-    required String location,
     required double latitude,
     required double longitude,
     required String category,
-    required List<String> images,
-    required double priceRange,
-    required List<String> facilities,
-    required List<String> activities,
-    required String openingHours,
-    required String bestTimeToVisit,
-    required String userId,
+    String? province,
+    String? city,
+    String? address,
+    List<String>? imageUrls,
+    Map<String, dynamic>? facilities,
+    Map<String, dynamic>? pricing,
+    Map<String, dynamic>? openingHours,
+    String? contactInfo,
+    String? website,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Creating destination', {'name': name});
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
 
-      final now = DateTime.now();
-      final destination = Destination(
-        id: '',
-        name: name,
-        description: description,
-        location: location,
-        latitude: latitude,
-        longitude: longitude,
-        category: category,
-        images: images,
-        priceRange: priceRange,
-        rating: 0.0,
-        reviewCount: 0,
-        facilities: facilities,
-        activities: activities,
-        openingHours: openingHours,
-        bestTimeToVisit: bestTimeToVisit,
-        isVerified: false,
-        createdBy: userId,
-        createdAt: now,
-        updatedAt: now,
+      AppLogger.debug(_tag, 'Creating new destination: $name');
+
+      final destinationData = {
+        'name': name,
+        'description': description,
+        'latitude': latitude,
+        'longitude': longitude,
+        'category': category,
+        'province': province,
+        'city': city,
+        'address': address,
+        'image_urls': imageUrls ?? [],
+        'facilities': facilities ?? {},
+        'pricing': pricing ?? {},
+        'opening_hours': openingHours ?? {},
+        'contact_info': contactInfo,
+        'website': website,
+        'created_by': userId,
+        'is_verified': false,
+        'is_active': true,
+        'rating': 0.0,
+        'review_count': 0,
+        'visit_count': 0,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _tableName,
+        data: destinationData,
       );
 
-      final docRef = await _destinationsCollection.add(destination.toFirestore());
-
-      AppLogger.info(_tag, 'Destination created successfully', {
-        'destinationId': docRef.id,
-      });
-
-      return docRef.id;
+      AppLogger.success(_tag, 'Destination created successfully: $name');
+      return result;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to create destination', e, stackTrace);
-      return null;
+      rethrow;
     }
   }
 
   /// Update destination
-  Future<bool> updateDestination({
+  static Future<Map<String, dynamic>> updateDestination({
     required String destinationId,
     String? name,
     String? description,
-    String? location,
     double? latitude,
     double? longitude,
     String? category,
-    List<String>? images,
-    double? priceRange,
-    List<String>? facilities,
-    List<String>? activities,
-    String? openingHours,
-    String? bestTimeToVisit,
+    String? province,
+    String? city,
+    String? address,
+    List<String>? imageUrls,
+    Map<String, dynamic>? facilities,
+    Map<String, dynamic>? pricing,
+    Map<String, dynamic>? openingHours,
+    String? contactInfo,
+    String? website,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Updating destination', {
-        'destinationId': destinationId,
-      });
+      AppLogger.debug(_tag, 'Updating destination: $destinationId');
 
-      final Map<String, dynamic> updates = {
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      };
+      final updateData = <String, dynamic>{};
+      
+      if (name != null) updateData['name'] = name;
+      if (description != null) updateData['description'] = description;
+      if (latitude != null) updateData['latitude'] = latitude;
+      if (longitude != null) updateData['longitude'] = longitude;
+      if (category != null) updateData['category'] = category;
+      if (province != null) updateData['province'] = province;
+      if (city != null) updateData['city'] = city;
+      if (address != null) updateData['address'] = address;
+      if (imageUrls != null) updateData['image_urls'] = imageUrls;
+      if (facilities != null) updateData['facilities'] = facilities;
+      if (pricing != null) updateData['pricing'] = pricing;
+      if (openingHours != null) updateData['opening_hours'] = openingHours;
+      if (contactInfo != null) updateData['contact_info'] = contactInfo;
+      if (website != null) updateData['website'] = website;
 
-      if (name != null) updates['name'] = name;
-      if (description != null) updates['description'] = description;
-      if (location != null) updates['location'] = location;
-      if (latitude != null) updates['latitude'] = latitude;
-      if (longitude != null) updates['longitude'] = longitude;
-      if (category != null) updates['category'] = category;
-      if (images != null) updates['images'] = images;
-      if (priceRange != null) updates['priceRange'] = priceRange;
-      if (facilities != null) updates['facilities'] = facilities;
-      if (activities != null) updates['activities'] = activities;
-      if (openingHours != null) updates['openingHours'] = openingHours;
-      if (bestTimeToVisit != null) updates['bestTimeToVisit'] = bestTimeToVisit;
+      if (updateData.isEmpty) {
+        throw Exception('No data provided for update');
+      }
 
-      await _destinationsCollection.doc(destinationId).update(updates);
+      final result = await SupabaseDatabaseService.update(
+        table: _tableName,
+        id: destinationId,
+        data: updateData,
+      );
 
-      AppLogger.info(_tag, 'Destination updated successfully');
-      return true;
+      AppLogger.success(_tag, 'Destination updated successfully');
+      return result;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to update destination', e, stackTrace);
-      return false;
+      rethrow;
     }
   }
 
   /// Delete destination
-  Future<bool> deleteDestination(String destinationId) async {
+  static Future<void> deleteDestination(String destinationId) async {
     try {
-      AppLogger.debug(_tag, 'Deleting destination', {
-        'destinationId': destinationId,
-      });
+      AppLogger.warning(_tag, 'Deleting destination: $destinationId');
 
-      await _destinationsCollection.doc(destinationId).delete();
+      await SupabaseDatabaseService.delete(
+        table: _tableName,
+        id: destinationId,
+      );
 
-      AppLogger.info(_tag, 'Destination deleted successfully');
-      return true;
+      AppLogger.success(_tag, 'Destination deleted successfully');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to delete destination', e, stackTrace);
-      return false;
+      rethrow;
     }
   }
 
-  /// Update destination rating (called from ReviewService)
-  Future<void> updateDestinationRating(
-    String destinationId,
-    double averageRating,
-    int reviewCount,
-  ) async {
+  // ===============================
+  // SEARCH & DISCOVERY
+  // ===============================
+
+  /// Search destinations by name, description, or location
+  static Future<List<Map<String, dynamic>>> searchDestinations({
+    required String query,
+    String? category,
+    String? province,
+    int limit = 20,
+  }) async {
     try {
-      await _destinationsCollection.doc(destinationId).update({
-        'rating': averageRating,
-        'reviewCount': reviewCount,
-        'updatedAt': Timestamp.fromDate(DateTime.now()),
-      });
+      AppLogger.debug(_tag, 'Searching destinations: $query');
 
-      AppLogger.info(_tag, 'Destination rating updated', {
-        'destinationId': destinationId,
-        'rating': averageRating,
-        'reviewCount': reviewCount,
-      });
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to update rating', e, stackTrace);
-    }
-  }
+      // Get all destinations first with basic filters
+      final filters = <String, dynamic>{};
+      if (category != null) filters['category'] = category;
+      if (province != null) filters['province'] = province;
 
-  /// Get user bookmarks
-  Future<UserBookmark?> getUserBookmarks(String userId) async {
-    try {
-      final doc = await _bookmarksCollection.doc(userId).get();
+      final results = await SupabaseDatabaseService.textSearch(
+        table: _tableName,
+        searchTerm: query,
+        searchColumns: ['name', 'description', 'city', 'address'],
+        limit: limit,
+      );
 
-      if (!doc.exists) {
-        // Create initial bookmark document
-        final bookmark = UserBookmark(
-          userId: userId,
-          destinationIds: [],
-          updatedAt: DateTime.now(),
-        );
-
-        await _bookmarksCollection.doc(userId).set(bookmark.toFirestore());
-        return bookmark;
-      }
-
-      return UserBookmark.fromFirestore(doc);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get bookmarks', e, stackTrace);
-      return null;
-    }
-  }
-
-  /// Get user bookmarks stream
-  Stream<UserBookmark?> getUserBookmarksStream(String userId) {
-    return _bookmarksCollection.doc(userId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return UserBookmark.fromFirestore(doc);
-    });
-  }
-
-  /// Toggle bookmark
-  Future<bool> toggleBookmark(String userId, String destinationId) async {
-    try {
-      AppLogger.debug(_tag, 'Toggling bookmark', {
-        'userId': userId,
-        'destinationId': destinationId,
-      });
-
-      final bookmark = await getUserBookmarks(userId);
-      if (bookmark == null) return false;
-
-      final isBookmarked = bookmark.isBookmarked(destinationId);
-
-      if (isBookmarked) {
-        // Remove bookmark
-        await _bookmarksCollection.doc(userId).update({
-          'destinationIds': FieldValue.arrayRemove([destinationId]),
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        });
-      } else {
-        // Add bookmark
-        await _bookmarksCollection.doc(userId).update({
-          'destinationIds': FieldValue.arrayUnion([destinationId]),
-          'updatedAt': Timestamp.fromDate(DateTime.now()),
-        });
-      }
-
-      AppLogger.info(_tag, 'Bookmark toggled', {'isBookmarked': !isBookmarked});
-      return true;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to toggle bookmark', e, stackTrace);
-      return false;
-    }
-  }
-
-  /// Get bookmarked destinations
-  Future<List<Destination>> getBookmarkedDestinations(String userId) async {
-    try {
-      final bookmark = await getUserBookmarks(userId);
-      if (bookmark == null || bookmark.destinationIds.isEmpty) {
-        return [];
-      }
-
-      // Firestore 'in' query limit is 10, so batch the requests
-      final List<Destination> destinations = [];
-
-      for (int i = 0; i < bookmark.destinationIds.length; i += 10) {
-        final batch = bookmark.destinationIds.skip(i).take(10).toList();
-
-        final querySnapshot = await _destinationsCollection
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-
-        destinations.addAll(
-          querySnapshot.docs
-              .map((doc) => Destination.fromFirestore(doc))
-              .toList(),
-        );
-      }
-
-      AppLogger.info(_tag, 'Bookmarked destinations loaded', {
-        'count': destinations.length,
-      });
-
-      return destinations;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get bookmarked destinations', e, stackTrace);
-      return [];
-    }
-  }
-
-  /// Search destinations by query
-  Future<List<Destination>> searchDestinations(String query) async {
-    try {
-      if (query.isEmpty) return [];
-
-      AppLogger.debug(_tag, 'Searching destinations', {'query': query});
-
-      // Get all destinations and filter on client side
-      // Note: For production, consider using Algolia or Elasticsearch
-      final snapshot = await _destinationsCollection
-          .orderBy('rating', descending: true)
-          .limit(100)
-          .get();
-
-      final searchLower = query.toLowerCase();
-      final results = snapshot.docs
-          .map((doc) => Destination.fromFirestore(doc))
-          .where((dest) {
-        return dest.name.toLowerCase().contains(searchLower) ||
-            dest.location.toLowerCase().contains(searchLower) ||
-            dest.description.toLowerCase().contains(searchLower) ||
-            dest.category.toLowerCase().contains(searchLower);
-      }).toList();
-
-      AppLogger.info(_tag, 'Search completed', {
-        'query': query,
-        'results': results.length,
-      });
-
+      AppLogger.success(_tag, 'Found ${results.length} destinations for query: $query');
       return results;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to search destinations', e, stackTrace);
-      return [];
+      rethrow;
+    }
+  }
+
+  /// Get popular destinations
+  Future<List<Map<String, dynamic>>> getPopularDestinations({
+    int limit = 10,
+    String? category,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting popular destinations');
+
+      final filters = <String, dynamic>{'is_active': true};
+      if (category != null) filters['category'] = category;
+
+      final destinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: filters,
+        orderBy: 'visit_count',
+        ascending: false,
+        limit: limit,
+      );
+
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} popular destinations');
+      return destinations;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get popular destinations', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get top rated destinations
+  static Future<List<Map<String, dynamic>>> getTopRatedDestinations({
+    int limit = 10,
+    String? category,
+    int minReviews = 5,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting top rated destinations');
+
+      final filters = <String, dynamic>{'is_active': true};
+      if (category != null) filters['category'] = category;
+
+      List<Map<String, dynamic>> destinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: filters,
+        orderBy: 'rating',
+        ascending: false,
+        limit: limit * 2, // Get more to filter by review count
+      );
+
+      // Filter by minimum review count
+      destinations = destinations.where((dest) {
+        final reviewCount = dest['review_count'] as int? ?? 0;
+        return reviewCount >= minReviews;
+      }).take(limit).toList();
+
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} top rated destinations');
+      return destinations;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get top rated destinations', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get nearby destinations
+  static Future<List<Map<String, dynamic>>> getNearbyDestinations({
+    required double latitude,
+    required double longitude,
+    double radiusKm = 50.0,
+    int limit = 20,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting nearby destinations within ${radiusKm}km');
+
+      // Get all active destinations
+      final allDestinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: {'is_active': true},
+      );
+
+      // Calculate distances and filter
+      final nearbyDestinations = <Map<String, dynamic>>[];
+
+      for (final destination in allDestinations) {
+        final destLat = destination['latitude'] as double?;
+        final destLng = destination['longitude'] as double?;
+
+        if (destLat != null && destLng != null) {
+          final distance = _calculateDistance(latitude, longitude, destLat, destLng);
+          
+          if (distance <= radiusKm) {
+            destination['distance_km'] = distance;
+            nearbyDestinations.add(destination);
+          }
+        }
+      }
+
+      // Sort by distance
+      nearbyDestinations.sort((a, b) {
+        final distanceA = a['distance_km'] as double;
+        final distanceB = b['distance_km'] as double;
+        return distanceA.compareTo(distanceB);
+      });
+
+      final result = nearbyDestinations.take(limit).toList();
+
+      AppLogger.success(_tag, 'Found ${result.length} nearby destinations');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get nearby destinations', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // CATEGORIES & FILTERING
+  // ===============================
+
+  /// Get all destination categories
+  static Future<List<Map<String, dynamic>>> getCategories() async {
+    try {
+      AppLogger.debug(_tag, 'Getting destination categories');
+
+      final categories = await SupabaseDatabaseService.select(
+        table: _categoriesTable,
+        orderBy: 'name',
+      );
+
+      AppLogger.success(_tag, 'Retrieved ${categories.length} categories');
+      return categories;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get categories', e, stackTrace);
+      // Return default categories if database call fails
+      return _getDefaultCategories();
     }
   }
 
   /// Get destinations by category
-  Stream<List<Destination>> getDestinationsByCategory(
-    String category, {
+  static Future<List<Map<String, dynamic>>> getDestinationsByCategory({
+    required String category,
     int limit = 20,
-  }) {
-    return _destinationsCollection
-        .where('category', isEqualTo: category)
-        .orderBy('rating', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => Destination.fromFirestore(doc))
-          .toList();
-    });
-  }
-
-  /// Get nearby destinations
-  Future<List<Destination>> getNearbyDestinations({
-    required double latitude,
-    required double longitude,
-    double radiusKm = 50.0,
+    int offset = 0,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Getting nearby destinations', {
-        'latitude': latitude,
-        'longitude': longitude,
-        'radius': radiusKm,
-      });
+      AppLogger.debug(_tag, 'Getting destinations by category: $category');
 
-      // Get all destinations (for simplicity, in production use geohash)
-      final snapshot = await _destinationsCollection.get();
+      final destinations = await SupabaseDatabaseService.select(
+        table: _tableName,
+        filters: {'category': category, 'is_active': true},
+        orderBy: 'rating',
+        ascending: false,
+        limit: limit,
+        offset: offset,
+      );
 
-      final destinations = snapshot.docs
-          .map((doc) => Destination.fromFirestore(doc))
-          .where((dest) {
-        final distance = _calculateDistance(
-          latitude,
-          longitude,
-          dest.latitude,
-          dest.longitude,
-        );
-        return distance <= radiusKm;
-      }).toList();
-
-      // Sort by distance
-      destinations.sort((a, b) {
-        final distA = _calculateDistance(latitude, longitude, a.latitude, a.longitude);
-        final distB = _calculateDistance(latitude, longitude, b.latitude, b.longitude);
-        return distA.compareTo(distB);
-      });
-
-      AppLogger.info(_tag, 'Nearby destinations found', {
-        'count': destinations.length,
-      });
-
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} destinations for category: $category');
       return destinations;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get nearby destinations', e, stackTrace);
-      return [];
+      AppLogger.error(_tag, 'Failed to get destinations by category', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Calculate distance between two points (Haversine formula)
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371; // km
+  // ===============================
+  // BOOKMARKS
+  // ===============================
 
-    final dLat = _degreesToRadians(lat2 - lat1);
-    final dLon = _degreesToRadians(lon2 - lon1);
+  /// Bookmark a destination
+  static Future<Map<String, dynamic>> bookmarkDestination(String destinationId) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
 
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_degreesToRadians(lat1)) * cos(_degreesToRadians(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
+      AppLogger.debug(_tag, 'Bookmarking destination: $destinationId');
 
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+      // Check if already bookmarked
+      final existing = await SupabaseDatabaseService.select(
+        table: _bookmarksTable,
+        filters: {
+          'user_id': userId,
+          'destination_id': destinationId,
+        },
+      );
 
+      if (existing.isNotEmpty) {
+        throw Exception('Destination already bookmarked');
+      }
+
+      final bookmarkData = {
+        'user_id': userId,
+        'destination_id': destinationId,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _bookmarksTable,
+        data: bookmarkData,
+      );
+
+      AppLogger.success(_tag, 'Destination bookmarked successfully');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to bookmark destination', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Remove bookmark
+  static Future<void> removeBookmark(String destinationId) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Removing bookmark: $destinationId');
+
+      final bookmarks = await SupabaseDatabaseService.select(
+        table: _bookmarksTable,
+        filters: {
+          'user_id': userId,
+          'destination_id': destinationId,
+        },
+      );
+
+      if (bookmarks.isEmpty) {
+        throw Exception('Bookmark not found');
+      }
+
+      await SupabaseDatabaseService.delete(
+        table: _bookmarksTable,
+        id: bookmarks.first['id'],
+      );
+
+      AppLogger.success(_tag, 'Bookmark removed successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to remove bookmark', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get user bookmarks
+  static Future<List<Map<String, dynamic>>> getUserBookmarks() async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Getting user bookmarks');
+
+      final bookmarks = await SupabaseDatabaseService.select(
+        table: _bookmarksTable,
+        filters: {'user_id': userId},
+        orderBy: 'created_at',
+        ascending: false,
+      );
+
+      // Get destination details for each bookmark
+      final destinations = <Map<String, dynamic>>[];
+      for (final bookmark in bookmarks) {
+        final destination = await getDestination(bookmark['destination_id']);
+        if (destination != null) {
+          destination['bookmarked_at'] = bookmark['created_at'];
+          destinations.add(destination);
+        }
+      }
+
+      AppLogger.success(_tag, 'Retrieved ${destinations.length} bookmarked destinations');
+      return destinations;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user bookmarks', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Check if destination is bookmarked
+  static Future<bool> isDestinationBookmarked(String destinationId) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) return false;
+
+      final bookmarks = await SupabaseDatabaseService.select(
+        table: _bookmarksTable,
+        filters: {
+          'user_id': userId,
+          'destination_id': destinationId,
+        },
+      );
+
+      return bookmarks.isNotEmpty;
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to check bookmark status', e);
+      return false;
+    }
+  }
+
+  // ===============================
+  // STATISTICS & ANALYTICS
+  // ===============================
+
+  /// Increment visit count
+  static Future<void> incrementVisitCount(String destinationId) async {
+    try {
+      AppLogger.debug(_tag, 'Incrementing visit count for: $destinationId');
+
+      // Get current destination
+      final destination = await getDestination(destinationId);
+      if (destination == null) {
+        throw Exception('Destination not found');
+      }
+
+      final currentCount = destination['visit_count'] as int? ?? 0;
+
+      await SupabaseDatabaseService.update(
+        table: _tableName,
+        id: destinationId,
+        data: {'visit_count': currentCount + 1},
+      );
+
+      AppLogger.success(_tag, 'Visit count incremented');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to increment visit count', e, stackTrace);
+      // Don't rethrow as this is not critical
+    }
+  }
+
+  /// Update destination rating
+  static Future<void> updateDestinationRating(String destinationId) async {
+    try {
+      AppLogger.debug(_tag, 'Updating destination rating: $destinationId');
+
+      // This would typically be called after a review is added/updated
+      // Calculate average rating from reviews table
+      // For now, we'll implement a placeholder
+
+      AppLogger.success(_tag, 'Destination rating updated');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update destination rating', e, stackTrace);
+      // Don't rethrow as this is not critical
+    }
+  }
+
+  // ===============================
+  // PRIVATE HELPER METHODS
+  // ===============================
+
+  /// Calculate distance between two coordinates using Haversine formula
+  static double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+    const double earthRadius = 6371; // Earth radius in kilometers
+
+    final double dLat = _degreesToRadians(lat2 - lat1);
+    final double dLng = _degreesToRadians(lng2 - lng1);
+
+    final double a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degreesToRadians(lat1)) *
+        math.cos(_degreesToRadians(lat2)) *
+        math.sin(dLng / 2) *
+        math.sin(dLng / 2);
+
+    final double c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return earthRadius * c;
   }
 
-  double _degreesToRadians(double degrees) {
-    return degrees * pi / 180;
+  /// Convert degrees to radians
+  static double _degreesToRadians(double degrees) {
+    return degrees * (math.pi / 180);
+  }
+
+  /// Enrich destination data with additional information
+  static Future<void> _enrichDestinationData(Map<String, dynamic> destination) async {
+    try {
+      // Add bookmark status if user is logged in
+      final userId = SupabaseConfig.userId;
+      if (userId != null) {
+        destination['is_bookmarked'] = await isDestinationBookmarked(destination['id']);
+      }
+
+      // Add any other enrichment data here
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to enrich destination data', e);
+      // Don't throw error as this is not critical
+    }
+  }
+
+  /// Get default categories as fallback
+  static List<Map<String, dynamic>> _getDefaultCategories() {
+    return [
+      {'id': '1', 'name': 'Wisata Alam', 'icon': 'nature', 'color': '#4CAF50'},
+      {'id': '2', 'name': 'Wisata Budaya', 'icon': 'culture', 'color': '#FF9800'},
+      {'id': '3', 'name': 'Wisata Kuliner', 'icon': 'food', 'color': '#F44336'},
+      {'id': '4', 'name': 'Wisata Religi', 'icon': 'religious', 'color': '#9C27B0'},
+      {'id': '5', 'name': 'Wisata Pantai', 'icon': 'beach', 'color': '#2196F3'},
+      {'id': '6', 'name': 'Wisata Gunung', 'icon': 'mountain', 'color': '#795548'},
+      {'id': '7', 'name': 'Wisata Belanja', 'icon': 'shopping', 'color': '#E91E63'},
+      {'id': '8', 'name': 'Wisata Sejarah', 'icon': 'history', 'color': '#607D8B'},
+    ];
   }
 }

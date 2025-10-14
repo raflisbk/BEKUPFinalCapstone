@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/indonesia_tourism_provider.dart';
-import '../../services/indonesia_tourism_service.dart';
+import '../../core/models/indonesia_tourism_models.dart';
 import '../../core/models/destination_model.dart';
 import '../destinations/destination_detail_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -159,9 +159,9 @@ class _IndonesiaTourismScreenState extends State<IndonesiaTourismScreen> {
                   provider.loadTrendingDestinations();
                 },
               ),
-              ...IndonesianProvince.values.map((province) {
+              ...IndonesianProvince.allProvinces.map((province) {
                 return _buildFilterChip(
-                  label: province.displayName,
+                  label: province.name,
                   selected: provider.selectedProvince == province,
                   onTap: () => provider.searchByProvince(province),
                 );
@@ -193,9 +193,9 @@ class _IndonesiaTourismScreenState extends State<IndonesiaTourismScreen> {
                   }
                 },
               ),
-              ...TourismCategory.values.map((category) {
+              ...TourismCategory.allCategories.map((category) {
                 return _buildFilterChip(
-                  label: '${_getCategoryIcon(category)} ${category.displayName}',
+                  label: '${_getCategoryIcon(category)} ${category.name}',
                   selected: provider.selectedCategory == category,
                   onTap: () => provider.searchByCategory(category),
                 );
@@ -363,27 +363,25 @@ class _IndonesiaTourismScreenState extends State<IndonesiaTourismScreen> {
   }
 
   String _getCategoryIcon(TourismCategory category) {
-    switch (category) {
-      case TourismCategory.beach:
+    switch (category.id) {
+      case 'wisata-pantai':
         return '🏖️';
-      case TourismCategory.mountain:
+      case 'wisata-gunung':
         return '⛰️';
-      case TourismCategory.culture:
+      case 'wisata-budaya':
         return '🎭';
-      case TourismCategory.culinary:
+      case 'wisata-kuliner':
         return '🍜';
-      case TourismCategory.nature:
+      case 'wisata-alam':
         return '🌿';
-      case TourismCategory.historical:
-        return '🏛️';
-      case TourismCategory.religious:
+      case 'wisata-religi':
         return '🕌';
-      case TourismCategory.adventure:
-        return '🚵';
-      case TourismCategory.urban:
+      case 'eco-tourism':
+        return '🌱';
+      case 'wisata-modern':
         return '🏙️';
-      case TourismCategory.rural:
-        return '🌾';
+      default:
+        return '📍';
     }
   }
 }

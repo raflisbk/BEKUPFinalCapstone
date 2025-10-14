@@ -1,221 +1,256 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/config/supabase_config.dart';
 import '../core/utils/logger.dart';
+import 'supabase_config.dart';
 
 /// Supabase Authentication Service
-/// 
-/// FREE TIER BENEFITS:
-/// - Unlimited authentication users
-/// - Email/password authentication
-/// - Social authentication (Google, Apple, etc.)
-/// - Magic links
-/// - JWT tokens
-/// - Row Level Security (RLS)
-/// - No usage limits or charges
+/// Handles user authentication with Supabase Auth
 class SupabaseAuthService {
   static const String _tag = 'SupabaseAuthService';
-  
-  static GoTrueClient get _auth => SupabaseConfig.auth;
-  
+  static final SupabaseClient _client = SupabaseConfig.client;
+
+  /// Stream of authentication state changes
+  static Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
+
   /// Get current user
-  static User? get currentUser => _auth.currentUser;
-  
+  static User? get currentUser => _client.auth.currentUser;
+
   /// Check if user is authenticated
   static bool get isAuthenticated => currentUser != null;
-  
+
   /// Get user ID
   static String? get userId => currentUser?.id;
-  
+
   /// Get user email
   static String? get userEmail => currentUser?.email;
-  
+
+  /// Get user metadata
+  static Map<String, dynamic>? get userMetadata => currentUser?.userMetadata;
+
   /// Sign up with email and password
-  static Future<SupabaseResponse<User>> signUpWithEmail({
+  static Future<AuthResponse> signUp({
     required String email,
     required String password,
-    Map<String, dynamic>? userData,
+    String? fullName,
   }) async {
     try {
-      AppLogger.info(_tag, 'Signing up user with email: $email');
-      
-      final response = await _auth.signUp(
+      AppLogger.info(_tag, 'Signing up user: $email');
+
+      final response = await _client.auth.signUp(
         email: email,
         password: password,
-        data: userData,
+        data: fullName != null ? {'full_name': fullName} : null,
       );
-      
+
       if (response.user != null) {
-        AppLogger.success(_tag, 'User signed up successfully');
-        return SupabaseResponse.success(response.user!);
-      } else {
-        AppLogger.error(_tag, 'Sign up failed: No user returned');
-        return SupabaseResponse.error('Sign up failed');
-      }
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during sign up: ${e.message}');
-      return SupabaseResponse.error(e.message);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during sign up', e, stackTrace);
-      return SupabaseResponse.error('Sign up failed: $e');
-    }
-  }
-  
-  /// Sign in with email and password
-  static Future<SupabaseResponse<User>> signInWithEmail({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      AppLogger.info(_tag, 'Signing in user with email: $email');
-      
-      final response = await _auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
-      
-      if (response.user != null) {
-        AppLogger.success(_tag, 'User signed in successfully');
-        return SupabaseResponse.success(response.user!);
-      } else {
-        AppLogger.error(_tag, 'Sign in failed: No user returned');
-        return SupabaseResponse.error('Sign in failed');
-      }
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during sign in: ${e.message}');
-      return SupabaseResponse.error(e.message);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during sign in', e, stackTrace);
-      return SupabaseResponse.error('Sign in failed: $e');
-    }
-  }
-  
-  /// Sign in with Google
-  static Future<SupabaseResponse<User>> signInWithGoogle() async {
-    try {
-      AppLogger.info(_tag, 'Signing in with Google');
-      
-      final response = await _auth.signInWithOAuth(
-        Provider.google,
-        redirectTo: 'io.supabase.flutter://login-callback/',
-      );
-      
-      if (response) {
-        // Wait for auth state change
-        await Future.delayed(const Duration(seconds: 2));
-        final user = currentUser;
+        AppLogger.success(_tag, 'User signed up successfully: ${response.user!.email}');
         
-        if (user != null) {
-          AppLogger.success(_tag, 'Google sign in successful');
-          return SupabaseResponse.success(user);
-        }
+        // Create user profile in database
+        await _createUserProfile(response.user!);
       }
-      
-      AppLogger.error(_tag, 'Google sign in failed');
-      return SupabaseResponse.error('Google sign in failed');
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during Google sign in: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      return response;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during Google sign in', e, stackTrace);
-      return SupabaseResponse.error('Google sign in failed: $e');
+      AppLogger.error(_tag, 'Failed to sign up user', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Sign out
-  static Future<SupabaseResponse<void>> signOut() async {
+
+  /// Sign in with email and password
+  static Future<AuthResponse> signIn({
+    required String email,
+    required String password,
+  }) async {
     try {
-      AppLogger.info(_tag, 'Signing out user');
-      
-      await _auth.signOut();
-      
-      AppLogger.success(_tag, 'User signed out successfully');
-      return SupabaseResponse.success(null);
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during sign out: ${e.message}');
-      return SupabaseResponse.error(e.message);
+      AppLogger.info(_tag, 'Signing in user: $email');
+
+      final response = await _client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+
+      if (response.user != null) {
+        AppLogger.success(_tag, 'User signed in successfully: ${response.user!.email}');
+      }
+
+      return response;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during sign out', e, stackTrace);
-      return SupabaseResponse.error('Sign out failed: $e');
+      AppLogger.error(_tag, 'Failed to sign in user', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Send password reset email
-  static Future<SupabaseResponse<void>> resetPassword(String email) async {
+
+  /// Sign in with Google
+  static Future<bool> signInWithGoogle() async {
+    try {
+      AppLogger.info(_tag, 'Signing in with Google...');
+
+      final response = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.relink://login-callback/',
+      );
+
+      AppLogger.success(_tag, 'Google OAuth initiated successfully');
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to sign in with Google', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Sign in with Apple
+  static Future<bool> signInWithApple() async {
+    try {
+      AppLogger.info(_tag, 'Signing in with Apple...');
+
+      final response = await _client.auth.signInWithOAuth(
+        OAuthProvider.apple,
+        redirectTo: 'io.supabase.relink://login-callback/',
+      );
+
+      AppLogger.success(_tag, 'Apple OAuth initiated successfully');
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to sign in with Apple', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Sign out current user
+  static Future<void> signOut() async {
+    try {
+      AppLogger.info(_tag, 'Signing out user...');
+      await _client.auth.signOut();
+      AppLogger.success(_tag, 'User signed out successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to sign out user', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Reset password
+  static Future<void> resetPassword(String email) async {
     try {
       AppLogger.info(_tag, 'Sending password reset email to: $email');
-      
-      await _auth.resetPasswordForEmail(email);
-      
-      AppLogger.success(_tag, 'Password reset email sent');
-      return SupabaseResponse.success(null);
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during password reset: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      await _client.auth.resetPasswordForEmail(
+        email,
+        redirectTo: 'io.supabase.relink://reset-password/',
+      );
+
+      AppLogger.success(_tag, 'Password reset email sent successfully');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during password reset', e, stackTrace);
-      return SupabaseResponse.error('Password reset failed: $e');
+      AppLogger.error(_tag, 'Failed to send password reset email', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Update user profile
-  static Future<SupabaseResponse<User>> updateProfile({
-    String? email,
-    String? password,
-    Map<String, dynamic>? data,
-  }) async {
+
+  /// Update user password
+  static Future<UserResponse> updatePassword(String newPassword) async {
     try {
-      AppLogger.info(_tag, 'Updating user profile');
-      
-      final response = await _auth.updateUser(
-        UserAttributes(
-          email: email,
-          password: password,
-          data: data,
-        ),
+      AppLogger.info(_tag, 'Updating user password...');
+
+      final response = await _client.auth.updateUser(
+        UserAttributes(password: newPassword),
       );
+
+      AppLogger.success(_tag, 'Password updated successfully');
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update password', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Update user metadata
+  static Future<UserResponse> updateUserMetadata(Map<String, dynamic> data) async {
+    try {
+      AppLogger.info(_tag, 'Updating user metadata...');
+
+      final response = await _client.auth.updateUser(
+        UserAttributes(data: data),
+      );
+
+      AppLogger.success(_tag, 'User metadata updated successfully');
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update user metadata', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Delete user account
+  static Future<void> deleteAccount() async {
+    try {
+      AppLogger.info(_tag, 'Deleting user account...');
+
+      // Note: Supabase doesn't have direct user deletion from client
+      // This would need to be implemented via a server function
+      throw UnimplementedError('Account deletion must be implemented via Supabase Edge Function');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete account', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Refresh session
+  static Future<AuthResponse> refreshSession() async {
+    try {
+      AppLogger.debug(_tag, 'Refreshing user session...');
+
+      final response = await _client.auth.refreshSession();
       
       if (response.user != null) {
-        AppLogger.success(_tag, 'Profile updated successfully');
-        return SupabaseResponse.success(response.user!);
-      } else {
-        AppLogger.error(_tag, 'Profile update failed: No user returned');
-        return SupabaseResponse.error('Profile update failed');
+        AppLogger.success(_tag, 'Session refreshed successfully');
       }
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during profile update: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      return response;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during profile update', e, stackTrace);
-      return SupabaseResponse.error('Profile update failed: $e');
+      AppLogger.error(_tag, 'Failed to refresh session', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Listen to auth state changes
-  static Stream<AuthState> get authStateChanges => _auth.onAuthStateChange;
-  
-  /// Delete user account
-  static Future<SupabaseResponse<void>> deleteAccount() async {
+
+  /// Create user profile in database
+  static Future<void> _createUserProfile(User user) async {
     try {
-      AppLogger.info(_tag, 'Deleting user account');
-      
-      // First delete user data from database
-      if (userId != null) {
-        await SupabaseConfig.table(SupabaseTables.users)
-            .delete()
-            .eq('id', userId!);
-      }
-      
-      // Then delete auth account
-      await _auth.admin.deleteUser(userId!);
-      
-      AppLogger.success(_tag, 'Account deleted successfully');
-      return SupabaseResponse.success(null);
-    } on AuthException catch (e) {
-      AppLogger.error(_tag, 'Auth error during account deletion: ${e.message}');
-      return SupabaseResponse.error(e.message);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during account deletion', e, stackTrace);
-      return SupabaseResponse.error('Account deletion failed: $e');
+      AppLogger.debug(_tag, 'Creating user profile in database...');
+
+      await _client.from('users').insert({
+        'id': user.id,
+        'email': user.email,
+        'full_name': user.userMetadata?['full_name'],
+        'avatar_url': user.userMetadata?['avatar_url'],
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+
+      AppLogger.success(_tag, 'User profile created successfully');
+    } catch (e) {
+      // Don't throw error if profile already exists
+      AppLogger.warning(_tag, 'User profile creation failed (may already exist): $e');
     }
+  }
+
+  /// Get authentication headers for API calls
+  static Map<String, String> getAuthHeaders() {
+    final session = _client.auth.currentSession;
+    if (session == null) {
+      throw Exception('No active session. User must be authenticated.');
+    }
+
+    return {
+      'Authorization': 'Bearer ${session.accessToken}',
+      'Content-Type': 'application/json',
+    };
+  }
+
+  /// Check if session is valid
+  static bool isSessionValid() {
+    final session = _client.auth.currentSession;
+    if (session == null) return false;
+
+    final expiresAt = DateTime.fromMillisecondsSinceEpoch(session.expiresAt! * 1000);
+    return DateTime.now().isBefore(expiresAt);
   }
 }

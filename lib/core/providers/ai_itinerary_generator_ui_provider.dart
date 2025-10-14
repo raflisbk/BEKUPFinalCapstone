@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../../services/ai/ai_itinerary_service.dart';
+import '../models/ai_models.dart';
 
 /// Provider untuk mengelola state UI di AI Itinerary Generator Screen
 /// Menghindari penggunaan setState

@@ -1,429 +1,937 @@
-import 'dart:io';
-import '../core/stubs/firebase_stubs.dart';
-import '../core/models/gallery_model.dart';
+import 'dart:async';
 import '../core/utils/logger.dart';
-import 'cloudinary_service.dart';
+import 'supabase_config.dart';
+import 'supabase_database_service.dart';
+import 'media_service.dart';
 
-/// Service for managing photo gallery with Cloudinary storage
+/// Gallery Service
+/// Handles photo galleries, albums, and photo organization
 class GalleryService {
   static const String _tag = 'GalleryService';
+  static const String _galleriesTable = 'photo_galleries';
+  static const String _albumsTable = 'photo_albums';
+  static const String _photosTable = 'gallery_photos';
+  static const String _likesTable = 'photo_likes';
+  static const String _commentsTable = 'photo_comments';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final CloudinaryService _cloudinaryService = CloudinaryService();
+  // Singleton pattern
+  static GalleryService? _instance;
+  static GalleryService get instance => _instance ??= GalleryService._internal();
+  
+  GalleryService._internal();
 
-  CollectionReference get _photosCollection => _firestore.collection('photos');
-  CollectionReference get _commentsCollection => _firestore.collection('photo_comments');
+  // ===============================
+  // GALLERY MANAGEMENT
+  // ===============================
 
-  /// Upload photo to Cloudinary
-  Future<String?> uploadPhoto(File imageFile, String userId) async {
+  /// Create photo gallery
+  static Future<Map<String, dynamic>> createGallery({
+    required String title,
+    String? description,
+    String? tripId,
+    String? destinationId,
+    String? coverPhotoId,
+    bool isPublic = true,
+    List<String>? tags,
+  }) async {
     try {
-      AppLogger.debug(_tag, 'Uploading photo to Cloudinary');
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
 
-      final photoId = '${userId}_${DateTime.now().millisecondsSinceEpoch}';
-      final downloadUrl = await _cloudinaryService.uploadGalleryPhoto(
-        file: imageFile,
-        photoId: photoId,
+      AppLogger.debug(_tag, 'Creating photo gallery: $title');
+
+      final galleryData = {
+        'created_by': userId,
+        'title': title,
+        'description': description,
+        'trip_id': tripId,
+        'destination_id': destinationId,
+        'cover_photo_id': coverPhotoId,
+        'is_public': isPublic,
+        'tags': tags ?? [],
+        'photo_count': 0,
+        'like_count': 0,
+        'view_count': 0,
+        'status': 'active',
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _galleriesTable,
+        data: galleryData,
       );
 
-      AppLogger.info(_tag, 'Photo uploaded successfully', {
-        'url': downloadUrl,
-      });
-
-      return downloadUrl;
+      AppLogger.success(_tag, 'Photo gallery created successfully: $title');
+      return result;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to upload photo', e, stackTrace);
-      return null;
+      AppLogger.error(_tag, 'Failed to create photo gallery', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Create new photo post
-  Future<String?> createPhoto({
-    required String userId,
-    required String userName,
-    String? userPhotoUrl,
-    required String imageUrl,
-    String? caption,
-    String? location,
-    String? destinationId,
-    String? destinationName,
-    List<String> tags = const [],
-    bool isPublic = true,
-  }) async {
+  /// Get gallery by ID
+  static Future<Map<String, dynamic>?> getGallery(String galleryId) async {
     try {
-      AppLogger.debug(_tag, 'Creating photo post', {
-        'userId': userId,
-        'caption': caption,
-      });
+      AppLogger.debug(_tag, 'Getting gallery: $galleryId');
 
-      final now = DateTime.now();
-
-      final photo = Photo(
-        id: '',
-        userId: userId,
-        userName: userName,
-        userPhotoUrl: userPhotoUrl,
-        imageUrl: imageUrl,
-        caption: caption,
-        location: location,
-        destinationId: destinationId,
-        destinationName: destinationName,
-        tags: tags,
-        isPublic: isPublic,
-        createdAt: now,
-        updatedAt: now,
+      final galleries = await SupabaseDatabaseService.select(
+        table: _galleriesTable,
+        filters: {'id': galleryId},
       );
 
-      final docRef = await _photosCollection.add(photo.toFirestore());
+      if (galleries.isEmpty) {
+        AppLogger.warning(_tag, 'Gallery not found: $galleryId');
+        return null;
+      }
 
-      AppLogger.info(_tag, 'Photo created successfully', {
-        'photoId': docRef.id,
-      });
+      final gallery = galleries.first;
+      
+      // Get photos in this gallery
+      gallery['photos'] = await getGalleryPhotos(galleryId: galleryId);
+      
+      // Get albums in this gallery
+      gallery['albums'] = await getGalleryAlbums(galleryId);
 
-      return docRef.id;
+      // Increment view count
+      await _incrementViewCount(galleryId);
+
+      AppLogger.success(_tag, 'Retrieved gallery: ${gallery['title']}');
+      return gallery;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to create photo', e, stackTrace);
-      return null;
+      AppLogger.error(_tag, 'Failed to get gallery', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get user galleries
+  static Future<List<Map<String, dynamic>>> getUserGalleries({
+    String? userId,
+    bool? isPublic,
+    String? tripId,
+    String? destinationId,
+    int limit = 20,
+  }) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Getting user galleries: $currentUserId');
+
+      final filters = <String, dynamic>{'created_by': currentUserId};
+      if (isPublic != null) filters['is_public'] = isPublic;
+      if (tripId != null) filters['trip_id'] = tripId;
+      if (destinationId != null) filters['destination_id'] = destinationId;
+
+      final galleries = await SupabaseDatabaseService.select(
+        table: _galleriesTable,
+        filters: filters,
+        orderBy: 'created_at',
+        ascending: false,
+        limit: limit,
+      );
+
+      // Add cover photo URLs for each gallery
+      for (final gallery in galleries) {
+        if (gallery['cover_photo_id'] != null) {
+          final photos = await SupabaseDatabaseService.select(
+            table: _photosTable,
+            filters: {'id': gallery['cover_photo_id']},
+          );
+          
+          if (photos.isNotEmpty) {
+            final photo = photos.first;
+            gallery['cover_photo_url'] = MediaService.getThumbnailUrl(
+              publicId: photo['cloudinary_public_id'],
+              width: 300,
+              height: 200,
+            );
+          }
+        }
+      }
+
+      AppLogger.success(_tag, 'Retrieved ${galleries.length} galleries');
+      return galleries;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user galleries', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Update gallery
+  static Future<Map<String, dynamic>> updateGallery({
+    required String galleryId,
+    String? title,
+    String? description,
+    String? coverPhotoId,
+    bool? isPublic,
+    List<String>? tags,
+    String? status,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Updating gallery: $galleryId');
+
+      final updateData = <String, dynamic>{};
+      
+      if (title != null) updateData['title'] = title;
+      if (description != null) updateData['description'] = description;
+      if (coverPhotoId != null) updateData['cover_photo_id'] = coverPhotoId;
+      if (isPublic != null) updateData['is_public'] = isPublic;
+      if (tags != null) updateData['tags'] = tags;
+      if (status != null) updateData['status'] = status;
+
+      if (updateData.isEmpty) {
+        throw Exception('No data provided for update');
+      }
+
+      final result = await SupabaseDatabaseService.update(
+        table: _galleriesTable,
+        id: galleryId,
+        data: updateData,
+      );
+
+      AppLogger.success(_tag, 'Gallery updated successfully');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update gallery', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Delete gallery
+  static Future<void> deleteGallery(String galleryId) async {
+    try {
+      AppLogger.warning(_tag, 'Deleting gallery: $galleryId');
+
+      // Delete all photos in gallery
+      final photos = await getGalleryPhotos(galleryId: galleryId);
+      for (final photo in photos) {
+        await deletePhoto(photo['id']);
+      }
+
+      // Delete all albums in gallery
+      final albums = await getGalleryAlbums(galleryId);
+      for (final album in albums) {
+        await deleteAlbum(album['id']);
+      }
+
+      // Delete the gallery
+      await SupabaseDatabaseService.delete(
+        table: _galleriesTable,
+        id: galleryId,
+      );
+
+      AppLogger.success(_tag, 'Gallery deleted successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete gallery', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // ALBUM MANAGEMENT
+  // ===============================
+
+  /// Create album within gallery
+  static Future<Map<String, dynamic>> createAlbum({
+    required String galleryId,
+    required String title,
+    String? description,
+    String? coverPhotoId,
+    List<String>? tags,
+  }) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Creating album: $title');
+
+      final albumData = {
+        'gallery_id': galleryId,
+        'created_by': userId,
+        'title': title,
+        'description': description,
+        'cover_photo_id': coverPhotoId,
+        'tags': tags ?? [],
+        'photo_count': 0,
+        'sort_order': 0,
+        'is_active': true,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _albumsTable,
+        data: albumData,
+      );
+
+      AppLogger.success(_tag, 'Album created successfully: $title');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to create album', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get gallery albums
+  static Future<List<Map<String, dynamic>>> getGalleryAlbums(String galleryId) async {
+    try {
+      AppLogger.debug(_tag, 'Getting albums for gallery: $galleryId');
+
+      final albums = await SupabaseDatabaseService.select(
+        table: _albumsTable,
+        filters: {'gallery_id': galleryId, 'is_active': true},
+        orderBy: 'sort_order',
+      );
+
+      // Add cover photo URLs for each album
+      for (final album in albums) {
+        if (album['cover_photo_id'] != null) {
+          final photos = await SupabaseDatabaseService.select(
+            table: _photosTable,
+            filters: {'id': album['cover_photo_id']},
+          );
+          
+          if (photos.isNotEmpty) {
+            final photo = photos.first;
+            album['cover_photo_url'] = MediaService.getThumbnailUrl(
+              publicId: photo['cloudinary_public_id'],
+              width: 200,
+              height: 150,
+            );
+          }
+        }
+      }
+
+      AppLogger.success(_tag, 'Retrieved ${albums.length} albums');
+      return albums;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get gallery albums', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Delete album
+  static Future<void> deleteAlbum(String albumId) async {
+    try {
+      AppLogger.warning(_tag, 'Deleting album: $albumId');
+
+      // Delete all photos in album
+      final photos = await SupabaseDatabaseService.select(
+        table: _photosTable,
+        filters: {'album_id': albumId},
+      );
+
+      for (final photo in photos) {
+        await deletePhoto(photo['id']);
+      }
+
+      // Delete the album
+      await SupabaseDatabaseService.delete(
+        table: _albumsTable,
+        id: albumId,
+      );
+
+      AppLogger.success(_tag, 'Album deleted successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete album', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // PHOTO MANAGEMENT
+  // ===============================
+
+  /// Add photo to gallery
+  static Future<Map<String, dynamic>> addPhotoToGallery({
+    required String galleryId,
+    required String cloudinaryPublicId,
+    required String originalUrl,
+    String? albumId,
+    String? title,
+    String? description,
+    String? location,
+    DateTime? takenAt,
+    Map<String, dynamic>? metadata,
+    List<String>? tags,
+  }) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Adding photo to gallery: $galleryId');
+
+      final photoData = {
+        'gallery_id': galleryId,
+        'album_id': albumId,
+        'uploaded_by': userId,
+        'cloudinary_public_id': cloudinaryPublicId,
+        'original_url': originalUrl,
+        'title': title,
+        'description': description,
+        'location': location,
+        'taken_at': takenAt?.toIso8601String(),
+        'metadata': metadata ?? {},
+        'tags': tags ?? [],
+        'like_count': 0,
+        'comment_count': 0,
+        'view_count': 0,
+        'sort_order': 0,
+        'is_active': true,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _photosTable,
+        data: photoData,
+      );
+
+      // Update photo counts
+      await _updateGalleryPhotoCount(galleryId);
+      if (albumId != null) {
+        await _updateAlbumPhotoCount(albumId);
+      }
+
+      // Generate various image URLs
+      result['thumbnail_url'] = MediaService.getThumbnailUrl(
+        publicId: cloudinaryPublicId,
+      );
+      result['responsive_urls'] = MediaService.getResponsiveImageUrls(
+        publicId: cloudinaryPublicId,
+      );
+
+      AppLogger.success(_tag, 'Photo added to gallery successfully');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to add photo to gallery', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get gallery photos
+  static Future<List<Map<String, dynamic>>> getGalleryPhotos({
+    required String galleryId,
+    String? albumId,
+    int limit = 50,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting photos for gallery: $galleryId');
+
+      final filters = <String, dynamic>{
+        'gallery_id': galleryId,
+        'is_active': true,
+      };
+      if (albumId != null) filters['album_id'] = albumId;
+
+      final photos = await SupabaseDatabaseService.select(
+        table: _photosTable,
+        filters: filters,
+        orderBy: 'sort_order',
+        limit: limit,
+      );
+
+      // Add image URLs for each photo
+      for (final photo in photos) {
+        final publicId = photo['cloudinary_public_id'];
+        photo['thumbnail_url'] = MediaService.getThumbnailUrl(
+          publicId: publicId,
+        );
+        photo['responsive_urls'] = MediaService.getResponsiveImageUrls(
+          publicId: publicId,
+        );
+      }
+
+      AppLogger.success(_tag, 'Retrieved ${photos.length} photos');
+      return photos;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get gallery photos', e, stackTrace);
+      rethrow;
     }
   }
 
   /// Update photo
-  Future<bool> updatePhoto({
+  static Future<Map<String, dynamic>> updatePhoto({
     required String photoId,
-    String? caption,
+    String? title,
+    String? description,
     String? location,
+    DateTime? takenAt,
     List<String>? tags,
-    bool? isPublic,
+    int? sortOrder,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Updating photo', {'photoId': photoId});
+      AppLogger.debug(_tag, 'Updating photo: $photoId');
 
-      final updates = <String, dynamic>{
-        'updatedAt': Timestamp.now(),
-      };
+      final updateData = <String, dynamic>{};
+      
+      if (title != null) updateData['title'] = title;
+      if (description != null) updateData['description'] = description;
+      if (location != null) updateData['location'] = location;
+      if (takenAt != null) updateData['taken_at'] = takenAt.toIso8601String();
+      if (tags != null) updateData['tags'] = tags;
+      if (sortOrder != null) updateData['sort_order'] = sortOrder;
 
-      if (caption != null) updates['caption'] = caption;
-      if (location != null) updates['location'] = location;
-      if (tags != null) updates['tags'] = tags;
-      if (isPublic != null) updates['isPublic'] = isPublic;
+      if (updateData.isEmpty) {
+        throw Exception('No data provided for update');
+      }
 
-      await _photosCollection.doc(photoId).update(updates);
+      final result = await SupabaseDatabaseService.update(
+        table: _photosTable,
+        id: photoId,
+        data: updateData,
+      );
 
-      AppLogger.info(_tag, 'Photo updated successfully');
-      return true;
+      AppLogger.success(_tag, 'Photo updated successfully');
+      return result;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to update photo', e, stackTrace);
-      return false;
+      rethrow;
     }
   }
 
   /// Delete photo
-  Future<bool> deletePhoto(String photoId, String imageUrl) async {
+  static Future<void> deletePhoto(String photoId) async {
     try {
-      AppLogger.debug(_tag, 'Deleting photo', {'photoId': photoId});
+      AppLogger.warning(_tag, 'Deleting photo: $photoId');
 
-      // Delete from Firestore
-      await _photosCollection.doc(photoId).delete();
+      // Get photo details
+      final photos = await SupabaseDatabaseService.select(
+        table: _photosTable,
+        filters: {'id': photoId},
+      );
 
-      // Delete comments
-      final comments = await _commentsCollection
-          .where('photoId', isEqualTo: photoId)
-          .get();
-
-      for (var doc in comments.docs) {
-        await doc.reference.delete();
+      if (photos.isEmpty) {
+        throw Exception('Photo not found');
       }
+
+      final photo = photos.first;
+      final galleryId = photo['gallery_id'];
+      final albumId = photo['album_id'];
+      final publicId = photo['cloudinary_public_id'];
 
       // Delete from Cloudinary
-      try {
-        // Extract public ID from Cloudinary URL
-        final uri = Uri.parse(imageUrl);
-        final pathSegments = uri.pathSegments;
-        final uploadIndex = pathSegments.indexOf('upload');
-        
-        if (uploadIndex != -1) {
-          final publicIdParts = pathSegments.sublist(uploadIndex + 1);
-          final publicId = publicIdParts.join('/').split('.').first; // Remove extension
-          await _cloudinaryService.deleteFile(publicId);
-        }
-      } catch (e) {
-        AppLogger.warning(_tag, 'Failed to delete image from Cloudinary', {
-          'error': e.toString(),
-        });
+      await MediaService.deleteMedia(publicId: publicId);
+
+      // Delete comments and likes
+      await _deletePhotoComments(photoId);
+      await _deletePhotoLikes(photoId);
+
+      // Delete photo record
+      await SupabaseDatabaseService.delete(
+        table: _photosTable,
+        id: photoId,
+      );
+
+      // Update photo counts
+      await _updateGalleryPhotoCount(galleryId);
+      if (albumId != null) {
+        await _updateAlbumPhotoCount(albumId);
       }
 
-      AppLogger.info(_tag, 'Photo deleted successfully');
-      return true;
+      AppLogger.success(_tag, 'Photo deleted successfully');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to delete photo', e, stackTrace);
-      return false;
+      rethrow;
     }
   }
 
-  /// Toggle like on photo
-  Future<bool> toggleLike({
-    required String photoId,
-    required String userId,
-  }) async {
+  // ===============================
+  // PHOTO INTERACTIONS
+  // ===============================
+
+  /// Like photo
+  static Future<Map<String, dynamic>> likePhoto(String photoId) async {
     try {
-      AppLogger.debug(_tag, 'Toggling like', {
-        'photoId': photoId,
-        'userId': userId,
-      });
-
-      final doc = await _photosCollection.doc(photoId).get();
-      if (!doc.exists) return false;
-
-      final photo = Photo.fromFirestore(doc);
-      final isLiked = photo.isLikedBy(userId);
-
-      if (isLiked) {
-        // Unlike
-        await _photosCollection.doc(photoId).update({
-          'likes': FieldValue.increment(-1),
-          'likedBy': FieldValue.arrayRemove([userId]),
-          'updatedAt': Timestamp.now(),
-        });
-      } else {
-        // Like
-        await _photosCollection.doc(photoId).update({
-          'likes': FieldValue.increment(1),
-          'likedBy': FieldValue.arrayUnion([userId]),
-          'updatedAt': Timestamp.now(),
-        });
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
       }
 
-      AppLogger.info(_tag, isLiked ? 'Photo unliked' : 'Photo liked');
-      return true;
+      AppLogger.debug(_tag, 'Liking photo: $photoId');
+
+      // Check if already liked
+      final existingLikes = await SupabaseDatabaseService.select(
+        table: _likesTable,
+        filters: {'photo_id': photoId, 'user_id': userId},
+      );
+
+      if (existingLikes.isNotEmpty) {
+        throw Exception('Photo already liked');
+      }
+
+      // Add like
+      final likeData = {
+        'photo_id': photoId,
+        'user_id': userId,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _likesTable,
+        data: likeData,
+      );
+
+      // Update like count
+      await _updatePhotoLikeCount(photoId);
+
+      AppLogger.success(_tag, 'Photo liked successfully');
+      return result;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to toggle like', e, stackTrace);
-      return false;
+      AppLogger.error(_tag, 'Failed to like photo', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Unlike photo
+  static Future<void> unlikePhoto(String photoId) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Unliking photo: $photoId');
+
+      // Find and delete like
+      final likes = await SupabaseDatabaseService.select(
+        table: _likesTable,
+        filters: {'photo_id': photoId, 'user_id': userId},
+      );
+
+      if (likes.isEmpty) {
+        throw Exception('Photo not liked');
+      }
+
+      await SupabaseDatabaseService.delete(
+        table: _likesTable,
+        id: likes.first['id'],
+      );
+
+      // Update like count
+      await _updatePhotoLikeCount(photoId);
+
+      AppLogger.success(_tag, 'Photo unliked successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to unlike photo', e, stackTrace);
+      rethrow;
     }
   }
 
   /// Add comment to photo
-  Future<String?> addComment({
+  static Future<Map<String, dynamic>> addPhotoComment({
     required String photoId,
-    required String userId,
-    required String userName,
-    String? userPhotoUrl,
     required String comment,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Adding comment', {
-        'photoId': photoId,
-        'userId': userId,
-      });
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
 
-      final photoComment = PhotoComment(
-        id: '',
-        photoId: photoId,
-        userId: userId,
-        userName: userName,
-        userPhotoUrl: userPhotoUrl,
-        comment: comment,
-        createdAt: DateTime.now(),
+      AppLogger.debug(_tag, 'Adding comment to photo: $photoId');
+
+      final commentData = {
+        'photo_id': photoId,
+        'user_id': userId,
+        'comment': comment,
+        'is_active': true,
+      };
+
+      final result = await SupabaseDatabaseService.insert(
+        table: _commentsTable,
+        data: commentData,
       );
 
-      final docRef = await _commentsCollection.add(photoComment.toFirestore());
+      // Update comment count
+      await _updatePhotoCommentCount(photoId);
 
-      // Increment comment count
-      await _photosCollection.doc(photoId).update({
-        'comments': FieldValue.increment(1),
-        'updatedAt': Timestamp.now(),
-      });
-
-      AppLogger.info(_tag, 'Comment added successfully');
-      return docRef.id;
+      AppLogger.success(_tag, 'Comment added successfully');
+      return result;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to add comment', e, stackTrace);
-      return null;
+      AppLogger.error(_tag, 'Failed to add photo comment', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Delete comment
-  Future<bool> deleteComment(String commentId, String photoId) async {
-    try {
-      AppLogger.debug(_tag, 'Deleting comment', {'commentId': commentId});
-
-      await _commentsCollection.doc(commentId).delete();
-
-      // Decrement comment count
-      await _photosCollection.doc(photoId).update({
-        'comments': FieldValue.increment(-1),
-        'updatedAt': Timestamp.now(),
-      });
-
-      AppLogger.info(_tag, 'Comment deleted successfully');
-      return true;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to delete comment', e, stackTrace);
-      return false;
-    }
-  }
-
-  /// Get photos stream with filter
-  Stream<List<Photo>> getPhotosStream({
-    GalleryFilter filter = GalleryFilter.all,
-    String? userId,
-    String? destinationId,
-    GallerySort sort = GallerySort.recent,
+  /// Get photo comments
+  static Future<List<Map<String, dynamic>>> getPhotoComments({
+    required String photoId,
     int limit = 20,
-  }) {
-    AppLogger.debug(_tag, 'Getting photos stream', {
-      'filter': filter.toString(),
-      'sort': sort.toString(),
-    });
-
-    Query query = _photosCollection;
-
-    // Apply filters
-    switch (filter) {
-      case GalleryFilter.all:
-        query = query.where('isPublic', isEqualTo: true);
-        break;
-      case GalleryFilter.myPhotos:
-        if (userId != null) {
-          query = query.where('userId', isEqualTo: userId);
-        }
-        break;
-      case GalleryFilter.liked:
-        if (userId != null) {
-          query = query.where('likedBy', arrayContains: userId);
-        }
-        break;
-      case GalleryFilter.destination:
-        if (destinationId != null) {
-          query = query.where('destinationId', isEqualTo: destinationId);
-        }
-        break;
-    }
-
-    // Apply sorting
-    switch (sort) {
-      case GallerySort.recent:
-        query = query.orderBy('createdAt', descending: true);
-        break;
-      case GallerySort.popular:
-        query = query.orderBy('likes', descending: true);
-        break;
-      case GallerySort.oldest:
-        query = query.orderBy('createdAt', descending: false);
-        break;
-    }
-
-    query = query.limit(limit);
-
-    return query.snapshots().map((snapshot) {
-      final photos = snapshot.docs.map((doc) => Photo.fromFirestore(doc)).toList();
-
-      AppLogger.debug(_tag, 'Photos stream update', {
-        'count': photos.length,
-      });
-
-      return photos;
-    });
-  }
-
-  /// Get photo by ID
-  Future<Photo?> getPhotoById(String photoId) async {
+  }) async {
     try {
-      final doc = await _photosCollection.doc(photoId).get();
-      if (!doc.exists) return null;
+      AppLogger.debug(_tag, 'Getting comments for photo: $photoId');
 
-      return Photo.fromFirestore(doc);
+      final comments = await SupabaseDatabaseService.select(
+        table: _commentsTable,
+        filters: {'photo_id': photoId, 'is_active': true},
+        orderBy: 'created_at',
+        ascending: false,
+        limit: limit,
+      );
+
+      AppLogger.success(_tag, 'Retrieved ${comments.length} comments');
+      return comments;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get photo', e, stackTrace);
-      return null;
+      AppLogger.error(_tag, 'Failed to get photo comments', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Get comments stream for photo
-  Stream<List<PhotoComment>> getCommentsStream(String photoId) {
-    return _commentsCollection
-        .where('photoId', isEqualTo: photoId)
-        .orderBy('createdAt', descending: false)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => PhotoComment.fromFirestore(doc))
-          .toList();
-    });
-  }
+  // ===============================
+  // GALLERY DISCOVERY
+  // ===============================
 
-  /// Get user's photos count
-  Future<int> getUserPhotosCount(String userId) async {
+  /// Search public galleries
+  static Future<List<Map<String, dynamic>>> searchPublicGalleries({
+    String? query,
+    List<String>? tags,
+    String? destinationId,
+    int limit = 20,
+  }) async {
     try {
-      final snapshot = await _photosCollection
-          .where('userId', isEqualTo: userId)
-          .count()
-          .get();
+      AppLogger.debug(_tag, 'Searching public galleries');
 
-      return snapshot.count ?? 0;
+      final filters = <String, dynamic>{'is_public': true, 'status': 'active'};
+      if (destinationId != null) filters['destination_id'] = destinationId;
+
+      var galleries = await SupabaseDatabaseService.select(
+        table: _galleriesTable,
+        filters: filters,
+        orderBy: 'view_count',
+        ascending: false,
+        limit: limit,
+      );
+
+      // Filter by query and tags if provided
+      if (query != null || tags != null) {
+        galleries = galleries.where((gallery) {
+          if (query != null) {
+            final title = gallery['title']?.toString().toLowerCase() ?? '';
+            final description = gallery['description']?.toString().toLowerCase() ?? '';
+            final searchQuery = query.toLowerCase();
+            
+            if (!title.contains(searchQuery) && !description.contains(searchQuery)) {
+              return false;
+            }
+          }
+
+          if (tags != null && tags.isNotEmpty) {
+            final galleryTags = List<String>.from(gallery['tags'] ?? []);
+            final hasMatchingTag = tags.any((tag) => galleryTags.contains(tag));
+            if (!hasMatchingTag) {
+              return false;
+            }
+          }
+
+          return true;
+        }).toList();
+      }
+
+      // Add cover photo URLs
+      for (final gallery in galleries) {
+        if (gallery['cover_photo_id'] != null) {
+          final photos = await SupabaseDatabaseService.select(
+            table: _photosTable,
+            filters: {'id': gallery['cover_photo_id']},
+          );
+          
+          if (photos.isNotEmpty) {
+            final photo = photos.first;
+            gallery['cover_photo_url'] = MediaService.getThumbnailUrl(
+              publicId: photo['cloudinary_public_id'],
+              width: 300,
+              height: 200,
+            );
+          }
+        }
+      }
+
+      AppLogger.success(_tag, 'Found ${galleries.length} public galleries');
+      return galleries;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get user photos count', e, stackTrace);
-      return 0;
+      AppLogger.error(_tag, 'Failed to search public galleries', e, stackTrace);
+      rethrow;
     }
   }
 
-  /// Search photos by tags
-  Stream<List<Photo>> searchPhotosByTags(List<String> tags) {
-    return _photosCollection
-        .where('isPublic', isEqualTo: true)
-        .where('tags', arrayContainsAny: tags)
-        .orderBy('createdAt', descending: true)
-        .limit(20)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => Photo.fromFirestore(doc)).toList();
-    });
+  /// Get popular galleries
+  static Future<List<Map<String, dynamic>>> getPopularGalleries({
+    int limit = 10,
+    int days = 7,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Getting popular galleries');
+
+      final galleries = await SupabaseDatabaseService.select(
+        table: _galleriesTable,
+        filters: {'is_public': true, 'status': 'active'},
+        orderBy: 'like_count',
+        ascending: false,
+        limit: limit,
+      );
+
+      // Add cover photo URLs
+      for (final gallery in galleries) {
+        if (gallery['cover_photo_id'] != null) {
+          final photos = await SupabaseDatabaseService.select(
+            table: _photosTable,
+            filters: {'id': gallery['cover_photo_id']},
+          );
+          
+          if (photos.isNotEmpty) {
+            final photo = photos.first;
+            gallery['cover_photo_url'] = MediaService.getThumbnailUrl(
+              publicId: photo['cloudinary_public_id'],
+              width: 300,
+              height: 200,
+            );
+          }
+        }
+      }
+
+      AppLogger.success(_tag, 'Retrieved ${galleries.length} popular galleries');
+      return galleries;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get popular galleries', e, stackTrace);
+      rethrow;
+    }
   }
 
-  /// Get optimized image URL with specific dimensions
-  String getOptimizedImageUrl({
-    required String originalUrl,
-    int? width,
-    int? height,
-    String quality = 'auto',
-  }) {
-    return _cloudinaryService.getOptimizedImageUrl(
-      secureUrl: originalUrl,
-      width: width,
-      height: height,
-      quality: quality,
-    );
+  // ===============================
+  // PRIVATE HELPER METHODS
+  // ===============================
+
+  /// Update gallery photo count
+  static Future<void> _updateGalleryPhotoCount(String galleryId) async {
+    try {
+      final photos = await SupabaseDatabaseService.select(
+        table: _photosTable,
+        filters: {'gallery_id': galleryId, 'is_active': true},
+      );
+
+      await SupabaseDatabaseService.update(
+        table: _galleriesTable,
+        id: galleryId,
+        data: {'photo_count': photos.length},
+      );
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to update gallery photo count', e);
+    }
   }
 
-  /// Get thumbnail URL for gallery grid
-  String getThumbnailUrl(String originalUrl, {int size = 200}) {
-    return getOptimizedImageUrl(
-      originalUrl: originalUrl,
-      width: size,
-      height: size,
-      quality: 'auto',
-    );
+  /// Update album photo count
+  static Future<void> _updateAlbumPhotoCount(String albumId) async {
+    try {
+      final photos = await SupabaseDatabaseService.select(
+        table: _photosTable,
+        filters: {'album_id': albumId, 'is_active': true},
+      );
+
+      await SupabaseDatabaseService.update(
+        table: _albumsTable,
+        id: albumId,
+        data: {'photo_count': photos.length},
+      );
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to update album photo count', e);
+    }
   }
 
-  /// Get medium-sized image URL for preview
-  String getMediumImageUrl(String originalUrl) {
-    return getOptimizedImageUrl(
-      originalUrl: originalUrl,
-      width: 600,
-      quality: 'auto',
-    );
+  /// Update photo like count
+  static Future<void> _updatePhotoLikeCount(String photoId) async {
+    try {
+      final likes = await SupabaseDatabaseService.select(
+        table: _likesTable,
+        filters: {'photo_id': photoId},
+      );
+
+      await SupabaseDatabaseService.update(
+        table: _photosTable,
+        id: photoId,
+        data: {'like_count': likes.length},
+      );
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to update photo like count', e);
+    }
   }
 
-  /// Get full-size image URL for detail view
-  String getFullSizeUrl(String originalUrl) {
-    return getOptimizedImageUrl(
-      originalUrl: originalUrl,
-      width: 1920,
-      quality: '90',
-    );
+  /// Update photo comment count
+  static Future<void> _updatePhotoCommentCount(String photoId) async {
+    try {
+      final comments = await SupabaseDatabaseService.select(
+        table: _commentsTable,
+        filters: {'photo_id': photoId, 'is_active': true},
+      );
+
+      await SupabaseDatabaseService.update(
+        table: _photosTable,
+        id: photoId,
+        data: {'comment_count': comments.length},
+      );
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to update photo comment count', e);
+    }
   }
 
-  /// Initialize service
-  Future<void> initialize() async {
-    await _cloudinaryService.initialize();
-    AppLogger.info(_tag, 'Gallery Service initialized with Cloudinary');
+  /// Increment gallery view count
+  static Future<void> _incrementViewCount(String galleryId) async {
+    try {
+      final galleries = await SupabaseDatabaseService.select(
+        table: _galleriesTable,
+        filters: {'id': galleryId},
+      );
+
+      if (galleries.isNotEmpty) {
+        final currentViews = galleries.first['view_count'] ?? 0;
+        await SupabaseDatabaseService.update(
+          table: _galleriesTable,
+          id: galleryId,
+          data: {'view_count': currentViews + 1},
+        );
+      }
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to increment view count', e);
+    }
+  }
+
+  /// Delete photo comments
+  static Future<void> _deletePhotoComments(String photoId) async {
+    try {
+      final comments = await SupabaseDatabaseService.select(
+        table: _commentsTable,
+        filters: {'photo_id': photoId},
+      );
+
+      for (final comment in comments) {
+        await SupabaseDatabaseService.delete(
+          table: _commentsTable,
+          id: comment['id'],
+        );
+      }
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to delete photo comments', e);
+    }
+  }
+
+  /// Delete photo likes
+  static Future<void> _deletePhotoLikes(String photoId) async {
+    try {
+      final likes = await SupabaseDatabaseService.select(
+        table: _likesTable,
+        filters: {'photo_id': photoId},
+      );
+
+      for (final like in likes) {
+        await SupabaseDatabaseService.delete(
+          table: _likesTable,
+          id: like['id'],
+        );
+      }
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to delete photo likes', e);
+    }
   }
 }

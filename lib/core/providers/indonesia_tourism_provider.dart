@@ -1,11 +1,12 @@
 import 'package:flutter/foundation.dart';
 import '../models/destination_model.dart';
+import '../models/indonesia_tourism_models.dart';
 import '../../services/indonesia_tourism_service.dart';
 
 /// Provider for Indonesia Tourism data
 class IndonesiaTourismProvider with ChangeNotifier {
-  final IndonesiaTourismService _tourismService = IndonesiaTourismService();
-
+  final IndonesiaTourismService _tourismService = IndonesiaTourismService.instance;
+  
   List<Destination> _destinations = [];
   List<Destination> _trendingDestinations = [];
   bool _isLoading = false;
@@ -29,7 +30,11 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _trendingDestinations = await _tourismService.getTrendingDestinations(limit: 10);
+      // Get featured destinations from the service
+      final destinationsData = await _tourismService.getFeaturedDestinations(limit: 10);
+      
+      // Convert Map<String, dynamic> to Destination objects
+      _trendingDestinations = destinationsData.map((data) => Destination.fromMap(data)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -47,10 +52,14 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _destinations = await _tourismService.getPopularDestinationsByProvince(
-        province,
+      // Use static method and convert province to ID
+      final destinationsData = await _tourismService.getPopularDestinationsByProvince(
+        province.id,
         limit: 20,
       );
+      
+      // Convert Map<String, dynamic> to Destination objects
+      _destinations = destinationsData.map((data) => Destination.fromMap(data)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -68,11 +77,15 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _destinations = await _tourismService.getDestinationsByCategory(
-        category,
-        province: _selectedProvince,
+      // Use static method and convert category to ID, pass province ID if selected
+      final destinationsData = await _tourismService.getDestinationsByTourismCategory(
+        category.id,
+        provinceId: _selectedProvince?.id,
         limit: 20,
       );
+      
+      // Convert Map<String, dynamic> to Destination objects
+      _destinations = destinationsData.map((data) => Destination.fromMap(data)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -95,11 +108,23 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      _destinations = await _tourismService.searchByKeyword(
-        keyword,
-        province: _selectedProvince,
+      // Use travel recommendations with current filters since there's no direct keyword search
+      final destinationsData = await _tourismService.getTravelRecommendations(
+        preferredProvinces: _selectedProvince != null ? [_selectedProvince!.id] : null,
+        preferredCategories: _selectedCategory != null ? [_selectedCategory!.id] : null,
         limit: 20,
       );
+      
+      // Filter results by keyword in name or description
+      final filteredData = destinationsData.where((dest) {
+        final name = dest['name']?.toString().toLowerCase() ?? '';
+        final description = dest['description']?.toString().toLowerCase() ?? '';
+        final searchKeyword = keyword.toLowerCase();
+        return name.contains(searchKeyword) || description.contains(searchKeyword);
+      }).toList();
+      
+      // Convert Map<String, dynamic> to Destination objects
+      _destinations = filteredData.map((data) => Destination.fromMap(data)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {

@@ -6,6 +6,7 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/models/trip_model.dart';
 import '../../core/models/destination_model.dart';
 import '../../services/ai/ai_chat_service.dart';
+import '../../core/models/chat_ai_models.dart';
 
 /// Screen for AI-powered travel chat assistant
 class AIChatScreen extends StatefulWidget {
@@ -23,11 +24,10 @@ class AIChatScreen extends StatefulWidget {
 }
 
 class _AIChatScreenState extends State<AIChatScreen> {
-  final AIChatService _chatService = AIChatService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
-  ChatSession? _session;
+  String? _session;
   bool _isLoading = false;
   bool _isSending = false;
   List<String> _suggestions = [];
@@ -56,19 +56,26 @@ class _AIChatScreenState extends State<AIChatScreen> {
         throw Exception('User not authenticated');
       }
 
-      final session = await _chatService.startChatSession(
-        userId: userId,
-        currentTrip: widget.trip,
-        currentDestination: widget.destination,
+      final session = await AIChatService.startChatSession(
+        sessionType: 'trip_planning',
+        title: 'Trip Planning Chat',
+        initialContext: {
+          'trip': widget.trip?.toMap(),
+          'destination': widget.destination?.toMap(),
+        },
       );
 
-      final suggestions = await _chatService.getChatSuggestions(
-        session.context,
-      );
+      // Get initial suggestions - for now just provide some generic ones
+      final suggestions = [
+        'Tell me about the best places to visit',
+        'What are some recommended activities?',
+        'How much should I budget for this trip?',
+        'What\'s the best time to visit?',
+      ];
 
       if (mounted) {
         setState(() {
-          _session = session;
+          _session = session['id']; // Store session ID instead of full session
           _suggestions = suggestions;
           _isLoading = false;
         });
@@ -90,9 +97,9 @@ class _AIChatScreenState extends State<AIChatScreen> {
     });
 
     try {
-      await _chatService.sendMessage(
-        session: _session!,
-        userMessage: message,
+      await AIChatService.sendMessage(
+        sessionId: _session!,
+        message: message,
       );
 
       if (mounted) {

@@ -1,286 +1,865 @@
 import 'dart:async';
-// Firebase Messaging replaced with OneSignal (FREE)
-// OneSignal provides: unlimited push notifications, in-app messaging, email & SMS
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../core/utils/logger.dart';
+import 'supabase_config.dart';
+import 'supabase_database_service.dart';
 
+/// Notification Service
+/// Handles OneSignal push notifications, in-app notifications, and notification preferences
 class NotificationService {
   static const String _tag = 'NotificationService';
+  static const String _notificationsTable = 'notifications';
+  static const String _preferencesTable = 'notification_preferences';
+  static const String _devicesTable = 'user_devices';
+
+  // Singleton pattern
   static NotificationService? _instance;
-  final FirebaseMessaging _fcm = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  static NotificationService get instance => _instance ??= NotificationService._internal();
   
-  // Stream controller for notification taps
-  final _notificationTapController = StreamController<Map<String, dynamic>>.broadcast();
-  Stream<Map<String, dynamic>> get onNotificationTap => _notificationTapController.stream;
-  
-  // Singleton pattern with private constructor
-  NotificationService._();
-  
-  static NotificationService get instance {
-    _instance ??= NotificationService._();
-    return _instance!;
-  }
+  NotificationService._internal();
 
-  // Initialize FCM and local notifications
-  Future<void> initialize() async {
-    AppLogger.debug(_tag, 'Initializing notification services');
-    
+  // OneSignal configuration (TODO: Add to EnvConfig)
+  static String get _appId => 'your-onesignal-app-id';
+  static String get _restApiKey => 'your-onesignal-rest-api-key';
+  static const String _baseUrl = 'https://onesignal.com/api/v1';
+
+  // ===============================
+  // PUSH NOTIFICATION SENDING
+  // ===============================
+
+  /// Send push notification to specific user
+  Future<Map<String, dynamic>> sendNotificationToUser({
+    required String userId,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    DateTime? scheduleAt,
+  }) async {
     try {
-      // Initialize local notifications
-      await _initializeLocalNotifications();
-      
-      // Request permission with optimized settings
-      final settings = await _fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false, // Don't use provisional permissions
-      );
-      
-      AppLogger.info(_tag, 'Notification permission status', {
-        'authorizationStatus': settings.authorizationStatus.toString(),
-      });
+      AppLogger.debug(_tag, 'Sending notification to user: $userId');
 
-      // Configure FCM with optimized handlers
-      await _configureFCM();
-      
-      // Get and update FCM token with retry mechanism
-      await _getAndUpdateFCMToken();
-
-      // Listen to token refresh with error handling
-      _fcm.onTokenRefresh.listen(
-        _updateFCMToken,
-        onError: (error) {
-          AppLogger.error(_tag, 'Token refresh stream error', error);
-        },
-      );
-
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to initialize notifications', e, stackTrace);
-    }
-  }
-
-  // Initialize local notifications with platform-specific settings
-  Future<void> _initializeLocalNotifications() async {
-    try {
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iOSSettings = DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      );
-      
-      const initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iOSSettings,
-      );
-
-      await _localNotifications.initialize(
-        initSettings,
-        onDidReceiveNotificationResponse: (response) {
-          _handleLocalNotificationTap(response);
-        },
-      );
-
-      AppLogger.debug(_tag, 'Local notifications initialized');
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to initialize local notifications', e, stackTrace);
-    }
-  }
-
-  // Configure FCM handlers with proper error boundaries
-  Future<void> _configureFCM() async {
-    try {
-      // Handle background messages
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-      
-      // Handle foreground messages with error boundary
-      FirebaseMessaging.onMessage.listen(
-        (RemoteMessage message) {
-          AppLogger.info(_tag, 'Received foreground message', {
-            'messageId': message.messageId,
-            'title': message.notification?.title,
-          });
-          _handleMessage(message);
-        },
-        onError: (error) {
-          AppLogger.error(_tag, 'Foreground message stream error', error);
-        },
-      );
-
-      // Handle app open from terminated state
-      final initialMessage = await _fcm.getInitialMessage();
-      if (initialMessage != null) {
-        AppLogger.info(_tag, 'App opened from terminated state with message', {
-          'messageId': initialMessage.messageId,
-        });
-        _handleMessage(initialMessage);
+      // Get user's OneSignal player ID
+      final playerIds = await _getUserPlayerIds(userId);
+      if (playerIds.isEmpty) {
+        AppLogger.warning(_tag, 'No OneSignal player IDs found for user: $userId');
+        // Still save notification for in-app display
+        return await _saveNotificationRecord(
+          userId: userId,
+          title: title,
+          message: message,
+          data: data,
+          imageUrl: imageUrl,
+          actionUrl: actionUrl,
+          status: 'no_device',
+        );
       }
 
-      // Handle app open from background
-      FirebaseMessaging.onMessageOpenedApp.listen(
-        (RemoteMessage message) {
-          AppLogger.info(_tag, 'App opened from background with message', {
-            'messageId': message.messageId,
-          });
-          _handleMessage(message);
-        },
-        onError: (error) {
-          AppLogger.error(_tag, 'Background message open stream error', error);
-        },
+      // Send to OneSignal
+      final oneSignalResponse = await _sendOneSignalNotification(
+        playerIds: playerIds,
+        title: title,
+        message: message,
+        data: data,
+        imageUrl: imageUrl,
+        actionUrl: actionUrl,
+        scheduleAt: scheduleAt,
       );
 
-      AppLogger.debug(_tag, 'FCM handlers configured successfully');
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to configure FCM handlers', e, stackTrace);
-    }
-  }
+      // Save notification record
+      final notificationRecord = await _saveNotificationRecord(
+        userId: userId,
+        title: title,
+        message: message,
+        data: data,
+        imageUrl: imageUrl,
+        actionUrl: actionUrl,
+        oneSignalId: oneSignalResponse['id'],
+        status: 'sent',
+      );
 
-  // Get and update FCM token with retry mechanism
-  Future<void> _getAndUpdateFCMToken() async {
-    try {
-      const maxRetries = 3;
-      int retryCount = 0;
-      String? token;
-      
-      while (token == null && retryCount < maxRetries) {
-        token = await _fcm.getToken();
-      }
-
-      if (token != null) {
-        AppLogger.debug(_tag, 'FCM token retrieved', {
-          'tokenLength': token.length,
-          'retryCount': retryCount,
-        });
-        await _updateFCMToken(token);
-      } else {
-        throw Exception('Failed to get FCM token after $maxRetries retries');
-      }
+      AppLogger.success(_tag, 'Notification sent successfully to user: $userId');
+      return {
+        'notification_id': notificationRecord['id'],
+        'onesignal_id': oneSignalResponse['id'],
+        'recipients': oneSignalResponse['recipients'],
+      };
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get and update FCM token', e, stackTrace);
-    }
-  }
-
-  // Update FCM token in backend with proper error handling
-  Future<void> _updateFCMToken(String token) async {
-    try {
-      // Token stored locally, ready for backend integration
-      await Future.delayed(const Duration(milliseconds: 100));
-      AppLogger.info(_tag, 'FCM token updated successfully', {'token': token.substring(0, 20)});
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to update FCM token', e, stackTrace);
-      // Retry mechanism can be added here if needed
+      AppLogger.error(_tag, 'Failed to send notification to user', e, stackTrace);
       rethrow;
     }
   }
 
-  // Handle incoming messages with proper error boundaries
-  Future<void> _handleMessage(RemoteMessage message) async {
+  /// Send push notification to multiple users
+  static Future<Map<String, dynamic>> sendNotificationToUsers({
+    required List<String> userIds,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    DateTime? scheduleAt,
+  }) async {
     try {
-      if (message.notification != null) {
-        await _showLocalNotification(
-          message.notification!.title ?? 'New Message',
-          message.notification!.body ?? '',
-          message.data,
+      AppLogger.debug(_tag, 'Sending notification to ${userIds.length} users');
+
+      // Get all player IDs
+      final allPlayerIds = <String>[];
+      final validUserIds = <String>[];
+
+      for (final userId in userIds) {
+        final playerIds = await _getUserPlayerIds(userId);
+        if (playerIds.isNotEmpty) {
+          allPlayerIds.addAll(playerIds);
+          validUserIds.add(userId);
+        }
+      }
+
+      if (allPlayerIds.isEmpty) {
+        AppLogger.warning(_tag, 'No OneSignal player IDs found for provided users');
+        return {'sent_count': 0, 'failed_count': userIds.length};
+      }
+
+      // Send to OneSignal
+      final oneSignalResponse = await _sendOneSignalNotification(
+        playerIds: allPlayerIds,
+        title: title,
+        message: message,
+        data: data,
+        imageUrl: imageUrl,
+        actionUrl: actionUrl,
+        scheduleAt: scheduleAt,
+      );
+
+      // Save notification records for all users
+      final notificationIds = <String>[];
+      for (final userId in validUserIds) {
+        final record = await _saveNotificationRecord(
+          userId: userId,
+          title: title,
+          message: message,
+          data: data,
+          imageUrl: imageUrl,
+          actionUrl: actionUrl,
+          oneSignalId: oneSignalResponse['id'],
+          status: 'sent',
+        );
+        notificationIds.add(record['id']);
+      }
+
+      AppLogger.success(_tag, 'Notification sent to ${validUserIds.length} users');
+      return {
+        'notification_ids': notificationIds,
+        'onesignal_id': oneSignalResponse['id'],
+        'sent_count': validUserIds.length,
+        'failed_count': userIds.length - validUserIds.length,
+        'recipients': oneSignalResponse['recipients'],
+      };
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send notification to users', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Send notification to all users with tags
+  static Future<Map<String, dynamic>> sendNotificationWithTags({
+    required String title,
+    required String message,
+    required List<Map<String, String>> tags, // [{"key": "user_type", "relation": "=", "value": "premium"}]
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    DateTime? scheduleAt,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Sending notification with tags: $tags');
+
+      // Send to OneSignal with tag filters
+      final oneSignalResponse = await _sendOneSignalNotificationWithTags(
+        tags: tags,
+        title: title,
+        message: message,
+        data: data,
+        imageUrl: imageUrl,
+        actionUrl: actionUrl,
+        scheduleAt: scheduleAt,
+      );
+
+      AppLogger.success(_tag, 'Tagged notification sent successfully');
+      return {
+        'onesignal_id': oneSignalResponse['id'],
+        'recipients': oneSignalResponse['recipients'],
+      };
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send notification with tags', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // IN-APP NOTIFICATIONS
+  // ===============================
+
+  /// Get user notifications
+  Future<List<Map<String, dynamic>>> getUserNotifications({
+    String? userId,
+    bool? isRead,
+    String? type,
+    int limit = 50,
+  }) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Getting notifications for user: $currentUserId');
+
+      final filters = <String, dynamic>{'user_id': currentUserId};
+      if (isRead != null) filters['is_read'] = isRead;
+      if (type != null) filters['type'] = type;
+
+      final notifications = await SupabaseDatabaseService.select(
+        table: _notificationsTable,
+        filters: filters,
+        orderBy: 'created_at',
+        ascending: false,
+        limit: limit,
+      );
+
+      AppLogger.success(_tag, 'Retrieved ${notifications.length} notifications');
+      return notifications;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user notifications', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Mark notification as read
+  static Future<void> markNotificationAsRead(String notificationId) async {
+    try {
+      AppLogger.debug(_tag, 'Marking notification as read: $notificationId');
+
+      await SupabaseDatabaseService.update(
+        table: _notificationsTable,
+        id: notificationId,
+        data: {
+          'is_read': true,
+          'read_at': DateTime.now().toIso8601String(),
+        },
+      );
+
+      AppLogger.success(_tag, 'Notification marked as read');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to mark notification as read', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Mark all notifications as read for user
+  static Future<void> markAllNotificationsAsRead({String? userId}) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Marking all notifications as read for user: $currentUserId');
+
+      final unreadNotifications = await SupabaseDatabaseService.select(
+        table: _notificationsTable,
+        filters: {'user_id': currentUserId, 'is_read': false},
+      );
+
+      for (final notification in unreadNotifications) {
+        await SupabaseDatabaseService.update(
+          table: _notificationsTable,
+          id: notification['id'],
+          data: {
+            'is_read': true,
+            'read_at': DateTime.now().toIso8601String(),
+          },
         );
       }
 
-      AppLogger.debug(_tag, 'Message processed successfully', {
-        'messageId': message.messageId,
-        'title': message.notification?.title,
-        'data': message.data,
-      });
+      AppLogger.success(_tag, 'All notifications marked as read');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to handle message', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to mark all notifications as read', e, stackTrace);
+      rethrow;
     }
   }
 
-  // Show local notification with proper error handling
-  Future<void> _showLocalNotification(
-    String title,
-    String body,
-    Map<String, dynamic> payload,
-  ) async {
+  /// Get unread notification count
+  Future<int> getUnreadNotificationCount({String? userId}) async {
     try {
-      const androidDetails = AndroidNotificationDetails(
-        'relink_main_channel',
-        'ReLink Main Channel',
-        channelDescription: 'Main notification channel for ReLink app',
-        importance: Importance.high,
-        priority: Priority.high,
-        enableVibration: true,
-        enableLights: true,
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Getting unread notification count for user: $currentUserId');
+
+      final unreadNotifications = await SupabaseDatabaseService.select(
+        table: _notificationsTable,
+        filters: {'user_id': currentUserId, 'is_read': false},
       );
 
-      const iOSDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
+      final count = unreadNotifications.length;
+      AppLogger.success(_tag, 'Unread notification count: $count');
+      return count;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get unread notification count', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Delete notification
+  static Future<void> deleteNotification(String notificationId) async {
+    try {
+      AppLogger.warning(_tag, 'Deleting notification: $notificationId');
+
+      await SupabaseDatabaseService.delete(
+        table: _notificationsTable,
+        id: notificationId,
       );
 
-      const details = NotificationDetails(
-        android: androidDetails,
-        iOS: iOSDetails,
+      AppLogger.success(_tag, 'Notification deleted successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete notification', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // DEVICE MANAGEMENT
+  // ===============================
+
+  /// Register device for push notifications
+  static Future<Map<String, dynamic>> registerDevice({
+    required String oneSignalPlayerId,
+    String? deviceType, // 'ios', 'android', 'web'
+    String? deviceModel,
+    String? osVersion,
+    String? appVersion,
+    Map<String, dynamic>? tags,
+  }) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Registering device for user: $userId');
+
+      // Check if device already exists
+      final existingDevices = await SupabaseDatabaseService.select(
+        table: _devicesTable,
+        filters: {
+          'user_id': userId,
+          'onesignal_player_id': oneSignalPlayerId,
+        },
       );
 
-      await _localNotifications.show(
-        DateTime.now().millisecond,
-        title,
-        body,
-        details,
-        payload: payload.toString(),
+      Map<String, dynamic> deviceData = {
+        'user_id': userId,
+        'onesignal_player_id': oneSignalPlayerId,
+        'device_type': deviceType,
+        'device_model': deviceModel,
+        'os_version': osVersion,
+        'app_version': appVersion,
+        'tags': tags ?? {},
+        'is_active': true,
+        'last_seen': DateTime.now().toIso8601String(),
+      };
+
+      Map<String, dynamic> result;
+
+      if (existingDevices.isNotEmpty) {
+        // Update existing device
+        result = await SupabaseDatabaseService.update(
+          table: _devicesTable,
+          id: existingDevices.first['id'],
+          data: deviceData,
+        );
+      } else {
+        // Register new device
+        result = await SupabaseDatabaseService.insert(
+          table: _devicesTable,
+          data: deviceData,
+        );
+      }
+
+      // Update tags in OneSignal
+      if (tags != null && tags.isNotEmpty) {
+        await _updateOneSignalTags(oneSignalPlayerId, tags);
+      }
+
+      AppLogger.success(_tag, 'Device registered successfully');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to register device', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Unregister device
+  static Future<void> unregisterDevice(String oneSignalPlayerId) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Unregistering device: $oneSignalPlayerId');
+
+      // Deactivate device in database
+      final devices = await SupabaseDatabaseService.select(
+        table: _devicesTable,
+        filters: {
+          'user_id': userId,
+          'onesignal_player_id': oneSignalPlayerId,
+        },
       );
 
-      AppLogger.debug(_tag, 'Local notification displayed', {
+      for (final device in devices) {
+        await SupabaseDatabaseService.update(
+          table: _devicesTable,
+          id: device['id'],
+          data: {'is_active': false},
+        );
+      }
+
+      AppLogger.success(_tag, 'Device unregistered successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to unregister device', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get user devices
+  static Future<List<Map<String, dynamic>>> getUserDevices({String? userId}) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Getting devices for user: $currentUserId');
+
+      final devices = await SupabaseDatabaseService.select(
+        table: _devicesTable,
+        filters: {'user_id': currentUserId, 'is_active': true},
+        orderBy: 'last_seen',
+        ascending: false,
+      );
+
+      AppLogger.success(_tag, 'Retrieved ${devices.length} devices');
+      return devices;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user devices', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // NOTIFICATION PREFERENCES
+  // ===============================
+
+  /// Set notification preferences
+  static Future<Map<String, dynamic>> setNotificationPreferences({
+    String? userId,
+    bool? pushEnabled,
+    bool? emailEnabled,
+    bool? tripUpdates,
+    bool? socialNotifications,
+    bool? marketingMessages,
+    bool? securityAlerts,
+    Map<String, bool>? customPreferences,
+  }) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Setting notification preferences for user: $currentUserId');
+
+      final preferences = {
+        'user_id': currentUserId,
+        'push_enabled': pushEnabled ?? true,
+        'email_enabled': emailEnabled ?? true,
+        'trip_updates': tripUpdates ?? true,
+        'social_notifications': socialNotifications ?? true,
+        'marketing_messages': marketingMessages ?? false,
+        'security_alerts': securityAlerts ?? true,
+        'custom_preferences': customPreferences ?? {},
+      };
+
+      // Check if preferences exist
+      final existingPreferences = await SupabaseDatabaseService.select(
+        table: _preferencesTable,
+        filters: {'user_id': currentUserId},
+      );
+
+      Map<String, dynamic> result;
+
+      if (existingPreferences.isNotEmpty) {
+        // Update existing preferences
+        result = await SupabaseDatabaseService.update(
+          table: _preferencesTable,
+          id: existingPreferences.first['id'],
+          data: preferences,
+        );
+      } else {
+        // Create new preferences
+        result = await SupabaseDatabaseService.insert(
+          table: _preferencesTable,
+          data: preferences,
+        );
+      }
+
+      AppLogger.success(_tag, 'Notification preferences updated successfully');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to set notification preferences', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Get notification preferences
+  static Future<Map<String, dynamic>?> getNotificationPreferences({String? userId}) async {
+    try {
+      final currentUserId = userId ?? SupabaseConfig.userId;
+      if (currentUserId == null) {
+        throw Exception('No user ID provided');
+      }
+
+      AppLogger.debug(_tag, 'Getting notification preferences for user: $currentUserId');
+
+      final preferences = await SupabaseDatabaseService.select(
+        table: _preferencesTable,
+        filters: {'user_id': currentUserId},
+      );
+
+      if (preferences.isEmpty) {
+        // Return default preferences
+        return {
+          'user_id': currentUserId,
+          'push_enabled': true,
+          'email_enabled': true,
+          'trip_updates': true,
+          'social_notifications': true,
+          'marketing_messages': false,
+          'security_alerts': true,
+          'custom_preferences': {},
+        };
+      }
+
+      AppLogger.success(_tag, 'Retrieved notification preferences');
+      return preferences.first;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get notification preferences', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // NOTIFICATION TEMPLATES
+  // ===============================
+
+  /// Send trip update notification
+  static Future<Map<String, dynamic>> sendTripUpdateNotification({
+    required String userId,
+    required String tripTitle,
+    required String updateType, // 'created', 'updated', 'cancelled', etc.
+    String? tripId,
+  }) async {
+    try {
+      final templates = {
+        'created': {
+          'title': 'Trip Created!',
+          'message': 'Your trip "$tripTitle" has been created successfully.',
+        },
+        'updated': {
+          'title': 'Trip Updated',
+          'message': 'Your trip "$tripTitle" has been updated.',
+        },
+        'cancelled': {
+          'title': 'Trip Cancelled',
+          'message': 'Your trip "$tripTitle" has been cancelled.',
+        },
+        'reminder': {
+          'title': 'Trip Reminder',
+          'message': 'Don\'t forget about your upcoming trip "$tripTitle"!',
+        },
+      };
+
+      final template = templates[updateType];
+      if (template == null) {
+        throw Exception('Unknown trip update type: $updateType');
+      }
+
+      return await sendNotificationToUser(
+        userId: userId,
+        title: template['title']!,
+        message: template['message']!,
+        data: {
+          'type': 'trip_update',
+          'trip_id': tripId,
+          'update_type': updateType,
+        },
+        actionUrl: tripId != null ? '/trip/$tripId' : null,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send trip update notification', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Send social notification
+  static Future<Map<String, dynamic>> sendSocialNotification({
+    required String userId,
+    required String fromUserName,
+    required String actionType, // 'follow', 'like', 'comment', etc.
+    String? entityId,
+    String? entityType,
+  }) async {
+    try {
+      final templates = {
+        'follow': {
+          'title': 'New Follower!',
+          'message': '$fromUserName started following you.',
+        },
+        'like': {
+          'title': 'Your post was liked!',
+          'message': '$fromUserName liked your post.',
+        },
+        'comment': {
+          'title': 'New Comment',
+          'message': '$fromUserName commented on your post.',
+        },
+        'trip_invite': {
+          'title': 'Trip Invitation',
+          'message': '$fromUserName invited you to join a trip.',
+        },
+      };
+
+      final template = templates[actionType];
+      if (template == null) {
+        throw Exception('Unknown social action type: $actionType');
+      }
+
+      return await sendNotificationToUser(
+        userId: userId,
+        title: template['title']!,
+        message: template['message']!,
+        data: {
+          'type': 'social',
+          'action_type': actionType,
+          'from_user': fromUserName,
+          'entity_id': entityId,
+          'entity_type': entityType,
+        },
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send social notification', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // PRIVATE HELPER METHODS
+  // ===============================
+
+  /// Get user's OneSignal player IDs
+  Future<List<String>> _getUserPlayerIds(String userId) async {
+    try {
+      final devices = await SupabaseDatabaseService.select(
+        table: _devicesTable,
+        filters: {'user_id': userId, 'is_active': true},
+      );
+
+      return devices
+          .map((device) => device['onesignal_player_id'] as String)
+          .toList();
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to get user player IDs', e);
+      return [];
+    }
+  }
+
+  /// Save notification record to database
+  static Future<Map<String, dynamic>> _saveNotificationRecord({
+    required String userId,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    String? oneSignalId,
+    String status = 'pending',
+  }) async {
+    try {
+      final notificationData = {
+        'user_id': userId,
         'title': title,
-        'payload': payload,
-      });
+        'message': message,
+        'data': data ?? {},
+        'image_url': imageUrl,
+        'action_url': actionUrl,
+        'onesignal_id': oneSignalId,
+        'status': status,
+        'type': data?['type'] ?? 'general',
+        'is_read': false,
+        'sent_at': DateTime.now().toIso8601String(),
+      };
+
+      return await SupabaseDatabaseService.insert(
+        table: _notificationsTable,
+        data: notificationData,
+      );
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to show local notification', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to save notification record', e, stackTrace);
+      rethrow;
     }
   }
 
-  // Handle local notification taps
-  void _handleLocalNotificationTap(NotificationResponse response) {
+  /// Send notification via OneSignal API
+  static Future<Map<String, dynamic>> _sendOneSignalNotification({
+    required List<String> playerIds,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    DateTime? scheduleAt,
+  }) async {
     try {
-      if (response.payload != null) {
-        final payload = Map<String, dynamic>.from({
-          'action': 'notification_tap',
-          'payload': response.payload,
-        });
-        _notificationTapController.add(payload);
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic $_restApiKey',
+      };
+
+      final body = {
+        'app_id': _appId,
+        'include_player_ids': playerIds,
+        'headings': {'en': title},
+        'contents': {'en': message},
+        'data': data ?? {},
+      };
+
+      if (imageUrl != null) {
+        body['big_picture'] = imageUrl;
+        body['large_icon'] = imageUrl;
+      }
+
+      if (actionUrl != null) {
+        body['url'] = actionUrl;
+      }
+
+      if (scheduleAt != null) {
+        body['send_after'] = scheduleAt.toIso8601String();
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/notifications'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final error = json.decode(response.body);
+        throw Exception('OneSignal API error: ${error['errors']}');
       }
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to handle notification tap', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to send OneSignal notification', e, stackTrace);
+      rethrow;
     }
   }
 
-  // Cleanup resources
-  void dispose() {
-    _notificationTapController.close();
-  }
-}
+  /// Send notification with tags via OneSignal API
+  static Future<Map<String, dynamic>> _sendOneSignalNotificationWithTags({
+    required List<Map<String, String>> tags,
+    required String title,
+    required String message,
+    Map<String, dynamic>? data,
+    String? imageUrl,
+    String? actionUrl,
+    DateTime? scheduleAt,
+  }) async {
+    try {
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic $_restApiKey',
+      };
 
-// Handle background messages with proper error handling
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await Firebase.initializeApp();
-    
-    AppLogger.info('NotificationService', 'Handling background message', {
-      'messageId': message.messageId,
-      'data': message.data,
-    });
+      final body = {
+        'app_id': _appId,
+        'filters': tags,
+        'headings': {'en': title},
+        'contents': {'en': message},
+        'data': data ?? {},
+      };
 
-    // Background message handling optimized for performance
-    if (message.notification != null) {
-      AppLogger.debug('NotificationService', 'Background notification received', {
-        'title': message.notification?.title,
-        'body': message.notification?.body,
-      });
+      if (imageUrl != null) {
+        body['big_picture'] = imageUrl;
+        body['large_icon'] = imageUrl;
+      }
+
+      if (actionUrl != null) {
+        body['url'] = actionUrl;
+      }
+
+      if (scheduleAt != null) {
+        body['send_after'] = scheduleAt.toIso8601String();
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/notifications'),
+        headers: headers,
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final error = json.decode(response.body);
+        throw Exception('OneSignal API error: ${error['errors']}');
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send OneSignal notification with tags', e, stackTrace);
+      rethrow;
     }
-  } catch (e, stackTrace) {
-    AppLogger.error('NotificationService', 'Background message handler error', e, stackTrace);
+  }
+
+  /// Update OneSignal player tags
+  static Future<void> _updateOneSignalTags(
+    String playerId,
+    Map<String, dynamic> tags,
+  ) async {
+    try {
+      final headers = {
+        'Content-Type': 'application/json',
+        'Authorization': 'Basic $_restApiKey',
+      };
+
+      final body = {
+        'app_id': _appId,
+        'tags': tags,
+      };
+
+      await http.put(
+        Uri.parse('$_baseUrl/players/$playerId'),
+        headers: headers,
+        body: json.encode(body),
+      );
+    } catch (e) {
+      AppLogger.warning(_tag, 'Failed to update OneSignal tags', e);
+      // Don't throw error as this is not critical
+    }
   }
 }

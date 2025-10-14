@@ -1,304 +1,408 @@
+import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../core/config/supabase_config.dart';
 import '../core/utils/logger.dart';
+import 'supabase_config.dart';
 
 /// Supabase Database Service
-/// 
-/// FREE TIER BENEFITS:
-/// - 500MB PostgreSQL database storage
-/// - Unlimited API requests
-/// - Real-time subscriptions
-/// - Row Level Security (RLS)
-/// - Full SQL support with relationships
-/// - Automatic API generation
-/// - Built-in caching
+/// Handles all database operations with Supabase PostgreSQL
 class SupabaseDatabaseService {
   static const String _tag = 'SupabaseDatabaseService';
-  
-  /// Create a document in a table
-  static Future<SupabaseResponse<Map<String, dynamic>>> create({
+  static final SupabaseClient _client = SupabaseConfig.client;
+
+  // ===============================
+  // GENERIC DATABASE OPERATIONS
+  // ===============================
+
+  /// Generic select operation
+  static Future<List<Map<String, dynamic>>> select({
     required String table,
-    required Map<String, dynamic> data,
-  }) async {
-    try {
-      AppLogger.info(_tag, 'Creating document in table: $table');
-      
-      final response = await SupabaseConfig.table(table)
-          .insert(data)
-          .select()
-          .single();
-      
-      AppLogger.success(_tag, 'Document created successfully in $table');
-      return SupabaseResponse.success(response);
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during create: ${e.message}');
-      return SupabaseResponse.error(e.message);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during create', e, stackTrace);
-      return SupabaseResponse.error('Create failed: $e');
-    }
-  }
-  
-  /// Get a single document by ID
-  static Future<SupabaseResponse<Map<String, dynamic>?>> getById({
-    required String table,
-    required String id,
-  }) async {
-    try {
-      AppLogger.info(_tag, 'Getting document from $table with ID: $id');
-      
-      final response = await SupabaseConfig.table(table)
-          .select()
-          .eq('id', id)
-          .maybeSingle();
-      
-      if (response != null) {
-        AppLogger.success(_tag, 'Document found in $table');
-        return SupabaseResponse.success(response);
-      } else {
-        AppLogger.info(_tag, 'Document not found in $table');
-        return SupabaseResponse.success(null);
-      }
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during get: ${e.message}');
-      return SupabaseResponse.error(e.message);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during get', e, stackTrace);
-      return SupabaseResponse.error('Get failed: $e');
-    }
-  }
-  
-  /// Get multiple documents with optional filtering
-  static Future<SupabaseResponse<List<Map<String, dynamic>>>> getMultiple({
-    required String table,
-    String? column,
-    dynamic value,
+    String columns = '*',
+    Map<String, dynamic>? filters,
     String? orderBy,
     bool ascending = true,
     int? limit,
+    int? offset,
   }) async {
     try {
-      AppLogger.info(_tag, 'Getting multiple documents from $table');
-      
-      PostgrestFilterBuilder<PostgrestList> query = SupabaseConfig.table(table).select();
-      
-      // Apply filter if provided
-      if (column != null && value != null) {
-        query = query.eq(column, value);
+      AppLogger.debug(_tag, 'Selecting from table: $table');
+
+      PostgrestFilterBuilder query = _client.from(table).select(columns);
+
+      // Apply filters
+      if (filters != null) {
+        filters.forEach((key, value) {
+          if (value != null) {
+            query = query.eq(key, value);
+          }
+        });
       }
-      
-      // Apply ordering and limit
-      PostgrestTransformBuilder<PostgrestList> transformQuery = query;
-      
+
+      PostgrestTransformBuilder finalQuery = query;
+
+      // Apply ordering
       if (orderBy != null) {
-        transformQuery = transformQuery.order(orderBy, ascending: ascending);
+        finalQuery = finalQuery.order(orderBy, ascending: ascending);
       }
-      
+
+      // Apply limit and offset
       if (limit != null) {
-        transformQuery = transformQuery.limit(limit);
+        finalQuery = finalQuery.limit(limit);
       }
-      
-      final response = await transformQuery;
-      
-      AppLogger.success(_tag, 'Retrieved ${response.length} documents from $table');
-      return SupabaseResponse.success(response);
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during getMultiple: ${e.message}');
-      return SupabaseResponse.error(e.message);
+      if (offset != null) {
+        finalQuery = finalQuery.range(offset, offset + (limit ?? 1000) - 1);
+      }
+
+      final data = await finalQuery;
+      AppLogger.success(_tag, 'Selected ${data.length} records from $table');
+      return data;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during getMultiple', e, stackTrace);
-      return SupabaseResponse.error('GetMultiple failed: $e');
+      AppLogger.error(_tag, 'Failed to select from $table', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Update a document by ID
-  static Future<SupabaseResponse<Map<String, dynamic>>> update({
+
+  /// Generic insert operation
+  static Future<Map<String, dynamic>> insert({
+    required String table,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Inserting into table: $table');
+
+      // Add timestamps
+      data['created_at'] = DateTime.now().toIso8601String();
+      data['updated_at'] = DateTime.now().toIso8601String();
+
+      final result = await _client
+          .from(table)
+          .insert(data)
+          .select()
+          .single();
+
+      AppLogger.success(_tag, 'Inserted record into $table');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to insert into $table', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Generic update operation
+  static Future<Map<String, dynamic>> update({
     required String table,
     required String id,
     required Map<String, dynamic> data,
   }) async {
     try {
-      AppLogger.info(_tag, 'Updating document in $table with ID: $id');
-      
-      final response = await SupabaseConfig.table(table)
+      AppLogger.debug(_tag, 'Updating record in table: $table');
+
+      // Add updated timestamp
+      data['updated_at'] = DateTime.now().toIso8601String();
+
+      final result = await _client
+          .from(table)
           .update(data)
           .eq('id', id)
           .select()
           .single();
-      
-      AppLogger.success(_tag, 'Document updated successfully in $table');
-      return SupabaseResponse.success(response);
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during update: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      AppLogger.success(_tag, 'Updated record in $table');
+      return result;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during update', e, stackTrace);
-      return SupabaseResponse.error('Update failed: $e');
+      AppLogger.error(_tag, 'Failed to update record in $table', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Delete a document by ID
-  static Future<SupabaseResponse<void>> delete({
+
+  /// Generic delete operation
+  static Future<void> delete({
     required String table,
     required String id,
   }) async {
     try {
-      AppLogger.info(_tag, 'Deleting document from $table with ID: $id');
-      
-      await SupabaseConfig.table(table)
+      AppLogger.debug(_tag, 'Deleting record from table: $table');
+
+      await _client
+          .from(table)
           .delete()
           .eq('id', id);
-      
-      AppLogger.success(_tag, 'Document deleted successfully from $table');
-      return SupabaseResponse.success(null);
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during delete: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      AppLogger.success(_tag, 'Deleted record from $table');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during delete', e, stackTrace);
-      return SupabaseResponse.error('Delete failed: $e');
+      AppLogger.error(_tag, 'Failed to delete record from $table', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Get documents for current user
-  static Future<SupabaseResponse<List<Map<String, dynamic>>>> getUserDocuments({
+
+  /// Count records in table
+  static Future<int> count({
     required String table,
-    String userColumn = 'user_id',
-    String? orderBy,
-    bool ascending = true,
-    int? limit,
+    Map<String, dynamic>? filters,
   }) async {
-    final userId = SupabaseConfig.userId;
-    if (userId == null) {
-      return SupabaseResponse.error('User not authenticated');
+    try {
+      AppLogger.debug(_tag, 'Counting records in table: $table');
+
+      PostgrestFilterBuilder query = _client.from(table).select('id');
+
+      // Apply filters
+      if (filters != null) {
+        filters.forEach((key, value) {
+          if (value != null) {
+            query = query.eq(key, value);
+          }
+        });
+      }
+
+      final response = await query;
+      final count = response.length;
+      
+      AppLogger.success(_tag, 'Counted $count records in $table');
+      return count;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to count records in $table', e, stackTrace);
+      return 0;
     }
-    
-    return getMultiple(
-      table: table,
-      column: userColumn,
-      value: userId,
-      orderBy: orderBy,
-      ascending: ascending,
-      limit: limit,
-    );
   }
-  
-  /// Real-time subscription to table changes
+
+  // ===============================
+  // REAL-TIME SUBSCRIPTIONS
+  // ===============================
+
+  /// Subscribe to table changes
   static RealtimeChannel subscribeToTable({
     required String table,
-    required void Function(PostgresChangePayload) onInsert,
-    required void Function(PostgresChangePayload) onUpdate,
-    required void Function(PostgresChangePayload) onDelete,
+    String? filter,
+    required void Function(PostgresChangePayload payload) onInsert,
+    required void Function(PostgresChangePayload payload) onUpdate,
+    required void Function(PostgresChangePayload payload) onDelete,
   }) {
-    AppLogger.info(_tag, 'Setting up real-time subscription for $table');
-    
-    final channel = SupabaseConfig.channel('public:$table');
-    
-    channel
-      .onPostgresChanges(
-        event: PostgresChangeEvent.insert,
-        schema: 'public',
-        table: table,
-        callback: onInsert,
-      )
-      .onPostgresChanges(
-        event: PostgresChangeEvent.update,
-        schema: 'public',
-        table: table,
-        callback: onUpdate,
-      )
-      .onPostgresChanges(
-        event: PostgresChangeEvent.delete,
-        schema: 'public',
-        table: table,
-        callback: onDelete,
-      )
-      .subscribe();
-    
+    AppLogger.info(_tag, 'Subscribing to real-time changes for table: $table');
+
+    final channel = _client.channel('public:$table');
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: table,
+      callback: (payload) {
+        AppLogger.debug(_tag, 'Real-time INSERT event for $table');
+        onInsert(payload);
+      },
+    );
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: table,
+      callback: (payload) {
+        AppLogger.debug(_tag, 'Real-time UPDATE event for $table');
+        onUpdate(payload);
+      },
+    );
+
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.delete,
+      schema: 'public',
+      table: table,
+      callback: (payload) {
+        AppLogger.debug(_tag, 'Real-time DELETE event for $table');
+        onDelete(payload);
+      },
+    );
+
+    channel.subscribe();
     return channel;
   }
-  
-  /// Execute custom SQL query (for complex operations)
-  static Future<SupabaseResponse<List<Map<String, dynamic>>>> executeQuery({
-    required String query,
-    Map<String, dynamic>? parameters,
-  }) async {
+
+  /// Unsubscribe from real-time channel
+  static Future<void> unsubscribe(RealtimeChannel channel) async {
     try {
-      AppLogger.info(_tag, 'Executing custom query');
-      
-      final response = await SupabaseConfig.client
-          .rpc(query, params: parameters ?? {});
-      
-      AppLogger.success(_tag, 'Custom query executed successfully');
-      return SupabaseResponse.success(List<Map<String, dynamic>>.from(response));
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during custom query: ${e.message}');
-      return SupabaseResponse.error(e.message);
+      AppLogger.debug(_tag, 'Unsubscribing from real-time channel');
+      await _client.removeChannel(channel);
+      AppLogger.success(_tag, 'Unsubscribed from real-time channel');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during custom query', e, stackTrace);
-      return SupabaseResponse.error('Custom query failed: $e');
+      AppLogger.error(_tag, 'Failed to unsubscribe from channel', e, stackTrace);
     }
   }
-  
-  /// Search documents with text search
-  static Future<SupabaseResponse<List<Map<String, dynamic>>>> searchText({
+
+  // ===============================
+  // ADVANCED QUERIES
+  // ===============================
+
+  /// Search across multiple columns
+  static Future<List<Map<String, dynamic>>> textSearch({
     required String table,
-    required String column,
     required String searchTerm,
+    required List<String> searchColumns,
     int? limit,
   }) async {
     try {
-      AppLogger.info(_tag, 'Searching text in $table.$column for: $searchTerm');
-      
-      PostgrestFilterBuilder<PostgrestList> query = SupabaseConfig.table(table)
-          .select()
-          .textSearch(column, searchTerm);
-      
-      PostgrestTransformBuilder<PostgrestList> transformQuery = query;
-      
+      AppLogger.debug(_tag, 'Text search in table: $table');
+
+      PostgrestFilterBuilder query = _client.from(table).select();
+
+      // Build OR condition for multiple columns
+      String orCondition = searchColumns
+          .map((column) => '$column.ilike.%$searchTerm%')
+          .join(',');
+
+      PostgrestTransformBuilder finalQuery = query.or(orCondition);
+
       if (limit != null) {
-        transformQuery = transformQuery.limit(limit);
+        finalQuery = finalQuery.limit(limit);
       }
-      
-      final response = await transformQuery;
-      
-      AppLogger.success(_tag, 'Text search completed, found ${response.length} results');
-      return SupabaseResponse.success(response);
-    } on PostgrestException catch (e) {
-      AppLogger.error(_tag, 'Database error during text search: ${e.message}');
-      return SupabaseResponse.error(e.message);
+
+      final data = await finalQuery;
+      AppLogger.success(_tag, 'Text search returned ${data.length} results');
+      return data;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during text search', e, stackTrace);
-      return SupabaseResponse.error('Text search failed: $e');
+      AppLogger.error(_tag, 'Failed to perform text search', e, stackTrace);
+      rethrow;
     }
   }
-  
-  /// Count documents in table (simplified implementation)
-  static Future<SupabaseResponse<int>> count({
+
+  /// Get records with pagination
+  static Future<Map<String, dynamic>> getPaginated({
     required String table,
-    String? column,
-    dynamic value,
+    required int page,
+    required int pageSize,
+    String columns = '*',
+    Map<String, dynamic>? filters,
+    String? orderBy,
+    bool ascending = true,
   }) async {
     try {
-      AppLogger.info(_tag, 'Counting documents in $table');
-      
-      // Get all documents and count them (simple approach)
-      final result = await getMultiple(
+      AppLogger.debug(_tag, 'Getting paginated data from table: $table (page $page)');
+
+      final offset = (page - 1) * pageSize;
+
+      // Get total count
+      final totalCount = await count(table: table, filters: filters);
+
+      // Get paginated data
+      final data = await select(
         table: table,
-        column: column,
-        value: value,
+        columns: columns,
+        filters: filters,
+        orderBy: orderBy,
+        ascending: ascending,
+        limit: pageSize,
+        offset: offset,
       );
-      
-      if (result.success && result.data != null) {
-        final count = result.data!.length;
-        AppLogger.success(_tag, 'Count completed: $count documents in $table');
-        return SupabaseResponse.success(count);
-      } else {
-        return SupabaseResponse.error(result.error ?? 'Count failed');
-      }
+
+      final totalPages = (totalCount / pageSize).ceil();
+
+      final result = {
+        'data': data,
+        'pagination': {
+          'currentPage': page,
+          'pageSize': pageSize,
+          'totalCount': totalCount,
+          'totalPages': totalPages,
+          'hasNextPage': page < totalPages,
+          'hasPreviousPage': page > 1,
+        },
+      };
+
+      AppLogger.success(_tag, 'Retrieved paginated data: ${data.length} records');
+      return result;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected error during count', e, stackTrace);
-      return SupabaseResponse.error('Count failed: $e');
+      AppLogger.error(_tag, 'Failed to get paginated data', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // BATCH OPERATIONS
+  // ===============================
+
+  /// Batch insert multiple records
+  static Future<List<Map<String, dynamic>>> batchInsert({
+    required String table,
+    required List<Map<String, dynamic>> dataList,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Batch inserting ${dataList.length} records into $table');
+
+      // Add timestamps to all records
+      final timestamp = DateTime.now().toIso8601String();
+      final updatedDataList = dataList.map((data) {
+        data['created_at'] = timestamp;
+        data['updated_at'] = timestamp;
+        return data;
+      }).toList();
+
+      final result = await _client
+          .from(table)
+          .insert(updatedDataList)
+          .select();
+
+      AppLogger.success(_tag, 'Batch inserted ${result.length} records into $table');
+      return result;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to batch insert into $table', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  /// Batch delete multiple records
+  static Future<void> batchDelete({
+    required String table,
+    required List<String> ids,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Batch deleting ${ids.length} records from $table');
+
+      await _client
+          .from(table)
+          .delete()
+          .inFilter('id', ids);
+
+      AppLogger.success(_tag, 'Batch deleted ${ids.length} records from $table');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to batch delete from $table', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
+  // CONNECTION UTILITIES
+  // ===============================
+
+  /// Check database connection
+  static Future<bool> checkConnection() async {
+    try {
+      AppLogger.debug(_tag, 'Checking database connection...');
+      
+      await _client.from('users').select('id').limit(1);
+      
+      AppLogger.success(_tag, 'Database connection is healthy');
+      return true;
+    } catch (e) {
+      AppLogger.error(_tag, 'Database connection failed', e);
+      return false;
+    }
+  }
+
+  /// Get database health status
+  static Future<Map<String, dynamic>> getHealthStatus() async {
+    try {
+      final isConnected = await checkConnection();
+      final currentUser = SupabaseConfig.currentUser;
+      
+      return {
+        'connected': isConnected,
+        'authenticated': currentUser != null,
+        'userId': currentUser?.id,
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    } catch (e) {
+      return {
+        'connected': false,
+        'authenticated': false,
+        'error': e.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      };
     }
   }
 }

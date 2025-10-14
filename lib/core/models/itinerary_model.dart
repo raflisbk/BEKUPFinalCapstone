@@ -1,5 +1,213 @@
 import '../stubs/firebase_stubs.dart';
 
+/// Main itinerary model for new architecture
+class Itinerary {
+  final String id;
+  final String name;
+  final String? description;
+  final DateTime startDate;
+  final DateTime endDate;
+  final String? tripId;
+  final String userId;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isPublic;
+  final List<String> tags;
+  final Map<String, dynamic>? metadata;
+
+  Itinerary({
+    required this.id,
+    required this.name,
+    this.description,
+    required this.startDate,
+    required this.endDate,
+    this.tripId,
+    required this.userId,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isPublic = false,
+    this.tags = const [],
+    this.metadata,
+  });
+
+  /// Create from Map
+  factory Itinerary.fromMap(Map<String, dynamic> map) {
+    return Itinerary(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      description: map['description'],
+      startDate: DateTime.parse(map['start_date'] ?? DateTime.now().toIso8601String()),
+      endDate: DateTime.parse(map['end_date'] ?? DateTime.now().toIso8601String()),
+      tripId: map['trip_id'],
+      userId: map['user_id'] ?? '',
+      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      isPublic: map['is_public'] ?? false,
+      tags: List<String>.from(map['tags'] ?? []),
+      metadata: map['metadata'],
+    );
+  }
+
+  /// Convert to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'description': description,
+      'start_date': startDate.toIso8601String(),
+      'end_date': endDate.toIso8601String(),
+      'trip_id': tripId,
+      'user_id': userId,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'is_public': isPublic,
+      'tags': tags,
+      'metadata': metadata,
+    };
+  }
+
+  /// Copy with modifications
+  Itinerary copyWith({
+    String? id,
+    String? name,
+    String? description,
+    DateTime? startDate,
+    DateTime? endDate,
+    String? tripId,
+    String? userId,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isPublic,
+    List<String>? tags,
+    Map<String, dynamic>? metadata,
+  }) {
+    return Itinerary(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      startDate: startDate ?? this.startDate,
+      endDate: endDate ?? this.endDate,
+      tripId: tripId ?? this.tripId,
+      userId: userId ?? this.userId,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isPublic: isPublic ?? this.isPublic,
+      tags: tags ?? this.tags,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+/// Itinerary item model for new architecture
+class ItineraryItem {
+  final String id;
+  final String itineraryId;
+  final String title;
+  final String? description;
+  final DateTime startTime;
+  final DateTime? endTime;
+  final String? location;
+  final double? latitude;
+  final double? longitude;
+  final String type; // 'attraction', 'food', 'transport', etc.
+  final double? estimatedCost;
+  final Map<String, dynamic>? metadata;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  ItineraryItem({
+    required this.id,
+    required this.itineraryId,
+    required this.title,
+    this.description,
+    required this.startTime,
+    this.endTime,
+    this.location,
+    this.latitude,
+    this.longitude,
+    required this.type,
+    this.estimatedCost,
+    this.metadata,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  /// Create from Map
+  factory ItineraryItem.fromMap(Map<String, dynamic> map) {
+    return ItineraryItem(
+      id: map['id'] ?? '',
+      itineraryId: map['itinerary_id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'],
+      startTime: DateTime.parse(map['start_time'] ?? DateTime.now().toIso8601String()),
+      endTime: map['end_time'] != null ? DateTime.parse(map['end_time']) : null,
+      location: map['location'],
+      latitude: map['latitude']?.toDouble(),
+      longitude: map['longitude']?.toDouble(),
+      type: map['type'] ?? 'other',
+      estimatedCost: map['estimated_cost']?.toDouble(),
+      metadata: map['metadata'],
+      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+    );
+  }
+
+  /// Convert to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'itinerary_id': itineraryId,
+      'title': title,
+      'description': description,
+      'start_time': startTime.toIso8601String(),
+      'end_time': endTime?.toIso8601String(),
+      'location': location,
+      'latitude': latitude,
+      'longitude': longitude,
+      'type': type,
+      'estimated_cost': estimatedCost,
+      'metadata': metadata,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Copy with modifications
+  ItineraryItem copyWith({
+    String? id,
+    String? itineraryId,
+    String? title,
+    String? description,
+    DateTime? startTime,
+    DateTime? endTime,
+    String? location,
+    double? latitude,
+    double? longitude,
+    String? type,
+    double? estimatedCost,
+    Map<String, dynamic>? metadata,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return ItineraryItem(
+      id: id ?? this.id,
+      itineraryId: itineraryId ?? this.itineraryId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      location: location ?? this.location,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      type: type ?? this.type,
+      estimatedCost: estimatedCost ?? this.estimatedCost,
+      metadata: metadata ?? this.metadata,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 /// Trip itinerary model for daily plans
 class TripItinerary {
   final String id;

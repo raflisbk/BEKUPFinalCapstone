@@ -1,165 +1,172 @@
-import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide User, AuthException;
+import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/user_model.dart';
 import '../utils/logger.dart';
-import '../stubs/firebase_stubs.dart';
+import '../../services/supabase_auth_service.dart';
 
-class AuthProvider with ChangeNotifier {
+class AuthProvider extends ChangeNotifier {
   static const String _tag = 'AuthProvider';
 
-  // ignore: unused_field
-  final SupabaseClient _supabase = Supabase.instance.client;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  User? _user;
+  // Current user
+  UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
-  bool _isAuthenticated = false;
   bool _isInitialized = false;
+  bool _isGuest = false;
+  
+  // Auth state subscription
+  StreamSubscription<AuthState>? _authSubscription;
 
   // Getters
-  User? get user => _user;
+  UserModel? get currentUser => _currentUser;
+  UserModel? get user => _currentUser; // Alias for compatibility
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _isAuthenticated;
-  bool get isGuest => _user == null && _isAuthenticated;
+  bool get isAuthenticated => _currentUser != null;
   bool get isInitialized => _isInitialized;
+  bool get isGuest => _isGuest;
 
   AuthProvider() {
-    _initAuth();
+    _initializeAuth();
   }
 
-  // Initialize auth state listener
-  Future<void> _initAuth() async {
-    AppLogger.debug(_tag, 'Starting auth provider initialization');
-
-    // Get current user immediately (Firebase persists auth)
-    _user = _auth.currentUser;
-    _isAuthenticated = _user != null;
-
-    if (_user != null) {
-      AppLogger.info(_tag, 'Restored authenticated session from Firebase cache', {
-        'userId': _user!.uid,
-        'email': _user!.email ?? 'No email',
-      });
-    } else {
-      AppLogger.info(_tag, 'No cached authentication session found');
-    }
-
-    // Listen to auth state changes
-    _auth.authStateChanges().listen((User? user) {
-      if (user != null) {
-        AppLogger.info(_tag, 'Authentication state changed to authenticated', {
-          'userId': user.uid,
-          'email': user.email ?? 'No email',
-        });
-      } else {
-        AppLogger.info(_tag, 'Authentication state changed to unauthenticated');
-      }
-
-      _user = user;
-      _isAuthenticated = user != null;
-      notifyListeners();
-    });
-
-    // Check for persistent login
-    await _checkPersistentLogin();
-
-    // Mark as initialized
-    _isInitialized = true;
-    notifyListeners();
-
-    AppLogger.info(_tag, 'Auth provider initialization completed', {
-      'isAuthenticated': _isAuthenticated,
-      'userId': _user?.uid ?? 'None',
-    });
-  }
-
-  // Check if user was logged in before
-  Future<void> _checkPersistentLogin() async {
+  void _initializeAuth() {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final wasLoggedIn = prefs.getBool('was_logged_in') ?? false;
+      AppLogger.debug(_tag, 'Initializing auth provider');
 
-      if (wasLoggedIn && _user == null) {
-        AppLogger.warning(_tag, 'Previous login session detected but Firebase session has expired');
-      } else if (wasLoggedIn && _user != null) {
-        AppLogger.info(_tag, 'Previous login session verified and active');
-      } else {
-        AppLogger.debug(_tag, 'No previous login session found');
+      // Get current user if authenticated
+      final user = SupabaseAuthService.currentUser;
+      if (user != null) {
+        _currentUser = UserModel.fromSupabase({'id': user.id, 'email': user.email, ...?user.userMetadata});
+        AppLogger.debug(_tag, 'Found existing authenticated user');
       }
+
+      // Listen to auth state changes
+      _authSubscription = SupabaseAuthService.authStateChanges.listen(
+        (AuthState state) {
+          _handleAuthStateChange(state);
+        },
+      );
+
+      _isInitialized = true;
+      AppLogger.success(_tag, 'Auth provider initialized');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to check persistent login state', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to initialize auth provider', e, stackTrace);
+      _isInitialized = true; // Mark as initialized even if failed
     }
+  }
+
+  void _handleAuthStateChange(AuthState state) {
+    AppLogger.debug(_tag, 'Auth state changed', {
+      'event': state.event.name,
+      'userId': state.session?.user.id,
+    });
+
+    if (state.session?.user != null) {
+      // User signed in
+      _currentUser = UserModel.fromSupabase({'id': state.session!.user.id, 'email': state.session!.user.email, ...?state.session!.user.userMetadata});
+      _setError(null);
+      AppLogger.success(_tag, 'User authenticated: ${_currentUser!.email}');
+    } else {
+      // User signed out
+      _currentUser = null;
+      AppLogger.info(_tag, 'User signed out');
+    }
+
+    notifyListeners();
   }
 
   // Set loading state
-  void _setLoading(bool value) {
-    _isLoading = value;
+  void _setLoading(bool loading) {
+    _isLoading = loading;
     notifyListeners();
   }
 
   // Set error message
-  void _setError(String? message) {
-    _errorMessage = message;
+  void _setError(String? error) {
+    _errorMessage = error;
     notifyListeners();
   }
 
-  // Clear error message
-  void clearError() {
-    _setError(null);
-  }
-
-  // Register with email and password
-  Future<bool> registerWithEmail({
+  // Sign up with email and password
+  Future<bool> signUpWithEmail({
     required String email,
     required String password,
-    required String name,
+    String? fullName,
   }) async {
     try {
-      AppLogger.action('User attempting registration', {'email': email});
+      AppLogger.action('User attempting to sign up with email');
+      
       _setLoading(true);
       _setError(null);
 
-      final credential = await _auth.createUserWithEmailAndPassword(
+      final response = await SupabaseAuthService.signUp(
         email: email,
         password: password,
+        fullName: fullName,
       );
 
-      // Update display name
-      await credential.user?.updateDisplayName(name);
-
-      // Create Firestore user document
-      if (credential.user != null) {
-        await _createUserDocument(credential.user!, name);
+      if (response.user != null) {
+        AppLogger.success(_tag, 'User signed up successfully');
+        return true;
+      } else {
+        _setError('Sign up failed. Please try again.');
+        return false;
       }
-
-      // Send email verification
-      await credential.user?.sendEmailVerification();
-
-      // Save login state
-      await _savePersistentLogin();
-
-      AppLogger.success(_tag, 'Registration successful', {
-        'userId': credential.user?.uid,
-        'email': email,
-      });
-
-      _setLoading(false);
-      return true;
-    } on AuthException catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Registration failed', e, stackTrace);
-      _setError(e.message);
-      _setLoading(false);
-      return false;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected registration error', e, stackTrace);
-      _setError('An unexpected error occurred. Please try again.');
-      _setLoading(false);
+      AppLogger.error(_tag, 'Sign up failed', e, stackTrace);
+      _setError(e.toString());
       return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // Register with email (alias for compatibility)
+  Future<bool> registerWithEmail({
+    required String email,
+    required String password,
+    String? fullName,
+  }) async {
+    return await signUpWithEmail(
+      email: email,
+      password: password,
+      fullName: fullName,
+    );
+  }
+
+  // Sign in as guest
+  Future<bool> signInAsGuest() async {
+    try {
+      AppLogger.action('User signing in as guest');
+      
+      _setLoading(true);
+      _setError(null);
+
+      // Create a guest user
+      _currentUser = UserModel(
+        id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
+        email: 'guest@relink.app',
+        displayName: 'Guest User',
+        isGuest: true,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      
+      _isGuest = true;
+      
+      AppLogger.success(_tag, 'Guest sign in successful');
+      notifyListeners();
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Guest sign in failed', e, stackTrace);
+      _setError(e.toString());
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -169,139 +176,91 @@ class AuthProvider with ChangeNotifier {
     required String password,
   }) async {
     try {
-      AppLogger.action('User attempting login', {'email': email});
+      AppLogger.action('User attempting to sign in with email');
+      
       _setLoading(true);
       _setError(null);
 
-      final credential = await _auth.signInWithEmailAndPassword(
+      final response = await SupabaseAuthService.signIn(
         email: email,
         password: password,
       );
 
-      // Save login state
-      await _savePersistentLogin();
-
-      AppLogger.success(_tag, 'Login successful', {
-        'userId': credential.user?.uid,
-        'email': email,
-      });
-
-      _setLoading(false);
-      return true;
-    } on AuthException catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Login failed', e, stackTrace);
-      _setError(e.message);
-      _setLoading(false);
-      return false;
+      if (response.user != null) {
+        AppLogger.success(_tag, 'User signed in successfully');
+        return true;
+      } else {
+        _setError('Sign in failed. Please check your credentials.');
+        return false;
+      }
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected login error', e, stackTrace);
-      _setError('An unexpected error occurred. Please try again.');
-      _setLoading(false);
+      AppLogger.error(_tag, 'Sign in failed', e, stackTrace);
+      _setError(e.toString());
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
   // Sign in with Google
   Future<bool> signInWithGoogle() async {
     try {
-      AppLogger.action('User attempting Google Sign-In');
+      AppLogger.action('User attempting to sign in with Google');
+      
       _setLoading(true);
       _setError(null);
 
-      // Trigger Google Sign-In flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      // Check if Google Sign-In is available
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
 
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
-        AppLogger.warning(_tag, 'Google Sign-In cancelled by user');
-        _setLoading(false);
+        AppLogger.warning(_tag, 'Google sign in cancelled by user');
         return false;
       }
 
-      // Obtain auth details
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      // Create Firebase credential
-      final credential = GoogleAuthProvider.credential(
+      final AuthResponse response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: googleAuth.idToken!,
         accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase
-      final userCredential = await _auth.signInWithCredential(credential);
-
-      // Create Firestore document if new user
-      if (userCredential.user != null && userCredential.additionalUserInfo?.isNewUser == true) {
-        await _createUserDocument(
-          userCredential.user!,
-          userCredential.user!.displayName ?? 'User',
-        );
+      if (response.user != null) {
+        AppLogger.success(_tag, 'Google sign in successful');
+        return true;
+      } else {
+        _setError('Google sign in failed. Please try again.');
+        return false;
       }
-
-      // Save login state
-      await _savePersistentLogin();
-
-      AppLogger.success(_tag, 'Google Sign-In successful', {
-        'userId': userCredential.user?.uid,
-        'email': userCredential.user?.email,
-      });
-
-      _setLoading(false);
-      return true;
-    } on AuthException catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Google Sign-In failed', e, stackTrace);
-      _setError(e.message);
-      _setLoading(false);
-      return false;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected Google Sign-In error', e, stackTrace);
-      _setError('Failed to sign in with Google. Please try again.');
-      _setLoading(false);
+      AppLogger.error(_tag, 'Google sign in failed', e, stackTrace);
+      _setError(e.toString());
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
-  // Sign in as guest
-  Future<bool> signInAsGuest() async {
+  // Reset password
+  Future<void> resetPassword(String email) async {
     try {
-      AppLogger.action('User signed in as guest');
-      _isAuthenticated = true;
-
-      // Don't save persistent login for guest mode
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('was_logged_in', false);
-      await prefs.setBool('is_guest', true);
-
-      notifyListeners();
-      return true;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to set guest mode', e, stackTrace);
-      _setError('Failed to continue as guest');
-      return false;
-    }
-  }
-
-  // Send password reset email
-  Future<bool> resetPassword(String email) async {
-    try {
-      AppLogger.action('User requested password reset', {'email': email});
+      AppLogger.action('User requesting password reset');
+      
       _setLoading(true);
       _setError(null);
 
-      await _auth.sendPasswordResetEmail(email: email);
-
-      AppLogger.success(_tag, 'Password reset email sent', {'email': email});
-      _setLoading(false);
-      return true;
-    } on AuthException catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Password reset failed', e, stackTrace);
-      _setError(e.message);
-      _setLoading(false);
-      return false;
+      await SupabaseAuthService.resetPassword(email);
+      
+      AppLogger.success(_tag, 'Password reset email sent');
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Unexpected password reset error', e, stackTrace);
-      _setError('Failed to send password reset email. Please try again.');
+      AppLogger.error(_tag, 'Password reset failed', e, stackTrace);
+      _setError(e.toString());
+    } finally {
       _setLoading(false);
-      return false;
     }
   }
 
@@ -309,81 +268,56 @@ class AuthProvider with ChangeNotifier {
   Future<void> signOut() async {
     try {
       AppLogger.action('User signing out');
+      
       _setLoading(true);
+      _setError(null);
 
-      // Sign out from Firebase
-      await _auth.signOut();
-
-      // Sign out from Google
-      await _googleSignIn.signOut();
-
-      // Clear persistent login
+      if (_isGuest) {
+        // Just clear guest state
+        _currentUser = null;
+        _isGuest = false;
+      } else {
+        await SupabaseAuthService.signOut();
+      }
+      
+      // Clear local storage
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('was_logged_in', false);
-      await prefs.setBool('is_guest', false);
+      await prefs.clear();
 
-      _user = null;
-      _isAuthenticated = false;
-
-      AppLogger.success(_tag, 'Sign out successful');
-      _setLoading(false);
+      AppLogger.success(_tag, 'User signed out successfully');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Sign out failed', e, stackTrace);
+      _setError(e.toString());
+    } finally {
       _setLoading(false);
     }
   }
 
-  // Save persistent login state
-  Future<void> _savePersistentLogin() async {
+  // Delete account
+  Future<bool> deleteAccount() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('was_logged_in', true);
-      await prefs.setBool('is_guest', false);
+      AppLogger.action('User deleting account');
+      
+      _setLoading(true);
+      _setError(null);
 
-      AppLogger.debug(_tag, 'Persistent login saved');
+      await SupabaseAuthService.deleteAccount();
+      
+      AppLogger.success(_tag, 'Account deleted successfully');
+      return true;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to save persistent login', e, stackTrace);
+      AppLogger.error(_tag, 'Account deletion failed', e, stackTrace);
+      _setError(e.toString());
+      return false;
+    } finally {
+      _setLoading(false);
     }
   }
-
-  // Create user document in Firestore
-  Future<void> _createUserDocument(User user, String displayName) async {
-    try {
-      AppLogger.debug(_tag, 'Creating user document in Firestore', {
-        'userId': user.uid,
-        'email': user.email,
-      });
-
-      await _firestore.collection('users').doc(user.uid).set({
-        'uid': user.uid,
-        'email': user.email ?? '',
-        'displayName': displayName,
-        'photoURL': user.photoURL,
-        'bio': '',
-        'location': '',
-        'isGuide': false,
-        'guideVerified': false,
-        'isLocationShared': false,
-        'latitude': null,
-        'longitude': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-
-      AppLogger.success(_tag, 'User document created successfully', {
-        'userId': user.uid,
-      });
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to create user document', e, stackTrace);
-      // Don't throw, just log - user is already created in Auth
-    }
-  }
-
-
 
   @override
   void dispose() {
     AppLogger.debug(_tag, 'Disposing auth provider');
+    _authSubscription?.cancel();
     super.dispose();
   }
 }

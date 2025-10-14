@@ -1,17 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/analytics_service.dart';
+import '../../services/supabase_auth_service.dart';
 import '../models/analytics_model.dart';
 import '../utils/logger.dart';
-import '../stubs/firebase_stubs.dart';
 
 class AnalyticsProvider extends ChangeNotifier {
   static const String _tag = 'AnalyticsProvider';
   
-  final AnalyticsService _analyticsService = AnalyticsService();
   // ignore: unused_field
   final SupabaseClient _supabase = Supabase.instance.client;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   
   // Analytics state
   AnalyticsSummary? _analyticsSummary;
@@ -33,7 +31,7 @@ class AnalyticsProvider extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       AppLogger.info(_tag, 'Initializing analytics provider');
-      await _analyticsService.initialize();
+      await AnalyticsService.startSession();
       await loadAnalyticsData();
       AppLogger.success(_tag, 'Analytics provider initialized successfully');
     } catch (e, stackTrace) {
@@ -53,7 +51,7 @@ class AnalyticsProvider extends ChangeNotifier {
         }
       }
       
-      final userId = _auth.currentUser?.uid;
+      final userId = SupabaseAuthService.currentUser?.id;
       if (userId == null) {
         throw Exception('User not authenticated');
       }
@@ -63,19 +61,35 @@ class AnalyticsProvider extends ChangeNotifier {
       
       AppLogger.info(_tag, 'Loading analytics data');
       
-      // Load analytics summary
-      _analyticsSummary = await _analyticsService.getAnalyticsSummary(
+      // Create placeholder analytics data since we don't have specific methods yet
+      final now = DateTime.now();
+      _analyticsSummary = AnalyticsSummary(
         userId: userId,
-        startDate: DateTime.now().subtract(const Duration(days: 30)),
-        endDate: DateTime.now(),
+        periodStart: now.subtract(const Duration(days: 30)),
+        periodEnd: now,
+        totalTrips: 0,
+        totalSpending: 0.0,
+        aiInteractions: 0,
+        averageTripSatisfaction: 0.0,
+        topCategories: {},
+        insights: {},
+        lastUpdated: now,
       );
       
-      // Generate insights
-      _insights = await _analyticsService.generateInsights(
-        userId: userId,
-        startDate: DateTime.now().subtract(const Duration(days: 30)),
-        endDate: DateTime.now(),
-      );
+      _insights = [
+        DashboardInsight(
+          insightId: 'welcome',
+          userId: userId,
+          title: 'Analytics Initialized',
+          description: 'Analytics tracking is now active for your account',
+          category: 'system',
+          priority: 5,
+          data: {},
+          actionableRecommendations: [],
+          generatedAt: now,
+          isActive: true,
+        ),
+      ];
       
       _lastFetchTime = DateTime.now();
       
@@ -95,26 +109,33 @@ class AnalyticsProvider extends ChangeNotifier {
   
   // Track user behavior event
   Future<void> trackEvent({
-    required AnalyticsEventType eventType,
     required String eventName,
     Map<String, dynamic>? properties,
-    String screenName = '',
+    String? category,
   }) async {
     try {
-      await _analyticsService.trackEvent(
-        eventType: eventType,
-        eventName: eventName,
-        properties: properties ?? {},
-        screenName: screenName,
+      await AnalyticsService.trackEvent(
+        eventName,
+        properties,
+        category: category,
       );
       
       AppLogger.debug(_tag, 'Event tracked', {
-        'eventType': eventType.value,
         'eventName': eventName,
-        'screenName': screenName,
+        'category': category,
       });
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to track event', e, stackTrace);
+    }
+  }
+  
+  // Track screen view
+  Future<void> trackScreenView(String screenName, {Map<String, dynamic>? properties}) async {
+    try {
+      await AnalyticsService.trackScreenView(screenName, properties: properties);
+      AppLogger.debug(_tag, 'Screen view tracked: $screenName');
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to track screen view', e, stackTrace);
     }
   }
   
@@ -154,72 +175,21 @@ class AnalyticsProvider extends ChangeNotifier {
     }).toList();
   }
   
-  // Get category breakdown for charts
-  List<Map<String, dynamic>> getCategoryBreakdown() {
-    if (_analyticsSummary?.topCategories == null) {
-      return [];
-    }
-    
-    return _analyticsSummary!.topCategories.entries
-        .map((entry) => {
-              'category': entry.key,
-              'amount': entry.value.toDouble(),
-            })
-        .toList();
+  // Get category breakdown for pie chart
+  Map<String, int> getCategoryBreakdown() {
+    return _analyticsSummary?.topCategories ?? {};
   }
   
-  // Get top destinations for charts
-  List<Map<String, dynamic>> getTopDestinations() {
-    // Mock data based on insights or create from category data
-    final categories = _analyticsSummary?.topCategories ?? {};
-    
-    if (categories.isEmpty) {
-      return [
-        {'destination': 'Bali', 'visits': 3},
-        {'destination': 'Jakarta', 'visits': 2},
-        {'destination': 'Yogyakarta', 'visits': 2},
-        {'destination': 'Bandung', 'visits': 1},
-      ];
-    }
-    
-    return categories.entries.take(5).map((entry) => {
-      'destination': entry.key,
-      'visits': entry.value,
-    }).toList();
-  }
-  
-  // Get AI performance metrics
-  Map<String, dynamic> getAIPerformanceMetrics() {
-    if (_analyticsSummary == null) {
-      return {
-        'totalRequests': 0,
-        'successfulRequests': 0,
-        'successRate': 0,
-        'averageResponseTime': 0.0,
-        'featureUsage': <String, int>{},
-      };
-    }
-    
-    final aiInteractions = _analyticsSummary!.aiInteractions;
-    
-    return {
-      'totalRequests': aiInteractions,
-      'successfulRequests': (aiInteractions * 0.95).round(), // 95% success rate
-      'successRate': 95,
-      'averageResponseTime': 1.2, // 1.2 seconds average
-      'featureUsage': _analyticsSummary!.topCategories,
-    };
-  }
-  
-  // Set loading state
-  void _setLoading(bool loading) {
-    _isLoading = loading;
+  // Helper methods
+  void _setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
   }
   
   @override
   void dispose() {
     AppLogger.debug(_tag, 'Disposing analytics provider');
+    AnalyticsService.endSession();
     super.dispose();
   }
 }

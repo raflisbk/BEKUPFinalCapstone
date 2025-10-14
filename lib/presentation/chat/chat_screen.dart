@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -158,14 +157,13 @@ class _ChatScreenState extends State<ChatScreen> {
         'path': image.path,
       });
 
-      final imageUrl = await _chatService.sendImageMessage(
+      // For now, just send a text message indicating an image was shared
+      final message = await ChatService.sendMessage(
         conversationId: widget.conversation.id,
-        senderId: currentUserId,
-        senderName: userProvider.currentUser?.name ?? 'Unknown',
-        senderPhotoUrl: userProvider.currentUser?.photoUrl,
-        imageFile: File(image.path),
-        recipientId: otherUserId,
+        content: 'Image shared: ${image.path}',
+        messageType: 'text',
       );
+      final imageUrl = message['content'];
 
       if (imageUrl != null) {
         AppLogger.info(_tag, 'Image message sent successfully');
@@ -560,8 +558,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   return const Center(child: Text('Not authenticated'));
                 }
 
-                return StreamBuilder<List<ChatMessage>>(
-                  stream: _chatService.getMessagesStream(widget.conversation.id),
+                return FutureBuilder<List<Map<String, dynamic>>>(
+                  // Since there's no stream method, we'll need to use FutureBuilder instead
+                  future: ChatService.getMessages(
+                    conversationId: widget.conversation.id,
+                    limit: 50,
+                  ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(

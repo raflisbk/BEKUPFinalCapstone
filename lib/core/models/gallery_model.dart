@@ -1,5 +1,207 @@
 import '../stubs/firebase_stubs.dart';
 
+/// Gallery photo model for new architecture
+class GalleryPhoto {
+  final String id;
+  final String userId;
+  final String? albumId;
+  final String imageUrl;
+  final String? thumbnailUrl;
+  final String? caption;
+  final List<String> tags;
+  final String? location;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int likesCount;
+  final int commentsCount;
+  final bool isPrivate;
+  final Map<String, dynamic>? metadata;
+
+  GalleryPhoto({
+    required this.id,
+    required this.userId,
+    this.albumId,
+    required this.imageUrl,
+    this.thumbnailUrl,
+    this.caption,
+    this.tags = const [],
+    this.location,
+    required this.createdAt,
+    required this.updatedAt,
+    this.likesCount = 0,
+    this.commentsCount = 0,
+    this.isPrivate = false,
+    this.metadata,
+  });
+
+  /// Create from Map
+  factory GalleryPhoto.fromMap(Map<String, dynamic> map) {
+    return GalleryPhoto(
+      id: map['id'] ?? '',
+      userId: map['user_id'] ?? '',
+      albumId: map['album_id'],
+      imageUrl: map['image_url'] ?? '',
+      thumbnailUrl: map['thumbnail_url'],
+      caption: map['caption'],
+      tags: List<String>.from(map['tags'] ?? []),
+      location: map['location'],
+      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      likesCount: map['likes_count'] ?? 0,
+      commentsCount: map['comments_count'] ?? 0,
+      isPrivate: map['is_private'] ?? false,
+      metadata: map['metadata'],
+    );
+  }
+
+  /// Convert to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'album_id': albumId,
+      'image_url': imageUrl,
+      'thumbnail_url': thumbnailUrl,
+      'caption': caption,
+      'tags': tags,
+      'location': location,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'likes_count': likesCount,
+      'comments_count': commentsCount,
+      'is_private': isPrivate,
+      'metadata': metadata,
+    };
+  }
+
+  /// Copy with modifications
+  GalleryPhoto copyWith({
+    String? id,
+    String? userId,
+    String? albumId,
+    String? imageUrl,
+    String? thumbnailUrl,
+    String? caption,
+    List<String>? tags,
+    String? location,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    int? likesCount,
+    int? commentsCount,
+    bool? isPrivate,
+    Map<String, dynamic>? metadata,
+  }) {
+    return GalleryPhoto(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      albumId: albumId ?? this.albumId,
+      imageUrl: imageUrl ?? this.imageUrl,
+      thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      caption: caption ?? this.caption,
+      tags: tags ?? this.tags,
+      location: location ?? this.location,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      likesCount: likesCount ?? this.likesCount,
+      commentsCount: commentsCount ?? this.commentsCount,
+      isPrivate: isPrivate ?? this.isPrivate,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+/// Gallery album model for new architecture
+class GalleryAlbum {
+  final String id;
+  final String userId;
+  final String name;
+  final String? description;
+  final String? coverPhotoUrl;
+  final int photoCount;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final bool isPrivate;
+  final List<String> tags;
+  final Map<String, dynamic>? metadata;
+
+  GalleryAlbum({
+    required this.id,
+    required this.userId,
+    required this.name,
+    this.description,
+    this.coverPhotoUrl,
+    this.photoCount = 0,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isPrivate = false,
+    this.tags = const [],
+    this.metadata,
+  });
+
+  /// Create from Map
+  factory GalleryAlbum.fromMap(Map<String, dynamic> map) {
+    return GalleryAlbum(
+      id: map['id'] ?? '',
+      userId: map['user_id'] ?? '',
+      name: map['name'] ?? '',
+      description: map['description'],
+      coverPhotoUrl: map['cover_photo_url'],
+      photoCount: map['photo_count'] ?? 0,
+      createdAt: DateTime.parse(map['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updated_at'] ?? DateTime.now().toIso8601String()),
+      isPrivate: map['is_private'] ?? false,
+      tags: List<String>.from(map['tags'] ?? []),
+      metadata: map['metadata'],
+    );
+  }
+
+  /// Convert to Map
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'name': name,
+      'description': description,
+      'cover_photo_url': coverPhotoUrl,
+      'photo_count': photoCount,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'is_private': isPrivate,
+      'tags': tags,
+      'metadata': metadata,
+    };
+  }
+
+  /// Copy with modifications
+  GalleryAlbum copyWith({
+    String? id,
+    String? userId,
+    String? name,
+    String? description,
+    String? coverPhotoUrl,
+    int? photoCount,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    bool? isPrivate,
+    List<String>? tags,
+    Map<String, dynamic>? metadata,
+  }) {
+    return GalleryAlbum(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      name: name ?? this.name,
+      description: description ?? this.description,
+      coverPhotoUrl: coverPhotoUrl ?? this.coverPhotoUrl,
+      photoCount: photoCount ?? this.photoCount,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      isPrivate: isPrivate ?? this.isPrivate,
+      tags: tags ?? this.tags,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
 /// Photo model for gallery
 class Photo {
   final String id;

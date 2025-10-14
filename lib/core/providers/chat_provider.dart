@@ -7,8 +7,6 @@ import '../utils/logger.dart';
 class ChatProvider with ChangeNotifier {
   static const String _tag = 'ChatProvider';
 
-  final ChatService _chatService = ChatService();
-
   String? _currentUserId;
   List<ChatConversation> _conversations = [];
   bool _isLoading = false;
@@ -37,20 +35,79 @@ class ChatProvider with ChangeNotifier {
 
     AppLogger.debug(_tag, 'Loading conversations');
 
-    _chatService.getConversationsStream(_currentUserId!).listen(
-      (conversations) {
-        AppLogger.debug(_tag, 'Conversations updated', {
-          'count': conversations.length,
+    // Subscribe to user conversations stream
+    ChatService.subscribeToUserConversations(_currentUserId!).listen(
+      (update) {
+        AppLogger.debug(_tag, 'Conversation update received', {
+          'type': update['type'],
         });
-
-        _conversations = conversations;
-        notifyListeners();
+        
+        // Reload conversations when updates occur
+        _refreshConversations();
       },
       onError: (error, stackTrace) {
         AppLogger.error(_tag, 'Failed to load conversations', error, stackTrace);
         _errorMessage = error.toString();
         notifyListeners();
       },
+    );
+
+    // Initial load
+    _refreshConversations();
+  }
+
+  /// Refresh conversations from service
+  Future<void> _refreshConversations() async {
+    try {
+      final conversationsData = await ChatService.getUserConversations(
+        userId: _currentUserId!,
+      );
+
+      _conversations = conversationsData.map((data) => _convertToConversationModel(data)).toList();
+      notifyListeners();
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to refresh conversations', e, stackTrace);
+      _errorMessage = e.toString();
+      notifyListeners();
+    }
+  }
+
+  /// Convert service data to ChatConversation model
+  ChatConversation _convertToConversationModel(Map<String, dynamic> data) {
+    final participants = data['participants'] as List<dynamic>? ?? [];
+    final participantIds = participants.map((p) => p['user_id'] as String).toList();
+    
+    // Create participant data map
+    final participantData = <String, dynamic>{};
+    for (final participant in participants) {
+      participantData[participant['user_id']] = {
+        'name': participant['name'] ?? 'Unknown',
+        'photoUrl': participant['photo_url'],
+      };
+    }
+
+    final lastMessage = data['last_message'] as Map<String, dynamic>?;
+    final unreadCount = <String, int>{};
+    if (_currentUserId != null) {
+      unreadCount[_currentUserId!] = data['unread_count'] as int? ?? 0;
+    }
+
+    return ChatConversation(
+      id: data['id'],
+      participantIds: participantIds,
+      participantData: participantData,
+      lastMessage: lastMessage?['content'],
+      lastMessageTime: lastMessage != null 
+          ? DateTime.parse(lastMessage['created_at'])
+          : DateTime.parse(data['created_at']),
+      lastMessageSenderId: lastMessage?['sender_id'],
+      unreadCount: unreadCount,
+      createdAt: DateTime.parse(data['created_at']),
+      updatedAt: DateTime.parse(data['updated_at'] ?? data['created_at']),
+      isGroupChat: data['type'] == 'group',
+      groupName: data['title'],
+      groupPhotoUrl: null, // Not supported in current service
+      adminId: data['created_by'],
     );
   }
 
@@ -75,28 +132,29 @@ class ChatProvider with ChangeNotifier {
       'otherUserId': otherUserId,
     });
 
-    final conversation = await _chatService.getOrCreateConversation(
-      currentUserId: _currentUserId!,
-      otherUserId: otherUserId,
-      currentUserName: currentUserName,
-      otherUserName: otherUserName,
-      currentUserPhotoUrl: currentUserPhotoUrl,
-      otherUserPhotoUrl: otherUserPhotoUrl,
-    );
+    try {
+      final conversationData = await ChatService.createConversation(
+        participantIds: [otherUserId],
+        type: 'direct',
+      );
 
-    _isLoading = false;
+      final conversation = _convertToConversationModel(conversationData);
+      
+      _isLoading = false;
+      notifyListeners();
 
-    if (conversation == null) {
-      _errorMessage = 'Failed to create conversation';
-      AppLogger.warning(_tag, 'Failed to get or create conversation');
-    } else {
       AppLogger.info(_tag, 'Conversation ready', {
         'conversationId': conversation.id,
       });
-    }
 
-    notifyListeners();
-    return conversation;
+      return conversation;
+    } catch (e, stackTrace) {
+      _isLoading = false;
+      _errorMessage = 'Failed to create conversation';
+      AppLogger.error(_tag, 'Failed to get or create conversation', e, stackTrace);
+      notifyListeners();
+      return null;
+    }
   }
 
   /// Send a message
@@ -116,21 +174,20 @@ class ChatProvider with ChangeNotifier {
       'conversationId': conversationId,
     });
 
-    final success = await _chatService.sendMessage(
-      conversationId: conversationId,
-      senderId: _currentUserId!,
-      senderName: senderName,
-      senderPhotoUrl: senderPhotoUrl,
-      text: text,
-      recipientId: recipientId,
-    );
+    try {
+      await ChatService.sendMessage(
+        conversationId: conversationId,
+        content: text,
+        messageType: 'text',
+      );
 
-    if (!success) {
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to send message', e, stackTrace);
       _errorMessage = 'Failed to send message';
       notifyListeners();
+      return false;
     }
-
-    return success;
   }
 
   /// Mark messages as read
@@ -141,10 +198,14 @@ class ChatProvider with ChangeNotifier {
       'conversationId': conversationId,
     });
 
-    await _chatService.markMessagesAsRead(
-      conversationId: conversationId,
-      currentUserId: _currentUserId!,
-    );
+    try {
+      await ChatService.markConversationAsRead(
+        conversationId: conversationId,
+        userId: _currentUserId!,
+      );
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to mark messages as read', e, stackTrace);
+    }
   }
 
   /// Delete a conversation
@@ -156,16 +217,24 @@ class ChatProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final success = await _chatService.deleteConversation(conversationId);
+    try {
+      // Note: ChatService doesn't have a direct delete method,
+      // so we'll remove the current user from the conversation
+      await ChatService.removeParticipantFromConversation(
+        conversationId: conversationId,
+        userId: _currentUserId!,
+      );
 
-    _isLoading = false;
-
-    if (!success) {
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete conversation', e, stackTrace);
+      _isLoading = false;
       _errorMessage = 'Failed to delete conversation';
+      notifyListeners();
+      return false;
     }
-
-    notifyListeners();
-    return success;
   }
 
   /// Update user online status
@@ -176,17 +245,26 @@ class ChatProvider with ChangeNotifier {
       'isOnline': isOnline,
     });
 
-    _chatService.updateOnlineStatus(
-      userId: _currentUserId!,
-      isOnline: isOnline,
-    );
+    // Note: ChatService doesn't have online status functionality yet
+    // This would need to be implemented in the service
+    AppLogger.info(_tag, 'Online status update not implemented in service');
   }
 
   /// Get total unread messages count
   Future<int> getTotalUnreadCount() async {
     if (_currentUserId == null) return 0;
 
-    return await _chatService.getTotalUnreadCount(_currentUserId!);
+    try {
+      // Calculate total unread count from all conversations
+      int totalUnread = 0;
+      for (final conversation in _conversations) {
+        totalUnread += conversation.getUnreadCount(_currentUserId!);
+      }
+      return totalUnread;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get total unread count', e, stackTrace);
+      return 0;
+    }
   }
 
   /// Set user offline when logging out

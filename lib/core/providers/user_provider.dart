@@ -1,13 +1,15 @@
 import 'package:flutter/foundation.dart';
-import '../stubs/firebase_stubs.dart';
 import '../models/user_model.dart';
 import '../utils/logger.dart';
+import '../../services/user_service.dart';
+import '../../services/supabase_auth_service.dart';
+import '../../services/supabase_database_service.dart';
 
 class UserProvider with ChangeNotifier {
   static const String _tag = 'UserProvider';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Service instance
+  final UserService _userService = UserService.instance;
 
   UserModel? _currentUser;
   bool _isLoading = false;
@@ -38,7 +40,7 @@ class UserProvider with ChangeNotifier {
   // Fetch current user profile
   Future<void> fetchUserProfile() async {
     try {
-      final userId = _auth.currentUser?.uid;
+      final userId = SupabaseAuthService.currentUser?.id;
       if (userId == null) {
         AppLogger.warning(_tag, 'Cannot fetch profile: No user logged in');
         return;
@@ -48,16 +50,16 @@ class UserProvider with ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      final doc = await _firestore.collection('users').doc(userId).get();
+      final userMap = await _userService.getUserProfile(userId);
 
-      if (doc.exists) {
-        _currentUser = UserModel.fromFirestore(doc);
+      if (userMap != null) {
+        _currentUser = UserModel.fromMap(userMap);
         AppLogger.success(_tag, 'User profile fetched successfully', {
           'userId': userId,
           'name': _currentUser?.displayName,
         });
       } else {
-        AppLogger.warning(_tag, 'User profile not found in Firestore', {
+        AppLogger.warning(_tag, 'User profile not found', {
           'userId': userId,
         });
         // Create profile if doesn't exist
@@ -72,19 +74,19 @@ class UserProvider with ChangeNotifier {
     }
   }
 
-  // Create user profile in Firestore
+  // Create user profile
   Future<void> _createUserProfile() async {
     try {
-      final user = _auth.currentUser;
+      final user = SupabaseAuthService.currentUser;
       if (user == null) return;
 
-      AppLogger.debug(_tag, 'Creating user profile', {'userId': user.uid});
+      AppLogger.debug(_tag, 'Creating user profile', {'userId': user.id});
 
       final newUser = UserModel(
-        uid: user.uid,
+        uid: user.id,
         email: user.email ?? '',
-        displayName: user.displayName ?? 'User',
-        photoUrl: user.photoURL,
+        displayName: user.userMetadata?['full_name'] ?? 'User',
+        photoUrl: user.userMetadata?['avatar_url'],
         bio: '',
         interests: [],
         languages: ['English'],
@@ -96,12 +98,17 @@ class UserProvider with ChangeNotifier {
         updatedAt: DateTime.now(),
       );
 
-      await _firestore.collection('users').doc(user.uid).set(newUser.toMap());
+      await _userService.createUserProfile(
+        userId: user.id,
+        email: user.email ?? '',
+        fullName: user.userMetadata?['full_name'] ?? 'User',
+        avatarUrl: user.userMetadata?['avatar_url'],
+      );
 
       _currentUser = newUser;
 
       AppLogger.success(_tag, 'User profile created successfully', {
-        'userId': user.uid,
+        'userId': user.id,
       });
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to create user profile', e, stackTrace);
@@ -115,13 +122,12 @@ class UserProvider with ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      final updateData = updatedUser.toMap();
-      updateData['updatedAt'] = FieldValue.serverTimestamp();
-
-      await _firestore
-          .collection('users')
-          .doc(updatedUser.uid)
-          .update(updateData);
+      // Update profile using individual parameters
+      await _userService.updateUserProfile(
+        fullName: updatedUser.displayName,
+        bio: updatedUser.bio,
+        // Note: Other fields would need to be added based on UserModel structure
+      );
 
       _currentUser = updatedUser.copyWith(updatedAt: DateTime.now());
 
@@ -148,10 +154,15 @@ class UserProvider with ChangeNotifier {
       AppLogger.action('User toggling guide mode', {'isGuide': isGuide});
       _setLoading(true);
 
-      await _firestore.collection('users').doc(_currentUser!.uid).update({
-        'isGuide': isGuide,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // Use database service directly for custom fields
+      await SupabaseDatabaseService.update(
+        table: 'users',
+        id: _currentUser!.uid,
+        data: {
+          'is_guide': isGuide,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
+      );
 
       _currentUser = _currentUser!.copyWith(
         isGuide: isGuide,
