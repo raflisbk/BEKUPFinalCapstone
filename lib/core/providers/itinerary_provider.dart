@@ -1,26 +1,23 @@
 import 'package:flutter/foundation.dart';
-import '../models/itinerary_model.dart';
+import '../models/itinerary_model.dart' as itinerary;
 import '../models/destination_model.dart';
-import '../models/trip_model.dart';
+import '../models/trip_model.dart' hide ItineraryItem;
 import '../../services/itinerary_service.dart';
-import '../../services/trip_service.dart';
 
 /// Provider for managing travel itineraries and trip planning
 class ItineraryProvider with ChangeNotifier {
-  final ItineraryService _itineraryService = ItineraryService.instance;
-  final TripService _tripService = TripService.instance;
 
-  List<Itinerary> _itineraries = [];
-  Itinerary? _selectedItinerary;
-  List<ItineraryItem> _itineraryItems = [];
+  List<itinerary.Itinerary> _itineraries = [];
+  itinerary.Itinerary? _selectedItinerary;
+  List<itinerary.ItineraryItem> _itineraryItems = [];
   
   bool _isLoading = false;
   String? _error;
 
   // Trip planning state
   Trip? _currentTrip;
-  List<Destination> _selectedDestinations = [];
-  Map<String, List<ItineraryItem>> _dayPlans = {};
+  final List<Destination> _selectedDestinations = [];
+  final Map<String, List<itinerary.ItineraryItem>> _dayPlans = {};
   
   // AI-generated itinerary state
   bool _isGeneratingItinerary = false;
@@ -31,14 +28,14 @@ class ItineraryProvider with ChangeNotifier {
   List<Map<String, dynamic>> _routeOptimizations = [];
 
   // Getters
-  List<Itinerary> get itineraries => _itineraries;
-  Itinerary? get selectedItinerary => _selectedItinerary;
-  List<ItineraryItem> get itineraryItems => _itineraryItems;
+  List<itinerary.Itinerary> get itineraries => _itineraries;
+  itinerary.Itinerary? get selectedItinerary => _selectedItinerary;
+  List<itinerary.ItineraryItem> get itineraryItems => _itineraryItems;
   bool get isLoading => _isLoading;
   String? get error => _error;
   Trip? get currentTrip => _currentTrip;
   List<Destination> get selectedDestinations => _selectedDestinations;
-  Map<String, List<ItineraryItem>> get dayPlans => _dayPlans;
+  Map<String, List<itinerary.ItineraryItem>> get dayPlans => _dayPlans;
   bool get isGeneratingItinerary => _isGeneratingItinerary;
   Map<String, dynamic>? get generatedItinerary => _generatedItinerary;
   List<Map<String, dynamic>> get optimizationSuggestions => _optimizationSuggestions;
@@ -51,8 +48,16 @@ class ItineraryProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final itinerariesData = await _itineraryService.getUserItineraries();
-      _itineraries = itinerariesData.map((data) => Itinerary.fromMap(data)).toList();
+      // For now, we need a tripId to get itineraries
+      // This is a limitation of the current service design
+      if (_currentTrip?.id != null) {
+        final itinerariesData = await ItineraryService.getTripItineraries(_currentTrip!.id);
+        _itineraries = itinerariesData.map((data) => itinerary.Itinerary.fromMap(data)).toList();
+      } else {
+        // If no current trip, return empty list
+        _itineraries = [];
+      }
+      
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -69,15 +74,17 @@ class ItineraryProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final itineraryData = await _itineraryService.getItinerary(itineraryId);
-      _selectedItinerary = Itinerary.fromMap(itineraryData);
-      
-      // Load itinerary items
-      final itemsData = await _itineraryService.getItineraryItems(itineraryId);
-      _itineraryItems = itemsData.map((data) => ItineraryItem.fromMap(data)).toList();
-      
-      // Organize items by day
-      _organizeDayPlans();
+      final itineraryData = await ItineraryService.getItinerary(itineraryId);
+      if (itineraryData != null) {
+        _selectedItinerary = itinerary.Itinerary.fromMap(itineraryData);
+        
+        // Load itinerary items (activities)
+        final itemsData = await ItineraryService.getItineraryActivities(itineraryId);
+        _itineraryItems = itemsData.map((data) => itinerary.ItineraryItem.fromMap(data)).toList();
+        
+        // Organize items by day
+        _organizeDayPlans();
+      }
       
       _isLoading = false;
       notifyListeners();
@@ -89,7 +96,7 @@ class ItineraryProvider with ChangeNotifier {
   }
 
   /// Create a new itinerary
-  Future<Itinerary?> createItinerary({
+  Future<itinerary.Itinerary?> createItinerary({
     required String name,
     String? description,
     required DateTime startDate,
@@ -97,15 +104,14 @@ class ItineraryProvider with ChangeNotifier {
     String? tripId,
   }) async {
     try {
-      final itineraryData = await _itineraryService.createItinerary(
-        name: name,
+      final itineraryData = await ItineraryService.createItinerary(
+        tripId: tripId ?? '',
+        title: name,
         description: description,
-        startDate: startDate,
-        endDate: endDate,
-        tripId: tripId,
+        date: startDate,
       );
 
-      final newItinerary = Itinerary.fromMap(itineraryData);
+      final newItinerary = itinerary.Itinerary.fromMap(itineraryData);
       _itineraries.insert(0, newItinerary);
       notifyListeners();
 
@@ -126,17 +132,16 @@ class ItineraryProvider with ChangeNotifier {
     DateTime? endDate,
   }) async {
     try {
-      final updatedData = await _itineraryService.updateItinerary(
+      final updatedData = await ItineraryService.updateItinerary(
         itineraryId: itineraryId,
-        name: name,
+        title: name,
         description: description,
-        startDate: startDate,
-        endDate: endDate,
+        date: startDate,
       );
 
       final itineraryIndex = _itineraries.indexWhere((i) => i.id == itineraryId);
       if (itineraryIndex != -1) {
-        _itineraries[itineraryIndex] = Itinerary.fromMap(updatedData);
+        _itineraries[itineraryIndex] = itinerary.Itinerary.fromMap(updatedData);
         
         if (_selectedItinerary?.id == itineraryId) {
           _selectedItinerary = _itineraries[itineraryIndex];
@@ -153,7 +158,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Delete itinerary
   Future<void> deleteItinerary(String itineraryId) async {
     try {
-      await _itineraryService.deleteItinerary(itineraryId);
+      await ItineraryService.deleteItinerary(itineraryId);
       
       _itineraries.removeWhere((i) => i.id == itineraryId);
       
@@ -171,7 +176,7 @@ class ItineraryProvider with ChangeNotifier {
   }
 
   /// Add item to itinerary
-  Future<ItineraryItem?> addItineraryItem({
+  Future<itinerary.ItineraryItem?> addItineraryItem({
     required String itineraryId,
     required String title,
     String? description,
@@ -182,18 +187,18 @@ class ItineraryProvider with ChangeNotifier {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      final itemData = await _itineraryService.addItineraryItem(
+      final itemData = await ItineraryService.addActivity(
         itineraryId: itineraryId,
         title: title,
+        type: type ?? 'other',
         description: description,
+        location: location,
         startTime: startTime,
         endTime: endTime,
-        location: location,
-        type: type,
-        metadata: metadata,
+        details: metadata,
       );
 
-      final newItem = ItineraryItem.fromMap(itemData);
+      final newItem = itinerary.ItineraryItem.fromMap(itemData);
       _itineraryItems.add(newItem);
       _organizeDayPlans();
       notifyListeners();
@@ -218,20 +223,20 @@ class ItineraryProvider with ChangeNotifier {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      final updatedData = await _itineraryService.updateItineraryItem(
-        itemId: itemId,
+      final updatedData = await ItineraryService.updateActivity(
+        activityId: itemId,
         title: title,
+        type: type,
         description: description,
+        location: location,
         startTime: startTime,
         endTime: endTime,
-        location: location,
-        type: type,
-        metadata: metadata,
+        details: metadata,
       );
 
       final itemIndex = _itineraryItems.indexWhere((item) => item.id == itemId);
       if (itemIndex != -1) {
-        _itineraryItems[itemIndex] = ItineraryItem.fromMap(updatedData);
+        _itineraryItems[itemIndex] = itinerary.ItineraryItem.fromMap(updatedData);
         _organizeDayPlans();
         notifyListeners();
       }
@@ -244,7 +249,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Delete itinerary item
   Future<void> deleteItineraryItem(String itemId) async {
     try {
-      await _itineraryService.deleteItineraryItem(itemId);
+      await ItineraryService.deleteActivity(itemId);
       
       _itineraryItems.removeWhere((item) => item.id == itemId);
       _organizeDayPlans();
@@ -255,7 +260,7 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Generate AI-powered itinerary
+  /// Generate AI-powered itinerary (stub implementation)
   Future<void> generateAIItinerary({
     required String destination,
     required int days,
@@ -268,15 +273,18 @@ class ItineraryProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final generatedData = await _itineraryService.generateAIItinerary(
-        destination: destination,
-        days: days,
-        interests: interests,
-        budget: budget,
-        travelStyle: travelStyle,
-      );
-
-      _generatedItinerary = generatedData;
+      // Stub implementation - AI generation not available yet
+      await Future.delayed(const Duration(seconds: 2));
+      
+      _generatedItinerary = {
+        'destination': destination,
+        'days': days,
+        'interests': interests,
+        'budget': budget,
+        'travelStyle': travelStyle,
+        'generated_at': DateTime.now().toIso8601String(),
+      };
+      
       _isGeneratingItinerary = false;
       notifyListeners();
     } catch (e) {
@@ -286,21 +294,22 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Save generated itinerary as new itinerary
-  Future<Itinerary?> saveGeneratedItinerary({
+  /// Save generated itinerary as new itinerary (stub implementation)
+  Future<itinerary.Itinerary?> saveGeneratedItinerary({
     required String name,
     String? description,
   }) async {
     if (_generatedItinerary == null) return null;
 
     try {
-      final itineraryData = await _itineraryService.createItineraryFromGenerated(
-        generatedData: _generatedItinerary!,
-        name: name,
-        description: description,
+      // Stub implementation - create itinerary from generated data
+      final itineraryData = await ItineraryService.createItinerary(
+        tripId: '',
+        title: name,
+        description: description ?? 'Itinerary created from AI generation',
       );
 
-      final newItinerary = Itinerary.fromMap(itineraryData);
+      final newItinerary = itinerary.Itinerary.fromMap(itineraryData);
       _itineraries.insert(0, newItinerary);
       _generatedItinerary = null;
       notifyListeners();
@@ -316,8 +325,8 @@ class ItineraryProvider with ChangeNotifier {
   /// Optimize itinerary route
   Future<void> optimizeItineraryRoute(String itineraryId) async {
     try {
-      final optimizedData = await _itineraryService.optimizeItineraryRoute(itineraryId);
-      _routeOptimizations = List<Map<String, dynamic>>.from(optimizedData['optimizations'] ?? []);
+      final optimizedData = await ItineraryService.optimizeItineraryByLocation(itineraryId);
+      _routeOptimizations = optimizedData.map((item) => item).toList();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -325,11 +334,14 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Get itinerary suggestions
+  /// Get itinerary suggestions (stub implementation)
   Future<void> getItinerarySuggestions(String itineraryId) async {
     try {
-      final suggestionsData = await _itineraryService.getItinerarySuggestions(itineraryId);
-      _optimizationSuggestions = List<Map<String, dynamic>>.from(suggestionsData['suggestions'] ?? []);
+      // Stub implementation - no specific suggestion service available
+      _optimizationSuggestions = [
+        {'type': 'route', 'message': 'Consider optimizing route for better travel time'},
+        {'type': 'cost', 'message': 'Look for cost-saving alternatives'},
+      ];
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -337,11 +349,11 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Share itinerary
+  /// Share itinerary (stub implementation)
   Future<String?> shareItinerary(String itineraryId) async {
     try {
-      final shareData = await _itineraryService.shareItinerary(itineraryId);
-      return shareData['share_url'] as String?;
+      // Stub implementation - return mock share URL
+      return 'https://relink.app/shared/itinerary/$itineraryId';
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -349,20 +361,21 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Clone itinerary
-  Future<Itinerary?> cloneItinerary({
+  /// Clone itinerary (stub implementation)
+  Future<itinerary.Itinerary?> cloneItinerary({
     required String itineraryId,
     required String newName,
     String? newDescription,
   }) async {
     try {
-      final clonedData = await _itineraryService.cloneItinerary(
-        itineraryId: itineraryId,
-        newName: newName,
-        newDescription: newDescription,
+      // Stub implementation - create new itinerary with similar data
+      final itineraryData = await ItineraryService.createItinerary(
+        tripId: '',
+        title: newName,
+        description: newDescription ?? 'Cloned itinerary',
       );
 
-      final clonedItinerary = Itinerary.fromMap(clonedData);
+      final clonedItinerary = itinerary.Itinerary.fromMap(itineraryData);
       _itineraries.insert(0, clonedItinerary);
       notifyListeners();
 
@@ -377,7 +390,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Get itinerary statistics
   Future<Map<String, dynamic>?> getItineraryStats(String itineraryId) async {
     try {
-      return await _itineraryService.getItineraryStats(itineraryId);
+      return await ItineraryService.getItineraryStatistics(itineraryId);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -385,17 +398,14 @@ class ItineraryProvider with ChangeNotifier {
     }
   }
 
-  /// Export itinerary
+  /// Export itinerary (stub implementation)
   Future<String?> exportItinerary({
     required String itineraryId,
     required String format, // 'pdf', 'json', 'csv'
   }) async {
     try {
-      final exportData = await _itineraryService.exportItinerary(
-        itineraryId: itineraryId,
-        format: format,
-      );
-      return exportData['download_url'] as String?;
+      // Stub implementation - return mock download URL
+      return 'https://relink.app/export/itinerary/$itineraryId.$format';
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -427,7 +437,7 @@ class ItineraryProvider with ChangeNotifier {
   }
 
   /// Get items for specific day
-  List<ItineraryItem> getItemsForDay(DateTime date) {
+  List<itinerary.ItineraryItem> getItemsForDay(DateTime date) {
     final dayKey = _formatDateKey(date);
     return _dayPlans[dayKey] ?? [];
   }
@@ -439,7 +449,7 @@ class ItineraryProvider with ChangeNotifier {
   }
 
   /// Get upcoming items for today
-  List<ItineraryItem> get upcomingItems {
+  List<itinerary.ItineraryItem> get upcomingItems {
     final now = DateTime.now();
     return _itineraryItems
         .where((item) => item.startTime.isAfter(now))
