@@ -1,502 +1,499 @@
-import 'package:flutter/foundation.dart';
-import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/database/hive_service.dart';
-import '../../core/database/models/cached_data.dart';
-import '../../core/utils/connectivity_service.dart';
-import '../../core/models/trip_model.dart';
-import '../../core/models/destination_model.dart';
-import '../../core/models/review_model.dart';
-import '../../core/models/user_model.dart';
-import '../cache/trip_cache_service.dart';
-import '../cache/destination_cache_service.dart';
-import '../cache/review_cache_service.dart';
-import '../cache/profile_cache_service.dart';
-import 'conflict_resolver.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/logger.dart';
+import 'dart:convert';
 
-/// Manager for sync queue operations
+/// Service for managing offline sync queue - Supabase version
 class SyncQueueManager {
-  static final SyncQueueManager _instance = SyncQueueManager._internal();
-  factory SyncQueueManager() => _instance;
-  SyncQueueManager._internal();
+  static const String _tag = 'SyncQueueManager';
+  static SyncQueueManager? _instance;
 
-  final HiveService _hiveService = HiveService.instance;
-  final ConnectivityService _connectivityService = ConnectivityService.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final ConflictResolver _conflictResolver = ConflictResolver();
+  factory SyncQueueManager() {
+    return _instance ??= SyncQueueManager._();
+  }
 
-  // Cache services
-  final TripCacheService _tripCache = TripCacheService();
-  final DestinationCacheService _destCache = DestinationCacheService();
-  final ReviewCacheService _reviewCache = ReviewCacheService();
-  final ProfileCacheService _profileCache = ProfileCacheService();
+  SyncQueueManager._();
 
-  bool _isSyncing = false;
-  final _syncController = StreamController<SyncProgress>.broadcast();
+  final SupabaseClient _supabase = Supabase.instance.client;
+  bool _initialized = false;
 
-  /// Stream of sync progress
-  Stream<SyncProgress> get syncProgress => _syncController.stream;
-
-  /// Initialize sync queue manager
+  /// Initialize the sync queue manager
   Future<void> initialize() async {
+    if (_initialized) return;
+    
     try {
-      // Listen to connectivity changes
-      _connectivityService.onConnectivityChanged.listen((isOnline) {
-        if (isOnline) {
-          syncAll();
-        }
-      });
-
-      debugPrint('SyncQueueManager initialized');
+      // Test connection and ensure tables exist
+      await _supabase.from(_syncQueueTable).select('id').limit(1);
+      _initialized = true;
     } catch (e) {
-      debugPrint('Error initializing SyncQueueManager: $e');
+      // Tables may not exist yet, that's okay
+      _initialized = true;
     }
   }
+
+  // Table names
+  static const String _syncQueueTable = 'sync_queue';
+  static const String _conflictResolutionTable = 'sync_conflicts';
+
+  // Sync operation types
+  static const String operationCreate = 'CREATE';
+  static const String operationUpdate = 'UPDATE';
+  static const String operationDelete = 'DELETE';
 
   /// Add operation to sync queue
-  Future<void> addToQueue(SyncOperation operation) async {
+  Future<bool> addToQueue({
+    required String operation,
+    required String tableName,
+    required String recordId,
+    required Map<String, dynamic> data,
+    required String userId,
+    int priority = 1,
+  }) async {
     try {
-      final box = _hiveService.syncQueue;
-      await box.put(operation.id, operation);
-      
-      debugPrint('Added to sync queue: ${operation.type} ${operation.collection}/${operation.id}');
+      AppLogger.debug(_tag, 'Adding operation to sync queue', {
+        'operation': operation,
+        'tableName': tableName,
+        'recordId': recordId,
+        'priority': priority,
+      });
 
-      // Try to sync immediately if online
-      if (_connectivityService.isOnline) {
-        syncAll();
-      }
-    } catch (e) {
-      debugPrint('Error adding to sync queue: $e');
+      await _supabase
+          .from(_syncQueueTable)
+          .insert({
+            'operation': operation,
+            'table_name': tableName,
+            'record_id': recordId,
+            'data': data,
+            'user_id': userId,
+            'priority': priority,
+            'status': 'pending',
+            'retry_count': 0,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+
+      AppLogger.success(_tag, 'Operation added to sync queue');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to add operation to sync queue', e, stackTrace);
+      return false;
     }
   }
 
-  /// Sync all pending operations
-  Future<void> syncAll() async {
-    if (_isSyncing) {
-      debugPrint('Sync already in progress');
-      return;
-    }
-
-    if (!_connectivityService.isOnline) {
-      debugPrint('Cannot sync: offline');
-      return;
-    }
-
-    _isSyncing = true;
-    _syncController.add(SyncProgress(status: SyncStatus.syncing, progress: 0.0));
-
+  /// Process sync queue
+  Future<bool> processSyncQueue({String? userId, int batchSize = 10}) async {
     try {
-      final box = _hiveService.syncQueue;
-      final operations = <SyncOperation>[];
+      AppLogger.debug(_tag, 'Processing sync queue', {
+        'userId': userId,
+        'batchSize': batchSize,
+      });
 
-      // Get all operations sorted by priority
-      for (final key in box.keys) {
-        final data = box.get(key);
-        if (data is SyncOperation) {
-          operations.add(data);
-        } else if (data is Map) {
-          operations.add(SyncOperation.fromMap(Map<String, dynamic>.from(data)));
+      var query = _supabase
+          .from(_syncQueueTable)
+          .select()
+          .eq('status', 'pending')
+          .order('priority', ascending: false)
+          .order('created_at', ascending: true)
+          .limit(batchSize);
+
+      if (userId != null) {
+        query = query.eq('user_id', userId);
+      }
+
+      final pendingOperations = await query;
+
+      if (pendingOperations.isEmpty) {
+        AppLogger.debug(_tag, 'No pending operations in sync queue');
+        return true;
+      }
+
+      int successCount = 0;
+      int failureCount = 0;
+
+      for (final operation in pendingOperations) {
+        final success = await _processOperation(operation);
+        if (success) {
+          successCount++;
+        } else {
+          failureCount++;
         }
       }
 
-      if (operations.isEmpty) {
-        _syncController.add(SyncProgress(
-          status: SyncStatus.completed,
-          progress: 1.0,
-          message: 'No operations to sync',
-        ));
-        return;
+      AppLogger.success(_tag, 'Sync queue processed', {
+        'successful': successCount,
+        'failed': failureCount,
+      });
+
+      return failureCount == 0;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to process sync queue', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Process individual operation
+  Future<bool> _processOperation(Map<String, dynamic> operation) async {
+    try {
+      final operationType = operation['operation'] as String;
+      final tableName = operation['table_name'] as String;
+      final recordId = operation['record_id'] as String;
+      final data = operation['data'] as Map<String, dynamic>;
+      final queueId = operation['id'] as String;
+
+      AppLogger.debug(_tag, 'Processing operation', {
+        'type': operationType,
+        'table': tableName,
+        'recordId': recordId,
+      });
+
+      bool success = false;
+
+      switch (operationType) {
+        case operationCreate:
+          success = await _processCreateOperation(tableName, data);
+          break;
+        case operationUpdate:
+          success = await _processUpdateOperation(tableName, recordId, data);
+          break;
+        case operationDelete:
+          success = await _processDeleteOperation(tableName, recordId);
+          break;
+        default:
+          AppLogger.warning(_tag, 'Unknown operation type', {'type': operationType});
+          success = false;
       }
 
-      // Sort by priority (higher first)
-      operations.sort((a, b) => b.priority.compareTo(a.priority));
+      if (success) {
+        // Mark as completed
+        await _supabase
+            .from(_syncQueueTable)
+            .update({
+              'status': 'completed',
+              'completed_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
+            })
+            .eq('id', queueId);
+      } else {
+        // Increment retry count
+        final retryCount = (operation['retry_count'] as int? ?? 0) + 1;
+        const maxRetries = 3;
 
-      debugPrint('Syncing ${operations.length} operations...');
-
-      int completed = 0;
-      int failed = 0;
-
-      for (final operation in operations) {
-        try {
-          // Skip if max retries reached
-          if (operation.hasMaxRetries) {
-            debugPrint('Operation ${operation.id} exceeded max retries, skipping');
-            failed++;
-            continue;
-          }
-
-          final success = await _syncOperation(operation);
-
-          if (success) {
-            await box.delete(operation.id);
-            completed++;
-            debugPrint('Synced: ${operation.type} ${operation.collection}/${operation.id}');
-          } else {
-            // Increment retry count
-            operation.incrementRetry('Sync failed');
-            await box.put(operation.id, operation);
-            failed++;
-          }
-
-          // Update progress
-          final progress = (completed + failed) / operations.length;
-          _syncController.add(SyncProgress(
-            status: SyncStatus.syncing,
-            progress: progress,
-            message: 'Synced $completed/${operations.length}',
-            completed: completed,
-            failed: failed,
-            total: operations.length,
-          ));
-        } catch (e) {
-          debugPrint('Error syncing operation ${operation.id}: $e');
-          operation.incrementRetry(e.toString());
-          await box.put(operation.id, operation);
-          failed++;
+        if (retryCount >= maxRetries) {
+          await _supabase
+              .from(_syncQueueTable)
+              .update({
+                'status': 'failed',
+                'retry_count': retryCount,
+                'error_message': 'Max retries exceeded',
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', queueId);
+        } else {
+          await _supabase
+              .from(_syncQueueTable)
+              .update({
+                'retry_count': retryCount,
+                'updated_at': DateTime.now().toIso8601String(),
+              })
+              .eq('id', queueId);
         }
       }
 
-      _syncController.add(SyncProgress(
-        status: SyncStatus.completed,
-        progress: 1.0,
-        message: 'Sync completed: $completed succeeded, $failed failed',
-        completed: completed,
-        failed: failed,
-        total: operations.length,
-      ));
-
-      debugPrint('Sync completed: $completed succeeded, $failed failed');
-    } catch (e) {
-      debugPrint('Error during sync: $e');
-      _syncController.add(SyncProgress(
-        status: SyncStatus.error,
-        progress: 0.0,
-        message: 'Sync error: $e',
-      ));
-    } finally {
-      _isSyncing = false;
-    }
-  }
-
-  /// Sync single operation
-  Future<bool> _syncOperation(SyncOperation operation) async {
-    try {
-      switch (operation.collection) {
-        case 'trips':
-          return await _syncTrip(operation);
-        case 'destinations':
-          return await _syncDestination(operation);
-        case 'reviews':
-          return await _syncReview(operation);
-        case 'profiles':
-          return await _syncProfile(operation);
-        default:
-          debugPrint('Unknown collection: ${operation.collection}');
-          return false;
-      }
-    } catch (e) {
-      debugPrint('Error syncing operation: $e');
+      return success;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to process operation', e, stackTrace);
       return false;
     }
   }
 
-  /// Sync trip operation
-  Future<bool> _syncTrip(SyncOperation operation) async {
+  /// Process CREATE operation
+  Future<bool> _processCreateOperation(String tableName, Map<String, dynamic> data) async {
     try {
-      final ref = _firestore.collection('trips').doc(operation.id);
+      await _supabase
+          .from(tableName)
+          .insert(data);
 
-      switch (operation.type) {
-        case 'create':
-        case 'update':
-          // Get local data
-          final localTrip = await _tripCache.getCachedTrip(operation.id);
-          if (localTrip == null) {
-            debugPrint('Local trip not found: ${operation.id}');
-            return false;
-          }
-
-          // Check for conflicts
-          final remoteDoc = await ref.get();
-          if (remoteDoc.exists && operation.type == 'update') {
-            final remoteTrip = Trip.fromFirestore(remoteDoc);
-            final resolution = _conflictResolver.resolve(
-              localData: localTrip.toMap(),
-              remoteData: remoteTrip.toMap(),
-              strategy: _conflictResolver.getStrategyForEntity('trip'),
-            );
-
-            if (resolution.wasConflict) {
-              debugPrint('Conflict resolved for trip ${operation.id}: ${resolution.reason}');
-            }
-
-            final resolvedTrip = Trip.fromMap(resolution.data);
-            await ref.set(resolvedTrip.toFirestore());
-            await _tripCache.updateCachedTrip(resolvedTrip);
-          } else {
-            // No conflict, just upload
-            await ref.set(localTrip.toFirestore());
-          }
-
-          // Mark as synced
-          await _tripCache.markTripSynced(operation.id);
-          return true;
-
-        case 'delete':
-          await ref.delete();
-          await _tripCache.deleteCachedTrip(operation.id);
-          return true;
-
-        default:
-          debugPrint('Unknown operation type: ${operation.type}');
-          return false;
-      }
+      return true;
     } catch (e) {
-      debugPrint('Error syncing trip: $e');
+      AppLogger.error(_tag, 'Failed to process CREATE operation', e);
       return false;
     }
   }
 
-  /// Sync destination operation
-  Future<bool> _syncDestination(SyncOperation operation) async {
+  /// Process UPDATE operation
+  Future<bool> _processUpdateOperation(String tableName, String recordId, Map<String, dynamic> data) async {
     try {
-      final ref = _firestore.collection('destinations').doc(operation.id);
+      await _supabase
+          .from(tableName)
+          .update(data)
+          .eq('id', recordId);
 
-      switch (operation.type) {
-        case 'create':
-        case 'update':
-          final localDest = await _destCache.getCachedDestination(operation.id);
-          if (localDest == null) return false;
-
-          final remoteDoc = await ref.get();
-          if (remoteDoc.exists && operation.type == 'update') {
-            final remoteDest = Destination.fromFirestore(remoteDoc);
-            final resolution = _conflictResolver.resolve(
-              localData: localDest.toMap(),
-              remoteData: remoteDest.toMap(),
-              strategy: _conflictResolver.getStrategyForEntity('destination'),
-            );
-
-            final resolvedDest = Destination.fromMap(resolution.data);
-            await ref.set(resolvedDest.toFirestore());
-            await _destCache.updateCachedDestination(resolvedDest);
-          } else {
-            await ref.set(localDest.toFirestore());
-          }
-
-          await _destCache.markDestinationSynced(operation.id);
-          return true;
-
-        case 'delete':
-          await ref.delete();
-          await _destCache.deleteCachedDestination(operation.id);
-          return true;
-
-        default:
-          return false;
-      }
+      return true;
     } catch (e) {
-      debugPrint('Error syncing destination: $e');
+      AppLogger.error(_tag, 'Failed to process UPDATE operation', e);
       return false;
     }
   }
 
-  /// Sync review operation
-  Future<bool> _syncReview(SyncOperation operation) async {
+  /// Process DELETE operation
+  Future<bool> _processDeleteOperation(String tableName, String recordId) async {
     try {
-      final ref = _firestore.collection('reviews').doc(operation.id);
+      await _supabase
+          .from(tableName)
+          .delete()
+          .eq('id', recordId);
 
-      switch (operation.type) {
-        case 'create':
-        case 'update':
-          final localReview = await _reviewCache.getCachedReview(operation.id);
-          if (localReview == null) return false;
-
-          final remoteDoc = await ref.get();
-          if (remoteDoc.exists && operation.type == 'update') {
-            final remoteReview = DestinationReview.fromFirestore(remoteDoc);
-            final resolution = _conflictResolver.resolve(
-              localData: localReview.toMap(),
-              remoteData: remoteReview.toMap(),
-              strategy: _conflictResolver.getStrategyForEntity('review'),
-            );
-
-            final resolvedReview = DestinationReview.fromMap(resolution.data);
-            await ref.set(resolvedReview.toFirestore());
-            await _reviewCache.updateCachedReview(resolvedReview);
-          } else {
-            await ref.set(localReview.toFirestore());
-          }
-
-          await _reviewCache.markReviewSynced(operation.id);
-          return true;
-
-        case 'delete':
-          await ref.delete();
-          await _reviewCache.deleteCachedReview(operation.id);
-          return true;
-
-        default:
-          return false;
-      }
+      return true;
     } catch (e) {
-      debugPrint('Error syncing review: $e');
+      AppLogger.error(_tag, 'Failed to process DELETE operation', e);
       return false;
     }
   }
 
-  /// Sync profile operation
-  Future<bool> _syncProfile(SyncOperation operation) async {
+  /// Get sync queue status
+  Future<Map<String, int>> getSyncQueueStatus({String? userId}) async {
     try {
-      final ref = _firestore.collection('users').doc(operation.id);
+      var query = _supabase
+          .from(_syncQueueTable)
+          .select('status', const FetchOptions(count: CountOption.exact));
 
-      switch (operation.type) {
-        case 'create':
-        case 'update':
-          final localProfile = await _profileCache.getCachedProfile(operation.id);
-          if (localProfile == null) return false;
-
-          final remoteDoc = await ref.get();
-          if (remoteDoc.exists && operation.type == 'update') {
-            final remoteProfile = UserModel.fromFirestore(remoteDoc);
-            final resolution = _conflictResolver.resolve(
-              localData: localProfile.toJson(),
-              remoteData: remoteProfile.toJson(),
-              strategy: _conflictResolver.getStrategyForEntity('profile'),
-            );
-
-            final resolvedProfile = UserModel.fromMap(resolution.data);
-            await ref.set(resolvedProfile.toMap());
-            await _profileCache.updateCachedProfile(resolvedProfile);
-          } else {
-            await ref.set(localProfile.toMap());
-          }
-
-          await _profileCache.markProfileSynced(operation.id);
-          return true;
-
-        case 'delete':
-          await ref.delete();
-          await _profileCache.deleteCachedProfile(operation.id);
-          return true;
-
-        default:
-          return false;
+      if (userId != null) {
+        query = query.eq('user_id', userId);
       }
-    } catch (e) {
-      debugPrint('Error syncing profile: $e');
+
+      final results = await query;
+
+      final status = <String, int>{
+        'pending': 0,
+        'completed': 0,
+        'failed': 0,
+      };
+
+      for (final result in results) {
+        final statusValue = result['status'] as String;
+        status[statusValue] = (status[statusValue] ?? 0) + 1;
+      }
+
+      return status;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get sync queue status', e, stackTrace);
+      return {'pending': 0, 'completed': 0, 'failed': 0};
+    }
+  }
+
+  /// Clear completed operations from queue
+  Future<bool> clearCompletedOperations({String? userId, int olderThanDays = 7}) async {
+    try {
+      final cutoffDate = DateTime.now().subtract(Duration(days: olderThanDays));
+
+      var query = _supabase
+          .from(_syncQueueTable)
+          .delete()
+          .eq('status', 'completed')
+          .lt('completed_at', cutoffDate.toIso8601String());
+
+      if (userId != null) {
+        query = query.eq('user_id', userId);
+      }
+
+      await query;
+
+      AppLogger.success(_tag, 'Completed operations cleared from queue');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to clear completed operations', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Retry failed operations
+  Future<bool> retryFailedOperations({String? userId}) async {
+    try {
+      var query = _supabase
+          .from(_syncQueueTable)
+          .update({
+            'status': 'pending',
+            'retry_count': 0,
+            'error_message': null,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('status', 'failed');
+
+      if (userId != null) {
+        query = query.eq('user_id', userId);
+      }
+
+      await query;
+
+      AppLogger.success(_tag, 'Failed operations reset for retry');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to retry failed operations', e, stackTrace);
       return false;
     }
   }
 
   /// Get pending operations count
-  int getPendingCount() {
+  Future<int> getPendingOperationsCount({String? userId}) async {
     try {
-      return _hiveService.syncQueue.length;
-    } catch (e) {
-      debugPrint('Error getting pending count: $e');
+      var query = _supabase
+          .from(_syncQueueTable)
+          .select('id', const FetchOptions(count: CountOption.exact))
+          .eq('status', 'pending');
+
+      if (userId != null) {
+        query = query.eq('user_id', userId);
+      }
+
+      final result = await query;
+      return result.length;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get pending operations count', e, stackTrace);
       return 0;
     }
   }
 
-  /// Get sync queue statistics
-  Map<String, dynamic> getStats() {
+  /// Check if sync is needed
+  Future<bool> isSyncNeeded({String? userId}) async {
+    final pendingCount = await getPendingOperationsCount(userId: userId);
+    return pendingCount > 0;
+  }
+
+  /// Handle sync conflicts
+  Future<bool> handleSyncConflict({
+    required String tableName,
+    required String recordId,
+    required Map<String, dynamic> localData,
+    required Map<String, dynamic> remoteData,
+    required String resolutionType, // 'local', 'remote', 'merge'
+  }) async {
     try {
-      final box = _hiveService.syncQueue;
-      final operations = <SyncOperation>[];
+      AppLogger.debug(_tag, 'Handling sync conflict', {
+        'table': tableName,
+        'recordId': recordId,
+        'resolutionType': resolutionType,
+      });
 
-      for (final key in box.keys) {
-        final data = box.get(key);
-        if (data is SyncOperation) {
-          operations.add(data);
-        } else if (data is Map) {
-          operations.add(SyncOperation.fromMap(Map<String, dynamic>.from(data)));
-        }
+      // Log the conflict
+      await _supabase
+          .from(_conflictResolutionTable)
+          .insert({
+            'table_name': tableName,
+            'record_id': recordId,
+            'local_data': localData,
+            'remote_data': remoteData,
+            'resolution_type': resolutionType,
+            'resolved_at': DateTime.now().toIso8601String(),
+            'created_at': DateTime.now().toIso8601String(),
+          });
+
+      Map<String, dynamic> finalData;
+
+      switch (resolutionType) {
+        case 'local':
+          finalData = localData;
+          break;
+        case 'remote':
+          finalData = remoteData;
+          break;
+        case 'merge':
+          finalData = {...remoteData, ...localData}; // Simple merge - local wins
+          break;
+        default:
+          finalData = remoteData; // Default to remote
       }
 
-      int pending = 0;
-      int failed = 0;
-      
-      for (final op in operations) {
-        if (op.hasMaxRetries) {
-          failed++;
-        } else {
-          pending++;
+      // Apply the resolution
+      await _supabase
+          .from(tableName)
+          .update(finalData)
+          .eq('id', recordId);
+
+      AppLogger.success(_tag, 'Sync conflict resolved');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to handle sync conflict', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Start periodic sync
+  Future<void> startPeriodicSync({
+    Duration interval = const Duration(minutes: 5),
+    String? userId,
+  }) async {
+    AppLogger.info(_tag, 'Starting periodic sync', {
+      'interval': interval.inMinutes,
+      'userId': userId,
+    });
+
+    // Note: In a real implementation, you'd want to use a proper background task scheduler
+    // This is a simplified version for demonstration
+    while (true) {
+      try {
+        await Future.delayed(interval);
+        
+        if (await isSyncNeeded(userId: userId)) {
+          await processSyncQueue(userId: userId);
         }
+      } catch (e) {
+        AppLogger.error(_tag, 'Error in periodic sync', e);
       }
+    }
+  }
+
+  /// Sync all pending operations
+  Future<void> syncAll({String? userId}) async {
+    await processSyncQueue(userId: userId);
+  }
+
+  /// Get sync statistics
+  Future<Map<String, dynamic>> getStats({String? userId}) async {
+    try {
+      final pendingCount = await getPendingOperationsCount(userId: userId);
+      final failedCount = await _supabase
+          .from(_syncQueueTable)
+          .select('id')
+          .eq('status', 'failed')
+          .then((response) => response.length);
 
       return {
-        'total': operations.length,
-        'pending': pending,
-        'failed': failed,
-        'isSyncing': _isSyncing,
+        'pending': pendingCount,
+        'failed': failedCount,
+        'total': pendingCount + failedCount,
       };
     } catch (e) {
-      debugPrint('Error getting sync stats: $e');
-      return {
-        'total': 0,
-        'pending': 0,
-        'failed': 0,
-        'isSyncing': false,
-      };
+      return {'pending': 0, 'failed': 0, 'total': 0};
     }
+  }
+
+  /// Get pending operations count
+  Future<int> getPendingCount({String? userId}) async {
+    return await getPendingOperationsCount(userId: userId);
   }
 
   /// Clear failed operations
-  Future<void> clearFailed() async {
+  Future<void> clearFailed({String? userId}) async {
     try {
-      final box = _hiveService.syncQueue;
-      final keys = box.keys.toList();
+      var query = _supabase
+          .from(_syncQueueTable)
+          .delete()
+          .eq('status', 'failed');
 
-      for (final key in keys) {
-        final data = box.get(key);
-        SyncOperation? operation;
-        
-        if (data is SyncOperation) {
-          operation = data;
-        } else if (data is Map) {
-          operation = SyncOperation.fromMap(Map<String, dynamic>.from(data));
-        }
-
-        if (operation != null && operation.hasMaxRetries) {
-          await box.delete(key);
-        }
+      if (userId != null) {
+        query = query.eq('user_id', userId);
       }
 
-      debugPrint('Failed operations cleared');
+      await query;
     } catch (e) {
-      debugPrint('Error clearing failed operations: $e');
+      AppLogger.error(_tag, 'Failed to clear failed operations', e);
     }
   }
 
-  /// Dispose resources
-  void dispose() {
-    _syncController.close();
+  /// Sync progress stream (placeholder)
+  Stream<Map<String, dynamic>> get syncProgress async* {
+    while (true) {
+      yield await getStats();
+      await Future.delayed(const Duration(seconds: 5));
+    }
   }
-}
-
-/// Sync progress information
-class SyncProgress {
-  final SyncStatus status;
-  final double progress; // 0.0 to 1.0
-  final String? message;
-  final int? completed;
-  final int? failed;
-  final int? total;
-
-  SyncProgress({
-    required this.status,
-    required this.progress,
-    this.message,
-    this.completed,
-    this.failed,
-    this.total,
-  });
-}
-
-/// Sync status
-enum SyncStatus {
-  idle,
-  syncing,
-  completed,
-  error,
 }

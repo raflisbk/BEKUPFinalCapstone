@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import '../../core/stubs/firebase_stubs.dart';
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/add_edit_destination_ui_provider.dart';

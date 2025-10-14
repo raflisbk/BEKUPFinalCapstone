@@ -1,26 +1,22 @@
 import 'dart:convert';
 import 'dart:math';
-import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/config/env_config.dart';
+import '../../core/config/supabase_config.dart';
 import '../../core/utils/logger.dart';
 import '../../core/models/route_model.dart';
+import '../maps/mapbox_directions_service.dart';
 import './gemini_service.dart';
 
-/// AI-powered route planning service with Google Directions API integration
+/// AI-powered route planning service with Mapbox integration (FREE tier: 100K directions/month)
 class AIRoutePlanningService {
   static const String _tag = 'AIRoutePlanningService';
   static final AIRoutePlanningService _instance = AIRoutePlanningService._internal();
   factory AIRoutePlanningService() => _instance;
   AIRoutePlanningService._internal();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GeminiService _geminiService = GeminiService();
-  
-  late final String _googleMapsApiKey;
   bool _isInitialized = false;
 
-  /// Initialize the service with API keys
+  /// Initialize the service - now FREE with OpenStreetMap
   Future<void> initialize() async {
     if (_isInitialized) {
       AppLogger.debug(_tag, 'Already initialized');
@@ -28,16 +24,14 @@ class AIRoutePlanningService {
     }
 
     try {
-      _googleMapsApiKey = EnvConfig.googleMapsApiKey;
+      // Initialize Supabase connection
+      await SupabaseConfig.initialize();
       
-      if (_googleMapsApiKey.isEmpty) {
-        throw Exception('GOOGLE_MAPS_API_KEY not found in .env file');
-      }
-
+      // Initialize Gemini AI service
       await _geminiService.initialize();
       _isInitialized = true;
       
-      AppLogger.info(_tag, 'AI Route Planning Service initialized successfully');
+      AppLogger.info(_tag, 'AI Route Planning Service initialized successfully (Mapbox FREE tier)');
     } catch (e) {
       AppLogger.error(_tag, 'Failed to initialize AI Route Planning Service', e);
       rethrow;
@@ -63,8 +57,8 @@ class AIRoutePlanningService {
         origin, destination, waypoints, travelMode, optimization
       );
 
-      // Get route directions from Google Directions API
-      final directions = await _getDirections(
+      // Get route directions from Mapbox (FREE tier: 100K/month)
+      final directions = await _getDirectionsFromMapbox(
         origin, destination, optimizedWaypoints, travelMode, optimization
       );
 
@@ -99,11 +93,14 @@ class AIRoutePlanningService {
         isActive: true,
       );
 
-      // Save to Firestore
-      final docRef = await _firestore.collection('route_plans').add(routePlan.toMap());
-      final savedRoutePlan = routePlan.copyWith();
+      // Save to Supabase (FREE)
+      final routeData = routePlan.toMap();
+      routeData.remove('id'); // Remove id to let Supabase generate it
       
-      AppLogger.success(_tag, 'Route plan created successfully: ${docRef.id}');
+      final result = await SupabaseConfig.table('route_plans').insert(routeData).select().single();
+      final savedRoutePlan = routePlan.copyWith(id: result['id'].toString());
+      
+      AppLogger.success(_tag, 'Route plan created successfully: ${savedRoutePlan.id}');
       return savedRoutePlan;
 
     } catch (e) {
@@ -226,8 +223,8 @@ Return only the optimized waypoint names in order, one per line.
     }
   }
 
-  /// Get directions from Google Directions API
-  Future<Map<String, dynamic>> _getDirections(
+  /// Get directions from Mapbox Directions API (FREE tier: 100K requests/month)
+  Future<Map<String, dynamic>> _getDirectionsFromMapbox(
     RouteLocation origin,
     RouteLocation destination,
     List<RouteLocation> waypoints,
@@ -235,77 +232,60 @@ Return only the optimized waypoint names in order, one per line.
     RouteOptimization optimization,
   ) async {
     try {
-      AppLogger.debug(_tag, 'Getting directions from Google Directions API');
+      AppLogger.debug(_tag, 'Getting directions from Mapbox (FREE tier)');
 
-      final waypointsParam = waypoints.isNotEmpty
-          ? waypoints.map((wp) => '${wp.latitude},${wp.longitude}').join('|')
-          : '';
+      // Convert waypoints to coordinates for Mapbox (lng, lat format)
+      final waypointCoords = waypoints.map((wp) => [wp.longitude, wp.latitude]).toList();
 
-      final avoid = _getAvoidParameter(optimization);
-      
-      final url = Uri.parse('https://maps.googleapis.com/maps/api/directions/json'
-          '?origin=${origin.latitude},${origin.longitude}'
-          '&destination=${destination.latitude},${destination.longitude}'
-          '${waypointsParam.isNotEmpty ? '&waypoints=$waypointsParam' : ''}'
-          '&mode=${travelMode.value}'
-          '&optimize=${optimization == RouteOptimization.fastest ? 'true' : 'false'}'
-          '${avoid.isNotEmpty ? '&avoid=$avoid' : ''}'
-          '&key=$_googleMapsApiKey');
-
-      final response = await http.get(url);
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        
-        if (data['status'] == 'OK' && data['routes'].isNotEmpty) {
-          final route = data['routes'][0];
-          final leg = route['legs'][0];
-
-          final steps = <RouteStep>[];
-          for (final step in leg['steps']) {
-            steps.add(RouteStep(
-              instruction: step['html_instructions'].replaceAll(RegExp(r'<[^>]*>'), ''),
-              distance: step['distance']['text'],
-              duration: step['duration']['text'],
-              startLocation: RouteLocation(
-                id: 'start_${steps.length}',
-                name: 'Start Point',
-                address: '',
-                latitude: step['start_location']['lat'].toDouble(),
-                longitude: step['start_location']['lng'].toDouble(),
-              ),
-              endLocation: RouteLocation(
-                id: 'end_${steps.length}',
-                name: 'End Point',
-                address: '',
-                latitude: step['end_location']['lat'].toDouble(),
-                longitude: step['end_location']['lng'].toDouble(),
-              ),
-              maneuver: step['maneuver'],
-              polylinePoints: _decodePolyline(step['polyline']['points']),
-            ));
-          }
-
-          AppLogger.success(_tag, 'Directions obtained successfully');
-          return {
-            'steps': steps,
-            'totalDistance': leg['distance']['text'],
-            'totalDuration': leg['duration']['text'],
-            'metadata': {
-              'polyline': route['overview_polyline']['points'],
-              'bounds': route['bounds'],
-              'copyrights': route['copyrights'],
-            },
-          };
-        } else {
-          throw Exception('No routes found: ${data['status']}');
-        }
-      } else {
-        throw Exception('Directions API error: ${response.statusCode}');
+      // Map travel mode to Mapbox profile
+      String profile = 'driving';
+      switch (travelMode) {
+        case TravelMode.driving:
+          profile = 'driving';
+          break;
+        case TravelMode.walking:
+          profile = 'walking';
+          break;
+        case TravelMode.bicycling:
+          profile = 'cycling';
+          break;
+        case TravelMode.transit:
+          profile = 'driving-traffic'; // Use traffic-aware routing for transit
+          break;
       }
+
+      // Set avoid parameters based on optimization
+      final avoidTolls = optimization == RouteOptimization.avoidTolls;
+      final avoidHighways = optimization == RouteOptimization.avoidHighways;
+
+      // Get directions from Mapbox
+      final directions = await MapboxDirectionsService.getDirections(
+        startLat: origin.latitude,
+        startLng: origin.longitude,
+        endLat: destination.latitude,
+        endLng: destination.longitude,
+        travelMode: profile,
+        waypoints: waypointCoords,
+        avoidTolls: avoidTolls,
+        avoidHighways: avoidHighways,
+        includeSteps: true,
+        includeGeometry: true,
+        language: 'en',
+      );
+
+      AppLogger.success(_tag, 'Directions obtained successfully from Mapbox');
+      return directions;
+
     } catch (e) {
-      AppLogger.error(_tag, 'Failed to get directions', e);
-      rethrow;
+      AppLogger.error(_tag, 'Failed to get directions from Mapbox', e);
+      return {
+        'totalDistance': '0 km',
+        'totalDuration': '0 min',
+        'steps': <RouteStep>[],
+        'polylinePoints': <RoutePoint>[],
+        'bbox': [],
+        'metadata': {},
+      };
     }
   }
 
@@ -488,18 +468,19 @@ Format as JSON array with objects containing: title, description, reasoning, pri
     }
   }
 
-  /// Get route plans for a specific trip
+  /// Get route plans for a specific trip from Supabase
   Future<List<RoutePlan>> getRoutePlansForTrip(String tripId) async {
     try {
       AppLogger.debug(_tag, 'Getting route plans for trip: $tripId');
 
-      final snapshot = await _firestore
-          .collection('route_plans')
-          .where('tripId', isEqualTo: tripId)
-          .orderBy('createdAt', descending: true)
-          .get();
+      final response = await SupabaseConfig.table('route_plans')
+          .select()
+          .eq('tripId', tripId)
+          .order('createdAt', ascending: false);
 
-      final routes = snapshot.docs.map((doc) => RoutePlan.fromFirestore(doc)).toList();
+      final routes = (response as List)
+          .map((data) => RoutePlan.fromMap(data))
+          .toList();
       
       AppLogger.success(_tag, 'Retrieved ${routes.length} route plans for trip');
       return routes;
@@ -510,7 +491,7 @@ Format as JSON array with objects containing: title, description, reasoning, pri
     }
   }
 
-  /// Update an existing route plan
+  /// Update an existing route plan in Supabase
   Future<RoutePlan?> updateRoutePlan(
     String routeId,
     Map<String, dynamic> updates,
@@ -518,34 +499,35 @@ Format as JSON array with objects containing: title, description, reasoning, pri
     try {
       AppLogger.debug(_tag, 'Updating route plan: $routeId');
 
-      await _firestore
-          .collection('route_plans')
-          .doc(routeId)
-          .update({
+      final updateData = {
         ...updates,
-        'lastModified': Timestamp.now(),
-      });
+        'lastModified': DateTime.now().toIso8601String(),
+      };
 
-      final doc = await _firestore.collection('route_plans').doc(routeId).get();
-      if (doc.exists) {
-        final updatedRoute = RoutePlan.fromFirestore(doc);
-        AppLogger.success(_tag, 'Route plan updated successfully');
-        return updatedRoute;
-      }
+      final response = await SupabaseConfig.table('route_plans')
+          .update(updateData)
+          .eq('id', routeId)
+          .select()
+          .single();
 
-      return null;
+      final updatedRoute = RoutePlan.fromMap(response);
+      AppLogger.success(_tag, 'Route plan updated successfully');
+      return updatedRoute;
+
     } catch (e) {
       AppLogger.error(_tag, 'Failed to update route plan', e);
       return null;
     }
   }
 
-  /// Delete a route plan
+  /// Delete a route plan from Supabase
   Future<bool> deleteRoutePlan(String routeId) async {
     try {
       AppLogger.debug(_tag, 'Deleting route plan: $routeId');
 
-      await _firestore.collection('route_plans').doc(routeId).delete();
+      await SupabaseConfig.table('route_plans')
+          .delete()
+          .eq('id', routeId);
       
       AppLogger.success(_tag, 'Route plan deleted successfully');
       return true;
@@ -557,17 +539,6 @@ Format as JSON array with objects containing: title, description, reasoning, pri
   }
 
   /// Helper methods
-  String _getAvoidParameter(RouteOptimization optimization) {
-    switch (optimization) {
-      case RouteOptimization.avoidTolls:
-        return 'tolls';
-      case RouteOptimization.avoidHighways:
-        return 'highways';
-      default:
-        return '';
-    }
-  }
-
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
     const double earthRadius = 6371; // km
     final double dLat = (lat2 - lat1) * (pi / 180);
@@ -582,53 +553,5 @@ Format as JSON array with objects containing: title, description, reasoning, pri
     final regex = RegExp(r'[\d.]+');
     final match = regex.firstMatch(text);
     return match != null ? double.tryParse(match.group(0)!) ?? 0.0 : 0.0;
-  }
-
-  List<RouteLocation> _decodePolyline(String encoded) {
-    // Simplified polyline decoding - in production, use a proper library
-    // This is a basic implementation for demonstration
-    final points = <RouteLocation>[];
-    int index = 0;
-    int lat = 0;
-    int lng = 0;
-    int pointIndex = 0;
-
-    while (index < encoded.length) {
-      int shift = 0;
-      int result = 0;
-      int byte;
-      
-      do {
-        byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20);
-      
-      int deltaLat = ((result & 1) == 1 ? ~(result >> 1) : (result >> 1));
-      lat += deltaLat;
-
-      shift = 0;
-      result = 0;
-      
-      do {
-        byte = encoded.codeUnitAt(index++) - 63;
-        result |= (byte & 0x1f) << shift;
-        shift += 5;
-      } while (byte >= 0x20);
-      
-      int deltaLng = ((result & 1) == 1 ? ~(result >> 1) : (result >> 1));
-      lng += deltaLng;
-
-      points.add(RouteLocation(
-        id: 'polyline_$pointIndex',
-        name: 'Route Point',
-        address: '',
-        latitude: lat / 1E5,
-        longitude: lng / 1E5,
-      ));
-      pointIndex++;
-    }
-
-    return points;
   }
 }

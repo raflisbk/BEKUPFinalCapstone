@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/user_model.dart';
 import '../core/utils/logger.dart';
 
@@ -6,23 +6,27 @@ import '../core/utils/logger.dart';
 class UserService {
   static const String _tag = 'UserService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  CollectionReference get _usersCollection => _firestore.collection('users');
+  static const String _tableName = 'users';
 
   /// Get user by ID
   Future<UserModel?> getUserById(String userId) async {
     try {
       AppLogger.debug(_tag, 'Fetching user by ID', {'userId': userId});
 
-      final doc = await _usersCollection.doc(userId).get();
+      final response = await _supabase
+          .from(_tableName)
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
 
-      if (!doc.exists) {
+      if (response == null) {
         AppLogger.warning(_tag, 'User not found', {'userId': userId});
         return null;
       }
 
-      final user = UserModel.fromFirestore(doc);
+      final user = UserModel.fromSupabase(response);
       AppLogger.info(_tag, 'User fetched successfully');
       return user;
     } catch (e, stackTrace) {
@@ -40,21 +44,14 @@ class UserService {
         'count': userIds.length,
       });
 
-      // Firestore 'in' query has a limit of 10 items
-      // Split into batches if needed
-      final List<UserModel> users = [];
+      final response = await _supabase
+          .from(_tableName)
+          .select()
+          .inFilter('id', userIds);
 
-      for (int i = 0; i < userIds.length; i += 10) {
-        final batch = userIds.skip(i).take(10).toList();
-
-        final querySnapshot = await _usersCollection
-            .where(FieldPath.documentId, whereIn: batch)
-            .get();
-
-        users.addAll(
-          querySnapshot.docs.map((doc) => UserModel.fromFirestore(doc)).toList(),
-        );
-      }
+      final users = (response as List<dynamic>)
+          .map((data) => UserModel.fromSupabase(data))
+          .toList();
 
       AppLogger.info(_tag, 'Users fetched successfully', {
         'requested': userIds.length,
@@ -75,17 +72,16 @@ class UserService {
 
       AppLogger.debug(_tag, 'Searching users', {'query': query});
 
-      // Note: Firestore doesn't support case-insensitive search or LIKE queries
-      // This is a simple implementation - consider using Algolia or similar for production
-      final querySnapshot = await _usersCollection
-          .orderBy('displayName')
-          .startAt([query])
-          .endAt(['$query\uf8ff'])
-          .limit(20)
-          .get();
+      // PostgreSQL supports ILIKE for case-insensitive search - much better than Firestore!
+      final response = await _supabase
+          .from(_tableName)
+          .select()
+          .ilike('display_name', '%$query%')
+          .order('display_name')
+          .limit(20);
 
-      final users = querySnapshot.docs
-          .map((doc) => UserModel.fromFirestore(doc))
+      final users = (response as List<dynamic>)
+          .map((data) => UserModel.fromSupabase(data))
           .toList();
 
       AppLogger.info(_tag, 'User search completed', {
@@ -108,7 +104,10 @@ class UserService {
         'fields': updates.keys.toList(),
       });
 
-      await _usersCollection.doc(userId).update(updates);
+      await _supabase
+          .from(_tableName)
+          .update(updates)
+          .eq('id', userId);
 
       AppLogger.info(_tag, 'User updated successfully');
       return true;
@@ -120,9 +119,13 @@ class UserService {
 
   /// Get user stream (real-time updates)
   Stream<UserModel?> getUserStream(String userId) {
-    return _usersCollection.doc(userId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return UserModel.fromFirestore(doc);
-    });
+    return _supabase
+        .from(_tableName)
+        .stream(primaryKey: ['id'])
+        .eq('id', userId)
+        .map((List<Map<String, dynamic>> data) {
+          if (data.isEmpty) return null;
+          return UserModel.fromSupabase(data.first);
+        });
   }
 }

@@ -1,4 +1,29 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Remove Firebase dependency - using Supabase now
+
+/// Simple coordinate point for polylines
+class RoutePoint {
+  final double latitude;
+  final double longitude;
+
+  const RoutePoint({
+    required this.latitude,
+    required this.longitude,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'latitude': latitude,
+      'longitude': longitude,
+    };
+  }
+
+  factory RoutePoint.fromMap(Map<String, dynamic> map) {
+    return RoutePoint(
+      latitude: map['latitude']?.toDouble() ?? 0.0,
+      longitude: map['longitude']?.toDouble() ?? 0.0,
+    );
+  }
+}
 
 /// Represents a geographical location with coordinates
 class RouteLocation {
@@ -44,10 +69,7 @@ class RouteLocation {
     );
   }
 
-  factory RouteLocation.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    return RouteLocation.fromMap({...data, 'id': doc.id});
-  }
+  // Removed fromFirestore - using Supabase now
 
   @override
   bool operator ==(Object other) {
@@ -184,7 +206,7 @@ class AIRouteSuggestion {
       'priorityScore': priorityScore,
       'optimizationType': optimizationType.value,
       'metadata': metadata,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
@@ -197,14 +219,11 @@ class AIRouteSuggestion {
       priorityScore: map['priorityScore']?.toInt() ?? 5,
       optimizationType: RouteOptimization.fromString(map['optimizationType'] ?? 'fastest'),
       metadata: map['metadata'] ?? {},
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  factory AIRouteSuggestion.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    return AIRouteSuggestion.fromMap({...data, 'suggestionId': doc.id});
-  }
+  // Removed fromFirestore - using Supabase now
 }
 
 /// Complete route plan with AI optimizations
@@ -266,8 +285,8 @@ class RoutePlan {
       'estimatedCost': estimatedCost,
       'aiSuggestions': aiSuggestions.map((suggestion) => suggestion.toMap()).toList(),
       'routeMetadata': routeMetadata,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'lastModified': lastModified != null ? Timestamp.fromDate(lastModified!) : null,
+      'createdAt': createdAt.toIso8601String(),
+      'lastModified': lastModified?.toIso8601String(),
       'isActive': isActive,
     };
   }
@@ -298,19 +317,22 @@ class RoutePlan {
               .toList() ??
           [],
       routeMetadata: map['routeMetadata'] ?? {},
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastModified: (map['lastModified'] as Timestamp?)?.toDate(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
+      lastModified: map['lastModified'] != null ? DateTime.tryParse(map['lastModified'].toString()) : null,
       isActive: map['isActive'] ?? false,
     );
   }
 
-  factory RoutePlan.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    return RoutePlan.fromMap({...data, 'id': doc.id});
-  }
-
+  // Removed fromFirestore - using Supabase now
+  
+  // Add copyWith method for immutable updates
   RoutePlan copyWith({
+    String? id,
+    String? userId,
+    String? tripId,
     String? name,
+    RouteLocation? origin,
+    RouteLocation? destination,
     List<RouteLocation>? waypoints,
     TravelMode? travelMode,
     RouteOptimization? optimization,
@@ -320,16 +342,17 @@ class RoutePlan {
     double? estimatedCost,
     List<AIRouteSuggestion>? aiSuggestions,
     Map<String, dynamic>? routeMetadata,
+    DateTime? createdAt,
     DateTime? lastModified,
     bool? isActive,
   }) {
     return RoutePlan(
-      id: id,
-      userId: userId,
-      tripId: tripId,
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      tripId: tripId ?? this.tripId,
       name: name ?? this.name,
-      origin: origin,
-      destination: destination,
+      origin: origin ?? this.origin,
+      destination: destination ?? this.destination,
       waypoints: waypoints ?? this.waypoints,
       travelMode: travelMode ?? this.travelMode,
       optimization: optimization ?? this.optimization,
@@ -339,7 +362,7 @@ class RoutePlan {
       estimatedCost: estimatedCost ?? this.estimatedCost,
       aiSuggestions: aiSuggestions ?? this.aiSuggestions,
       routeMetadata: routeMetadata ?? this.routeMetadata,
-      createdAt: createdAt,
+      createdAt: createdAt ?? this.createdAt,
       lastModified: lastModified ?? this.lastModified,
       isActive: isActive ?? this.isActive,
     );

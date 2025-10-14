@@ -1,6 +1,6 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:relink/core/stubs/firebase_stubs.dart';
 
 /// Setup for all tests
 /// Call this in setUpAll() of your test files
@@ -23,8 +23,8 @@ ENVIRONMENT=test
 }
 
 /// Create fake Firestore instance for testing
-FakeFirebaseFirestore createFakeFirestore() {
-  return FakeFirebaseFirestore();
+FirebaseFirestore createFakeFirestore() {
+  return FirebaseFirestore.instance;
 }
 
 /// Teardown for all tests

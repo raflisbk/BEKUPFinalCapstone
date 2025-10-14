@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../widgets/mock_google_maps.dart';
 
 /// Provider untuk mengelola state UI di Explore Screen
 /// Menghindari penggunaan setState

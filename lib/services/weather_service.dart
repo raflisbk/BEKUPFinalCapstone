@@ -2,14 +2,12 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../core/models/weather_model.dart';
 import '../core/utils/logger.dart';
+import '../core/config/env_config.dart';
 
 /// Service for fetching weather information
 class WeatherService {
   static const String _tag = 'WeatherService';
 
-  // OpenWeatherMap API configuration
-  // NOTE: Replace with your own API key from https://openweathermap.org/api
-  static const String _apiKey = 'YOUR_API_KEY_HERE';
   static const String _baseUrl = 'https://api.openweathermap.org/data/2.5';
 
   // Cache for weather data
@@ -33,7 +31,7 @@ class WeatherService {
       });
 
       final url = Uri.parse(
-        '$_baseUrl/weather?q=$cityName&appid=$_apiKey&units=metric',
+        '$_baseUrl/weather?q=$cityName&appid=${EnvConfig.openWeatherApiKey}&units=metric',
       );
 
       final response = await http.get(url).timeout(
@@ -97,7 +95,7 @@ class WeatherService {
       });
 
       final url = Uri.parse(
-        '$_baseUrl/weather?lat=$latitude&lon=$longitude&appid=$_apiKey&units=metric',
+        '$_baseUrl/weather?lat=$latitude&lon=$longitude&appid=${EnvConfig.openWeatherApiKey}&units=metric',
       );
 
       final response = await http.get(url).timeout(
@@ -145,7 +143,7 @@ class WeatherService {
       });
 
       final url = Uri.parse(
-        '$_baseUrl/forecast?lat=$latitude&lon=$longitude&appid=$_apiKey&units=metric&cnt=40',
+        '$_baseUrl/forecast?lat=$latitude&lon=$longitude&appid=${EnvConfig.openWeatherApiKey}&units=metric&cnt=40',
       );
 
       final response = await http.get(url).timeout(
@@ -205,6 +203,6 @@ class WeatherService {
 
   /// Check if API key is configured
   bool get isConfigured {
-    return _apiKey != 'YOUR_API_KEY_HERE' && _apiKey.isNotEmpty;
+    return EnvConfig.hasOpenWeatherConfig;
   }
 }

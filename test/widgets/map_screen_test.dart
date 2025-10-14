@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:relink/core/widgets/mock_google_maps.dart'; // Mock implementation while migrating to Mapbox
 import 'package:relink/presentation/explore/explore_screen.dart';
 import 'package:relink/core/providers/location_provider.dart';
 import 'package:relink/core/providers/auth_provider.dart';

@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../stubs/firebase_stubs.dart';
 import '../utils/logger.dart';
 import '../../services/location_isolate_service.dart';
 
@@ -229,13 +228,15 @@ class LocationProvider with ChangeNotifier {
         if (doc.id == userId) continue; // Skip current user
 
         final data = doc.data();
-        allUsers.add({
-          'uid': doc.id,
-          'displayName': data['displayName'] ?? 'Unknown',
-          'photoUrl': data['photoUrl'],
-          'latitude': data['latitude'],
-          'longitude': data['longitude'],
-        });
+        if (data != null) {
+          allUsers.add({
+            'uid': doc.id,
+            'displayName': data['displayName'] ?? 'Unknown',
+            'photoUrl': data['photoUrl'],
+            'latitude': data['latitude'],
+            'longitude': data['longitude'],
+          });
+        }
       }
 
       // Offload distance calculation to isolate

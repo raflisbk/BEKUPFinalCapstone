@@ -8,7 +8,7 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/constants/default_avatars.dart';
 import '../../core/widgets/sync_status_widget.dart';
-import '../../services/photo_upload_service.dart';
+import '../../services/cloudinary_photo_upload_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -491,7 +491,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _bioController;
-  final PhotoUploadService _photoService = PhotoUploadService();
+  final CloudinaryPhotoUploadService _photoService = CloudinaryPhotoUploadService();
   File? _selectedImage;
   String? _newPhotoUrl;
 
@@ -708,7 +708,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
           ),
         );
 
-        final uploadedUrl = await _photoService.uploadProfilePhoto(_selectedImage!);
+        final uploadedUrl = await _photoService.uploadAvatar(_selectedImage!);
         if (uploadedUrl != null) {
           photoUrl = uploadedUrl;
         } else {

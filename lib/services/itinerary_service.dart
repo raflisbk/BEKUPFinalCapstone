@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../core/models/itinerary_model.dart';
 import '../core/utils/logger.dart';
@@ -7,7 +7,7 @@ import '../core/utils/logger.dart';
 class ItineraryService {
   static const String _tag = 'ItineraryService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
   final Uuid _uuid = const Uuid();
 
   CollectionReference get _itinerariesCollection =>

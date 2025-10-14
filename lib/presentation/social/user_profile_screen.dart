@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/user_model.dart';
-import '../../core/models/social_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../services/user_service.dart';
 import '../../services/social_service.dart';
@@ -27,7 +26,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   final SocialService _socialService = SocialService();
 
   UserModel? _user;
-  SocialConnection? _socialConnection;
+  Map<String, dynamic>? _socialConnection;
   bool _isFollowing = false;
   bool _isLoading = true;
   bool _isFollowActionLoading = false;
@@ -45,17 +44,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       // Load user profile
       final user = await _userService.getUserById(widget.userId);
 
-      // Load social connection
-      final connection = await _socialService.getSocialConnection(widget.userId);
-
       // Check if current user is following this user
       // ignore: use_build_context_synchronously
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.user?.uid;
 
+      // Load social connection
+      Map<String, dynamic>? connection;
+      if (currentUserId != null) {
+        connection = await _socialService.getSocialConnection(currentUserId, widget.userId);
+      }
+
       bool following = false;
       if (currentUserId != null) {
-        following = await _socialService.isFollowing(currentUserId, widget.userId);
+        following = await _socialService.isFollowing(
+          followerId: currentUserId,
+          followingId: widget.userId,
+        );
       }
 
       setState(() {
@@ -92,29 +97,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       bool success;
       if (_isFollowing) {
         success = await _socialService.unfollowUser(
-          currentUserId: currentUser.uid,
-          targetUserId: widget.userId,
+          followerId: currentUser.uid,
+          followingId: widget.userId,
         );
       } else {
         success = await _socialService.followUser(
-          currentUserId: currentUser.uid,
-          targetUserId: widget.userId,
-          currentUserName: currentUser.displayName ?? 'Unknown',
-          currentUserPhotoUrl: currentUser.photoURL,
+          followerId: currentUser.uid,
+          followingId: widget.userId,
         );
       }
 
       if (success) {
         setState(() {
           _isFollowing = !_isFollowing;
+          // Update follower count in social connection
           if (_socialConnection != null) {
-            _socialConnection = SocialConnection(
-              userId: _socialConnection!.userId,
-              following: _socialConnection!.following,
-              followers: _socialConnection!.followers,
-              followingCount: _socialConnection!.followingCount,
-              followersCount: _socialConnection!.followersCount + (_isFollowing ? 1 : -1),
-            );
+            final currentFollowersCount = _socialConnection!['followersCount'] as int? ?? 0;
+            _socialConnection = {
+              ..._socialConnection!,
+              'followersCount': currentFollowersCount + (_isFollowing ? 1 : -1),
+            };
           }
         });
         await HapticHelper.success();
@@ -320,7 +322,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       children: [
         _buildStatItem(
           label: 'Followers',
-          value: _socialConnection?.followersCount.toString() ?? '0',
+          value: (_socialConnection?['followersCount'] as int?)?.toString() ?? '0',
           onTap: () => _navigateToFollowersList(isFollowers: true),
         ),
         Container(
@@ -330,7 +332,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
         _buildStatItem(
           label: 'Following',
-          value: _socialConnection?.followingCount.toString() ?? '0',
+          value: (_socialConnection?['followingCount'] as int?)?.toString() ?? '0',
           onTap: () => _navigateToFollowersList(isFollowers: false),
         ),
         Container(

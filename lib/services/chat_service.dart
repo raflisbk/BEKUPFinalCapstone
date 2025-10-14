@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/stubs/firebase_stubs.dart';
 import 'package:image/image.dart' as img;
 import '../core/models/chat_models.dart';
 import '../core/utils/logger.dart';

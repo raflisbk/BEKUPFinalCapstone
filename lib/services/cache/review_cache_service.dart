@@ -12,14 +12,14 @@ class ReviewCacheService {
   final HiveService _hiveService = HiveService.instance;
 
   /// Get cached review by ID
-  Future<DestinationReview?> getCachedReview(String id) async {
+  Future<Review?> getCachedReview(String id) async {
     try {
       final box = _hiveService.reviews;
       final cached = box.get(id) as CachedData?;
       
       if (cached == null) return null;
       
-      return DestinationReview.fromMap(cached.data);
+      return Review.fromMap(cached.data);
     } catch (e) {
       debugPrint('Error getting cached review: $e');
       return null;
@@ -27,16 +27,16 @@ class ReviewCacheService {
   }
 
   /// Get all cached reviews
-  Future<List<DestinationReview>> getAllCachedReviews() async {
+  Future<List<Review>> getAllCachedReviews() async {
     try {
       final box = _hiveService.reviews;
-      final reviews = <DestinationReview>[];
+      final reviews = <Review>[];
       
       for (final key in box.keys) {
         final cached = box.get(key) as CachedData?;
         if (cached != null) {
           try {
-            reviews.add(DestinationReview.fromMap(cached.data));
+            reviews.add(Review.fromMap(cached.data));
           } catch (e) {
             debugPrint('Error parsing cached review $key: $e');
           }
@@ -51,7 +51,7 @@ class ReviewCacheService {
   }
 
   /// Cache single review
-  Future<void> cacheReview(DestinationReview review) async {
+  Future<void> cacheReview(Review review) async {
     try {
       final box = _hiveService.reviews;
       final cached = CachedData(
@@ -68,7 +68,7 @@ class ReviewCacheService {
   }
 
   /// Cache multiple reviews
-  Future<void> cacheReviews(List<DestinationReview> reviews) async {
+  Future<void> cacheReviews(List<Review> reviews) async {
     try {
       final box = _hiveService.reviews;
       final now = DateTime.now();
@@ -91,7 +91,7 @@ class ReviewCacheService {
 
   /// Update cached review
   Future<void> updateCachedReview(
-    DestinationReview review, {
+    Review review, {
     bool markDirty = false,
   }) async {
     try {
@@ -123,16 +123,16 @@ class ReviewCacheService {
   }
 
   /// Get dirty reviews (need sync)
-  Future<List<DestinationReview>> getDirtyReviews() async {
+  Future<List<Review>> getDirtyReviews() async {
     try {
       final box = _hiveService.reviews;
-      final reviews = <DestinationReview>[];
+      final reviews = <Review>[];
       
       for (final key in box.keys) {
         final cached = box.get(key) as CachedData?;
         if (cached != null && cached.isDirty) {
           try {
-            reviews.add(DestinationReview.fromMap(cached.data));
+            reviews.add(Review.fromMap(cached.data));
           } catch (e) {
             debugPrint('Error parsing dirty review $key: $e');
           }
@@ -210,7 +210,7 @@ class ReviewCacheService {
   }
 
   /// Search cached reviews by text
-  Future<List<DestinationReview>> searchCachedReviews(String query) async {
+  Future<List<Review>> searchCachedReviews(String query) async {
     try {
       final allReviews = await getAllCachedReviews();
       final lowerQuery = query.toLowerCase();
@@ -227,7 +227,7 @@ class ReviewCacheService {
   }
 
   /// Get cached reviews by destination
-  Future<List<DestinationReview>> getCachedReviewsByDestination(String destinationId) async {
+  Future<List<Review>> getCachedReviewsByDestination(String destinationId) async {
     try {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.destinationId == destinationId).toList();
@@ -238,7 +238,7 @@ class ReviewCacheService {
   }
 
   /// Get cached reviews by user
-  Future<List<DestinationReview>> getCachedReviewsByUser(String userId) async {
+  Future<List<Review>> getCachedReviewsByUser(String userId) async {
     try {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.userId == userId).toList();
@@ -249,7 +249,7 @@ class ReviewCacheService {
   }
 
   /// Get cached reviews by minimum rating
-  Future<List<DestinationReview>> getCachedReviewsByRating(double minRating) async {
+  Future<List<Review>> getCachedReviewsByRating(double minRating) async {
     try {
       final allReviews = await getAllCachedReviews();
       return allReviews.where((review) => review.rating >= minRating).toList();

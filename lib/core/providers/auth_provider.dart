@@ -1,16 +1,18 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User, AuthException;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/logger.dart';
+import '../stubs/firebase_stubs.dart';
 
 class AuthProvider with ChangeNotifier {
   static const String _tag = 'AuthProvider';
 
+  // ignore: unused_field
+  final SupabaseClient _supabase = Supabase.instance.client;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   User? _user;
   bool _isLoading = false;
@@ -148,9 +150,9 @@ class AuthProvider with ChangeNotifier {
 
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
+    } on AuthException catch (e, stackTrace) {
       AppLogger.error(_tag, 'Registration failed', e, stackTrace);
-      _setError(_getErrorMessage(e.code));
+      _setError(e.message);
       _setLoading(false);
       return false;
     } catch (e, stackTrace) {
@@ -186,9 +188,9 @@ class AuthProvider with ChangeNotifier {
 
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
+    } on AuthException catch (e, stackTrace) {
       AppLogger.error(_tag, 'Login failed', e, stackTrace);
-      _setError(_getErrorMessage(e.code));
+      _setError(e.message);
       _setLoading(false);
       return false;
     } catch (e, stackTrace) {
@@ -245,9 +247,9 @@ class AuthProvider with ChangeNotifier {
 
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
+    } on AuthException catch (e, stackTrace) {
       AppLogger.error(_tag, 'Google Sign-In failed', e, stackTrace);
-      _setError(_getErrorMessage(e.code));
+      _setError(e.message);
       _setLoading(false);
       return false;
     } catch (e, stackTrace) {
@@ -290,9 +292,9 @@ class AuthProvider with ChangeNotifier {
       AppLogger.success(_tag, 'Password reset email sent', {'email': email});
       _setLoading(false);
       return true;
-    } on FirebaseAuthException catch (e, stackTrace) {
+    } on AuthException catch (e, stackTrace) {
       AppLogger.error(_tag, 'Password reset failed', e, stackTrace);
-      _setError(_getErrorMessage(e.code));
+      _setError(e.message);
       _setLoading(false);
       return false;
     } catch (e, stackTrace) {
@@ -377,31 +379,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Get user-friendly error messages
-  String _getErrorMessage(String code) {
-    switch (code) {
-      case 'email-already-in-use':
-        return 'This email is already registered. Please sign in instead.';
-      case 'invalid-email':
-        return 'Please enter a valid email address.';
-      case 'operation-not-allowed':
-        return 'This sign-in method is not enabled. Please contact support.';
-      case 'weak-password':
-        return 'Password is too weak. Please use at least 6 characters.';
-      case 'user-disabled':
-        return 'This account has been disabled. Please contact support.';
-      case 'user-not-found':
-        return 'No account found with this email. Please register first.';
-      case 'wrong-password':
-        return 'Incorrect password. Please try again.';
-      case 'too-many-requests':
-        return 'Too many failed attempts. Please try again later.';
-      case 'network-request-failed':
-        return 'Network error. Please check your internet connection.';
-      default:
-        return 'An error occurred. Please try again.';
-    }
-  }
+
 
   @override
   void dispose() {

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
+import '../../core/stubs/firebase_stubs.dart';
 import '../../core/database/hive_service.dart';
 import '../../core/utils/connectivity_service.dart';
 
@@ -205,18 +205,9 @@ class UploadQueueService {
 
       final ref = _storage.ref().child(upload.destinationPath);
       
-      // Upload with metadata
-      final metadata = SettableMetadata(
-        contentType: _getContentType(upload.localPath),
-        customMetadata: {
-          'uploadedBy': upload.userId,
-          'entityType': upload.entityType,
-          if (upload.entityId != null) 'entityId': upload.entityId!,
-          'uploadedAt': DateTime.now().toIso8601String(),
-        },
-      );
-
-      final uploadTask = ref.putFile(file, metadata);
+      // Upload without metadata for now since SettableMetadata needs to be updated in stubs
+      
+      final uploadTask = ref.putFile(file);
       
       // Wait for upload to complete
       final snapshot = await uploadTask;
@@ -232,29 +223,6 @@ class UploadQueueService {
       debugPrint('Error uploading file: $e');
       upload.error = e.toString();
       return false;
-    }
-  }
-
-  /// Get content type from file extension
-  String _getContentType(String filePath) {
-    final extension = filePath.toLowerCase().split('.').last;
-    
-    switch (extension) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'gif':
-        return 'image/gif';
-      case 'webp':
-        return 'image/webp';
-      case 'mp4':
-        return 'video/mp4';
-      case 'mov':
-        return 'video/quicktime';
-      default:
-        return 'application/octet-stream';
     }
   }
 

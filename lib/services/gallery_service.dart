@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/stubs/firebase_stubs.dart';
 import '../core/models/gallery_model.dart';
 import '../core/utils/logger.dart';
 import 'cloudinary_service.dart';

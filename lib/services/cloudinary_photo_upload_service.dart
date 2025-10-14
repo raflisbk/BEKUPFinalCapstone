@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import '../core/utils/logger.dart';
 import 'cloudinary_service.dart';
@@ -15,7 +15,7 @@ class CloudinaryPhotoUploadService {
 
   final ImagePicker _picker = ImagePicker();
   final CloudinaryService _cloudinaryService = CloudinaryService();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   /// Initialize the service
   Future<void> initialize() async {
@@ -117,23 +117,23 @@ class CloudinaryPhotoUploadService {
   /// Upload user avatar to Cloudinary
   Future<String?> uploadAvatar(File imageFile) async {
     try {
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
       AppLogger.info(_tag, 'Uploading user avatar', {
-        'userId': user.uid,
+        'userId': user.id,
         'fileSize': imageFile.lengthSync(),
       });
 
       final avatarUrl = await _cloudinaryService.uploadAvatar(
         file: imageFile,
-        userId: user.uid,
+        userId: user.id,
       );
 
       AppLogger.success(_tag, 'Avatar uploaded successfully', {
-        'userId': user.uid,
+        'userId': user.id,
         'url': avatarUrl,
       });
 
@@ -147,15 +147,15 @@ class CloudinaryPhotoUploadService {
   /// Upload gallery photo to Cloudinary
   Future<String?> uploadGalleryPhoto(File imageFile, {String? customId}) async {
     try {
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
-      final photoId = customId ?? '${user.uid}_${DateTime.now().millisecondsSinceEpoch}';
+      final photoId = customId ?? '${user.id}_${DateTime.now().millisecondsSinceEpoch}';
 
       AppLogger.info(_tag, 'Uploading gallery photo', {
-        'userId': user.uid,
+        'userId': user.id,
         'photoId': photoId,
         'fileSize': imageFile.lengthSync(),
       });
@@ -166,7 +166,7 @@ class CloudinaryPhotoUploadService {
       );
 
       AppLogger.success(_tag, 'Gallery photo uploaded successfully', {
-        'userId': user.uid,
+        'userId': user.id,
         'photoId': photoId,
         'url': photoUrl,
       });
@@ -206,13 +206,13 @@ class CloudinaryPhotoUploadService {
   /// Upload multiple gallery photos
   Future<List<String>> uploadMultipleGalleryPhotos(List<File> imageFiles) async {
     try {
-      final user = _auth.currentUser;
+      final user = _supabase.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
       AppLogger.info(_tag, 'Uploading multiple gallery photos', {
-        'userId': user.uid,
+        'userId': user.id,
         'count': imageFiles.length,
       });
 
@@ -220,7 +220,7 @@ class CloudinaryPhotoUploadService {
 
       for (int i = 0; i < imageFiles.length; i++) {
         final file = imageFiles[i];
-        final photoId = '${user.uid}_${DateTime.now().millisecondsSinceEpoch}_$i';
+        final photoId = '${user.id}_${DateTime.now().millisecondsSinceEpoch}_$i';
 
         try {
           final url = await uploadGalleryPhoto(file, customId: photoId);

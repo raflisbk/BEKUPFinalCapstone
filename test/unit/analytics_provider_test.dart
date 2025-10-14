@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:relink/core/stubs/firebase_stubs.dart';
 import 'package:relink/core/providers/analytics_provider.dart';
 import 'package:relink/services/analytics_service.dart';
 import 'package:relink/core/models/analytics_model.dart';

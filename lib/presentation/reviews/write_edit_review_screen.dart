@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../core/providers/user_provider.dart';
 import '../../core/models/review_model.dart';
 import '../../services/review_service.dart';
 import '../../core/theme/app_colors.dart';
@@ -15,13 +14,13 @@ import '../../core/utils/haptic_helper.dart';
 class WriteEditReviewScreen extends StatefulWidget {
   final String destinationId;
   final String destinationName;
-  final DestinationReview? review; // If null, write mode; if not null, edit mode
+  final Review? existingReview;
 
   const WriteEditReviewScreen({
     super.key,
     required this.destinationId,
     required this.destinationName,
-    this.review,
+    this.existingReview,
   });
 
   @override
@@ -46,17 +45,17 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
   final List<File> _newPhotoFiles = [];
   final int _maxPhotos = 5;
 
-  bool get isEditMode => widget.review != null;
+  bool get isEditMode => widget.existingReview != null;
 
   @override
   void initState() {
     super.initState();
 
     // Initialize with existing review data if in edit mode
-    _titleController = TextEditingController(text: widget.review?.title ?? '');
-    _contentController = TextEditingController(text: widget.review?.content ?? '');
-    _rating = widget.review?.rating ?? 0.0;
-    _existingPhotoUrls = widget.review?.photoUrls ?? [];
+    _titleController = TextEditingController(text: widget.existingReview?.title ?? '');
+    _contentController = TextEditingController(text: widget.existingReview?.content ?? '');
+    _rating = widget.existingReview?.rating ?? 0.0;
+    _existingPhotoUrls = widget.existingReview?.photoUrls ?? [];
 
     AppLogger.debug(_tag, isEditMode ? 'Edit mode initialized' : 'Write mode initialized', {
       'existingPhotos': _existingPhotoUrls.length,
@@ -224,7 +223,6 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
 
     if (authProvider.user == null) {
       await HapticHelper.error();
@@ -246,9 +244,7 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
         AppLogger.info(_tag, 'Uploading ${_newPhotoFiles.length} photos');
 
         final uploadedUrls = await _reviewService.uploadReviewPhotos(
-          userId: authProvider.user!.uid,
-          destinationId: widget.destinationId,
-          photoFiles: _newPhotoFiles,
+          _newPhotoFiles.map((file) => file.path).toList(),
         );
 
         allPhotoUrls.addAll(uploadedUrls);
@@ -264,20 +260,19 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
       if (isEditMode) {
         // Update existing review
         AppLogger.debug(_tag, 'Updating review', {
-          'reviewId': widget.review!.id,
+          'reviewId': widget.existingReview!.id,
           'rating': _rating,
           'photoCount': allPhotoUrls.length,
         });
 
-        success = await _reviewService.updateReview(
-          reviewId: widget.review!.id,
-          destinationId: widget.destinationId,
-          oldRating: widget.review!.rating,
-          newRating: _rating,
-          title: _titleController.text.trim(),
+        final result = await _reviewService.updateReview(
+          reviewId: widget.existingReview!.id,
+          reviewerId: authProvider.user!.uid,
+          rating: _rating,
           content: _contentController.text.trim(),
-          photoUrls: allPhotoUrls,
+          imageUrls: allPhotoUrls,
         );
+        success = result;
 
         if (success) {
           AppLogger.success(_tag, 'Review updated successfully');
@@ -290,17 +285,15 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
           'photoCount': allPhotoUrls.length,
         });
 
-        success = await _reviewService.submitReview(
-          destinationId: widget.destinationId,
-          destinationName: widget.destinationName,
-          userId: authProvider.user!.uid,
-          userName: userProvider.currentUser?.displayName ?? 'Anonymous',
-          userPhotoUrl: userProvider.currentUser?.photoUrl,
+        final reviewId = await _reviewService.submitReview(
+          reviewerId: authProvider.user!.uid,
+          targetId: widget.destinationId,
+          targetType: 'destination',
           rating: _rating,
-          title: _titleController.text.trim(),
           content: _contentController.text.trim(),
-          photoUrls: allPhotoUrls,
+          imageUrls: allPhotoUrls,
         );
+        success = reviewId != null;
 
         if (success) {
           AppLogger.success(_tag, 'Review submitted successfully');

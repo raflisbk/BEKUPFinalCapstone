@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/stubs/firebase_stubs.dart';
 import 'package:uuid/uuid.dart';
 import '../core/models/budget_model.dart';
 import '../core/utils/logger.dart';

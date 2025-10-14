@@ -1,7 +1,5 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-/// Review model for destinations
-class DestinationReview {
+/// Review model for destinations - Updated for Supabase
+class Review {
   final String id;
   final String destinationId;
   final String destinationName;
@@ -17,7 +15,7 @@ class DestinationReview {
   final int helpfulCount;
   final List<String> helpfulUserIds;
 
-  DestinationReview({
+  Review({
     required this.id,
     required this.destinationId,
     required this.destinationName,
@@ -34,50 +32,49 @@ class DestinationReview {
     this.helpfulUserIds = const [],
   });
 
-  /// Create from Firestore document
-  factory DestinationReview.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
-    return DestinationReview(
-      id: doc.id,
-      destinationId: data['destinationId'] ?? '',
-      destinationName: data['destinationName'] ?? '',
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      userPhotoUrl: data['userPhotoUrl'],
+  /// Create from Supabase row
+  factory Review.fromSupabase(Map<String, dynamic> data) {
+    return Review(
+      id: data['id'] ?? '',
+      destinationId: data['destination_id'] ?? '',
+      destinationName: data['destination_name'] ?? '',
+      userId: data['user_id'] ?? '',
+      userName: data['user_name'] ?? '',
+      userPhotoUrl: data['user_photo_url'],
       rating: (data['rating'] ?? 0).toDouble(),
       title: data['title'] ?? '',
       content: data['content'] ?? '',
-      photoUrls: List<String>.from(data['photoUrls'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      updatedAt: (data['updatedAt'] as Timestamp).toDate(),
-      helpfulCount: data['helpfulCount'] ?? 0,
-      helpfulUserIds: List<String>.from(data['helpfulUserIds'] ?? []),
+      photoUrls: List<String>.from(data['photo_urls'] ?? []),
+      createdAt: DateTime.parse(data['created_at']),
+      updatedAt: DateTime.parse(data['updated_at']),
+      helpfulCount: data['helpful_count'] ?? 0,
+      helpfulUserIds: List<String>.from(data['helpful_user_ids'] ?? []),
     );
   }
 
-  /// Convert to Firestore document
-  Map<String, dynamic> toFirestore() {
+  /// Convert to Supabase row
+  Map<String, dynamic> toSupabase() {
     return {
-      'destinationId': destinationId,
-      'destinationName': destinationName,
-      'userId': userId,
-      'userName': userName,
-      'userPhotoUrl': userPhotoUrl,
+      'id': id,
+      'destination_id': destinationId,
+      'destination_name': destinationName,
+      'user_id': userId,
+      'user_name': userName,
+      'user_photo_url': userPhotoUrl,
       'rating': rating,
       'title': title,
       'content': content,
-      'photoUrls': photoUrls,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'helpfulCount': helpfulCount,
-      'helpfulUserIds': helpfulUserIds,
+      'photo_urls': photoUrls,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'helpful_count': helpfulCount,
+      'helpful_user_ids': helpfulUserIds,
     };
   }
 
   /// Create from Map (for offline cache)
-  factory DestinationReview.fromMap(Map<String, dynamic> map) {
-    return DestinationReview(
+  factory Review.fromMap(Map<String, dynamic> map) {
+    return Review(
       id: map['id'] ?? '',
       destinationId: map['destinationId'] ?? '',
       destinationName: map['destinationName'] ?? '',
@@ -121,7 +118,7 @@ class DestinationReview {
   }
 
   /// Create a copy with updated fields
-  DestinationReview copyWith({
+  Review copyWith({
     String? title,
     String? content,
     double? rating,
@@ -129,7 +126,7 @@ class DestinationReview {
     int? helpfulCount,
     List<String>? helpfulUserIds,
   }) {
-    return DestinationReview(
+    return Review(
       id: id,
       destinationId: destinationId,
       destinationName: destinationName,
@@ -162,27 +159,26 @@ class RatingSummary {
     required this.ratingDistribution,
   });
 
-  /// Create from Firestore document
-  factory RatingSummary.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
+  /// Create from Supabase data
+  factory RatingSummary.fromSupabase(Map<String, dynamic> data) {
     return RatingSummary(
-      destinationId: doc.id,
-      averageRating: (data['averageRating'] ?? 0).toDouble(),
-      totalReviews: data['totalReviews'] ?? 0,
+      destinationId: data['destination_id'] ?? '',
+      averageRating: (data['average_rating'] ?? 0).toDouble(),
+      totalReviews: data['total_reviews'] ?? 0,
       ratingDistribution: Map<int, int>.from(
-        data['ratingDistribution'] ?? {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+        data['rating_distribution'] ?? {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
       ),
     );
   }
 
-  /// Convert to Firestore document
-  Map<String, dynamic> toFirestore() {
+  /// Convert to Supabase row
+  Map<String, dynamic> toSupabase() {
     return {
-      'averageRating': averageRating,
-      'totalReviews': totalReviews,
-      'ratingDistribution': ratingDistribution,
-      'updatedAt': Timestamp.now(),
+      'destination_id': destinationId,
+      'average_rating': averageRating,
+      'total_reviews': totalReviews,
+      'rating_distribution': ratingDistribution,
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 

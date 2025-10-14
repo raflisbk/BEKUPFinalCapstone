@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../stubs/firebase_stubs.dart';
 
 /// Analytics event types enumeration
 enum AnalyticsEventType {
@@ -75,7 +75,7 @@ class UserBehaviorData {
   }
 
   factory UserBehaviorData.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return UserBehaviorData.fromMap(data);
   }
 }
@@ -141,7 +141,7 @@ class AIUsageStats {
   }
 
   factory AIUsageStats.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return AIUsageStats.fromMap(data);
   }
 }
@@ -227,7 +227,7 @@ class TripAnalytics {
   }
 
   factory TripAnalytics.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return TripAnalytics.fromMap({...data, 'tripId': doc.id});
   }
 }
@@ -309,7 +309,7 @@ class PerformanceMetrics {
   }
 
   factory PerformanceMetrics.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return PerformanceMetrics.fromMap(data);
   }
 }
@@ -375,7 +375,7 @@ class DashboardInsight {
   }
 
   factory DashboardInsight.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return DashboardInsight.fromMap({...data, 'insightId': doc.id});
   }
 
@@ -475,7 +475,7 @@ class AnalyticsSummary {
   }
 
   factory AnalyticsSummary.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final data = doc.data() ?? {};
     return AnalyticsSummary.fromMap(data);
   }
 }

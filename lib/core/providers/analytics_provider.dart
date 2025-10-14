@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/analytics_service.dart';
 import '../models/analytics_model.dart';
 import '../utils/logger.dart';
+import '../stubs/firebase_stubs.dart';
 
 class AnalyticsProvider extends ChangeNotifier {
   static const String _tag = 'AnalyticsProvider';
   
   final AnalyticsService _analyticsService = AnalyticsService();
+  // ignore: unused_field
+  final SupabaseClient _supabase = Supabase.instance.client;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
   // Analytics state

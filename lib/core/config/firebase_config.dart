@@ -1,8 +1,11 @@
-import 'package:firebase_core/firebase_core.dart';
+// Firebase configuration disabled - Using Supabase instead
+// This file is kept for reference but all Firebase functionality is disabled
 
 class FirebaseConfig {
   static Future<void> initialize() async {
-    await Firebase.initializeApp();
+    // No-op - Firebase is disabled in favor of Supabase
+    // ignore: avoid_print
+    print('Firebase initialization skipped - using Supabase');
   }
 }
 

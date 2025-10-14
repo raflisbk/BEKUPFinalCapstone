@@ -1,11 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/logger.dart';
 
 /// Service for user moderation (block/report)
 class ModerationService {
   static const String _tag = 'ModerationService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   CollectionReference get _blockedUsersCollection =>
       _firestore.collection('blocked_users');

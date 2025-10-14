@@ -47,7 +47,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     }
   }
 
-  Future<void> _deleteReview(DestinationReview review) async {
+  Future<void> _deleteReview(Review review) async {
     await HapticHelper.warning();
 
     final confirmed = await showDialog<bool>(
@@ -80,8 +80,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
     final success = await _reviewService.deleteReview(
       reviewId: review.id,
-      destinationId: widget.destinationId,
-      rating: review.rating,
+      reviewerId: review.userId,
     );
 
     if (!mounted) return;
@@ -111,7 +110,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     }
   }
 
-  void _showReviewOptions(DestinationReview review) {
+  void _showReviewOptions(Review review) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.white,
@@ -139,7 +138,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       builder: (context) => WriteEditReviewScreen(
                         destinationId: widget.destinationId,
                         destinationName: widget.destinationName,
-                        review: review,
+                        existingReview: review,
                       ),
                     ),
                   );
@@ -319,7 +318,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
     );
   }
 
-  Widget _buildReviewCard(DestinationReview review, String? currentUserId) {
+  Widget _buildReviewCard(Review review, String? currentUserId) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: const BoxDecoration(
@@ -576,7 +575,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
         children: [
           // Rating summary
           StreamBuilder<RatingSummary?>(
-            stream: _reviewService.getRatingSummaryStream(widget.destinationId),
+            stream: _reviewService.getRatingSummaryStream(
+              targetId: widget.destinationId,
+              targetType: 'destination',
+            ),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const SizedBox(height: 120);
@@ -596,10 +598,10 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               builder: (context, authProvider, child) {
                 final currentUserId = authProvider.user?.uid;
 
-                return StreamBuilder<List<DestinationReview>>(
+                return StreamBuilder<List<Review>>(
                   stream: _reviewService.getReviewsStream(
-                    destinationId: widget.destinationId,
-                    filter: _selectedFilter,
+                    targetId: widget.destinationId,
+                    targetType: 'destination',
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {

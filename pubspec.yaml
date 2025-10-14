@@ -36,21 +36,20 @@ dependencies:
   # Charts & Data Visualization
   fl_chart: ^0.68.0
 
-  # Firebase - Latest stable versions for Flutter 3.9+
-  firebase_core: ^2.32.0
-  firebase_auth: ^4.17.9
-  cloud_firestore: ^4.15.9
-  firebase_storage: ^11.6.10
-  firebase_messaging: ^14.7.4
+  # Supabase - 100% FREE Backend (replaces Firebase)
+  supabase_flutter: ^2.5.6
+  
+  # Push Notifications - FREE alternative to Firebase Messaging
+  onesignal_flutter: ^5.2.3
   flutter_local_notifications: ^17.0.0
 
-  # Google Sign In
+  # Authentication - Additional options if needed
   google_sign_in: ^6.2.1
 
-  # Maps & Location - Updated to latest
-  google_maps_flutter: ^2.9.0
-  geolocator: ^12.0.0
-  geocoding: ^3.0.0
+  # Maps & Location - Mapbox FREE tier (50K map loads + 100K directions/month)
+  mapbox_gl: ^0.16.0           # Mapbox Maps SDK (replaces google_maps_flutter)
+  geolocator: ^12.0.0          # Location services (keep existing)
+  # geocoding: ^3.0.0          # REMOVED - replaced by Mapbox Geocoding API
 
   # HTTP & API
   http: ^1.2.2
@@ -92,7 +91,7 @@ dependencies:
   shimmer: ^3.0.0
   cached_network_image: ^3.3.1
   image_picker: ^1.1.2
-  image: ^4.2.0
+  image: ^3.3.0
 
   # UUID generation
   uuid: ^4.4.0
@@ -123,8 +122,7 @@ dev_dependencies:
   mockito: ^5.4.4
   integration_test:
     sdk: flutter
-  fake_cloud_firestore: ^2.5.2
-  firebase_storage_mocks: ^0.6.1
+  # Removed Firebase mocking dependencies - using Supabase now
   path_provider_platform_interface: ^2.1.1
   plugin_platform_interface: ^2.1.8
 

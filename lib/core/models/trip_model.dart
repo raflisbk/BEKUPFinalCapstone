@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../stubs/firebase_stubs.dart';
 import 'package:flutter/material.dart';
 
 /// Trip model for planning itineraries

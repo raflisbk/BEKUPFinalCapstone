@@ -53,36 +53,29 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
 
       AppLogger.debug(_tag, 'Loading following users');
 
-      final connection = await _socialService.getSocialConnection(currentUserId);
-      if (connection == null) {
-        setState(() => _isLoading = false);
-        return;
-      }
+      // Get following user IDs
+      final followingIds = await _socialService.getFollowing(currentUserId);
 
       // Load user details for following users
       final users = <UserModel>[];
-      for (var userId in connection.following) {
-        final socialService = SocialService();
-        final userConnection = await socialService.getSocialConnection(userId);
-        if (userConnection != null) {
-          // Create a basic user model from connection data
-          // In production, you should have a proper UserService method for this
-          users.add(UserModel(
-            uid: userId,
-            email: '',
-            displayName: 'User', // This should come from user service
-            photoUrl: null,
-            bio: '',
-            interests: [],
-            languages: ['English'],
-            isGuide: false,
-            isVerified: false,
-            rating: 0.0,
-            reviewCount: 0,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ));
-        }
+      for (var userId in followingIds) {
+        // Create a basic user model from connection data
+        // In production, you should have a proper UserService method for this
+        users.add(UserModel(
+          uid: userId,
+          email: '',
+          displayName: 'User', // This should come from user service
+          photoUrl: null,
+          bio: '',
+          interests: [],
+          languages: ['English'],
+          isGuide: false,
+          isVerified: false,
+          rating: 0.0,
+          reviewCount: 0,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
       }
 
       setState(() {

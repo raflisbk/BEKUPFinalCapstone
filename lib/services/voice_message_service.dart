@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/utils/logger.dart';
+import 'cloudinary_service.dart';
 
 /// Voice message model
 class VoiceMessage {
@@ -48,7 +48,7 @@ class VoiceMessage {
 class VoiceMessageService {
   static const String _tag = 'VoiceMessageService';
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Recording state
   bool _isRecording = false;
@@ -160,7 +160,7 @@ class VoiceMessageService {
     }
   }
 
-  /// Upload voice message to Firebase Storage
+  /// Upload voice message to Cloudinary
   Future<VoiceMessage?> uploadVoiceMessage({
     required File audioFile,
     required String chatRoomId,
@@ -176,17 +176,16 @@ class VoiceMessageService {
       // In real implementation, use audio metadata package
       const duration = 10; // Mock duration
 
-      // Upload to Firebase Storage
+      // Upload to Cloudinary
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'voice_messages/$chatRoomId/${senderId}_$timestamp.m4a';
-      final storageRef = _storage.ref().child(fileName);
-
-      final uploadTask = await storageRef.putFile(
-        audioFile,
-        SettableMetadata(contentType: 'audio/mp4'),
+      final fileName = '${senderId}_$timestamp';
+      
+      final downloadUrl = await _cloudinaryService.uploadFile(
+        file: audioFile,
+        folder: 'voice_messages/$chatRoomId',
+        fileName: fileName,
+        resourceType: 'video', // Cloudinary uses 'video' for audio files
       );
-
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
 
       // Delete local file
       await audioFile.delete();
@@ -199,7 +198,7 @@ class VoiceMessageService {
         senderId: senderId,
       );
 
-      AppLogger.success(_tag, 'Voice message uploaded', {
+      AppLogger.success(_tag, 'Voice message uploaded to Cloudinary', {
         'url': downloadUrl,
         'duration': duration,
       });

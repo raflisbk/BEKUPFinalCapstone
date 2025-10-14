@@ -1,18 +1,13 @@
 import 'dart:math';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/destination_model.dart';
 import '../core/utils/logger.dart';
 
-/// Service for managing destinations
+/// Service for managing destinations using Supabase
 class DestinationService {
   static const String _tag = 'DestinationService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  CollectionReference get _destinationsCollection =>
-      _firestore.collection('destinations');
-  CollectionReference get _bookmarksCollection =>
-      _firestore.collection('user_bookmarks');
+  final SupabaseClient _supabase = Supabase.instance.client;
 
   /// Get all destinations with optional filters
   Stream<List<Destination>> getDestinationsStream({
@@ -20,11 +15,11 @@ class DestinationService {
     int limit = 50,
   }) {
     try {
-      Query query = _destinationsCollection;
+      var query = _supabase.from('destinations').select();
 
       // Apply category filter
       if (filter?.category != null) {
-        query = query.where('category', isEqualTo: filter!.category);
+        query = query.eq('category', filter!.category!);
       }
 
       // Apply rating filter

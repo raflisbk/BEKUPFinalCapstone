@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+// Google Maps replaced with Mapbox (50K map loads + 100K directions FREE)
 import '../core/utils/logger.dart';
 import '../core/utils/marker_generator.dart';
 import '../core/constants/default_avatars.dart';

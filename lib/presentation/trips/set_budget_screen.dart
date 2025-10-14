@@ -71,7 +71,7 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
 
     final success = await _tripService.setTripBudget(
       tripId: widget.trip.id,
-      totalBudget: totalBudget,
+      amount: totalBudget,
       currency: uiProvider.currency,
     );
 

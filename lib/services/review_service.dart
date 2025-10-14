@@ -1,109 +1,182 @@
-import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image/image.dart' as img;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/models/review_model.dart';
 import '../core/utils/logger.dart';
-import 'cloudinary_service.dart';
 
-/// Service for managing destination reviews with Cloudinary storage
+/// Service for managing reviews and ratings - Supabase version
 class ReviewService {
   static const String _tag = 'ReviewService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final CloudinaryService _cloudinaryService = CloudinaryService();
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  // Collection references
-  CollectionReference get _reviewsCollection =>
-      _firestore.collection('reviews');
-  CollectionReference get _ratingSummariesCollection =>
-      _firestore.collection('rating_summaries');
+  // Table names
+  static const String _reviewsTable = 'reviews';
+  static const String _reviewHelpfulTable = 'review_helpful';
 
-  /// Submit a new review
-  Future<bool> submitReview({
-    required String destinationId,
-    required String destinationName,
-    required String userId,
-    required String userName,
-    String? userPhotoUrl,
+  /// Submit a review
+  Future<String?> submitReview({
+    required String reviewerId,
+    required String targetId,
+    required String targetType, // 'user', 'destination', 'trip'
     required double rating,
-    required String title,
     required String content,
-    List<String> photoUrls = const [],
+    List<String>? imageUrls,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       AppLogger.debug(_tag, 'Submitting review', {
-        'destinationId': destinationId,
+        'reviewerId': reviewerId,
+        'targetId': targetId,
+        'targetType': targetType,
         'rating': rating,
       });
 
-      final now = DateTime.now();
+      // Check if user already reviewed this target
+      final existingReview = await _supabase
+          .from(_reviewsTable)
+          .select('id')
+          .eq('reviewer_id', reviewerId)
+          .eq('target_id', targetId)
+          .eq('target_type', targetType)
+          .maybeSingle();
 
-      final review = DestinationReview(
-        id: '',
-        destinationId: destinationId,
-        destinationName: destinationName,
-        userId: userId,
-        userName: userName,
-        userPhotoUrl: userPhotoUrl,
-        rating: rating,
-        title: title,
-        content: content,
-        photoUrls: photoUrls,
-        createdAt: now,
-        updatedAt: now,
-      );
+      if (existingReview != null) {
+        AppLogger.warning(_tag, 'User already reviewed this target');
+        return null;
+      }
 
-      // Add review
-      await _reviewsCollection.add(review.toFirestore());
+      final response = await _supabase
+          .from(_reviewsTable)
+          .insert({
+            'reviewer_id': reviewerId,
+            'target_id': targetId,
+            'target_type': targetType,
+            'rating': rating,
+            'content': content,
+            'image_urls': imageUrls ?? [],
+            'metadata': metadata ?? {},
+            'helpful_count': 0,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
 
-      // Update rating summary
-      await _updateRatingSummary(destinationId, rating, isNew: true);
+      final reviewId = response['id'] as String;
 
-      AppLogger.info(_tag, 'Review submitted successfully', {
-        'destinationId': destinationId,
+      // Update target's average rating
+      await _updateTargetRating(targetId, targetType);
+
+      AppLogger.success(_tag, 'Review submitted successfully', {
+        'reviewId': reviewId,
       });
 
-      return true;
+      return reviewId;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to submit review', e, stackTrace);
-      return false;
+      return null;
     }
   }
 
-  /// Update an existing review
+  /// Get reviews for a target
+  Future<List<Review>> getReviews({
+    required String targetId,
+    required String targetType,
+    int limit = 20,
+    int offset = 0,
+    String? sortBy = 'created_at', // 'created_at', 'rating', 'helpful_count'
+    bool ascending = false,
+  }) async {
+    try {
+      AppLogger.debug(_tag, 'Fetching reviews', {
+        'targetId': targetId,
+        'targetType': targetType,
+        'limit': limit,
+        'offset': offset,
+      });
+
+      final response = await _supabase
+          .from(_reviewsTable)
+          .select()
+          .eq('target_id', targetId)
+          .eq('target_type', targetType)
+          .order(sortBy, ascending: ascending)
+          .range(offset, offset + limit - 1);
+
+      final reviews = response
+          .map((data) => Review.fromSupabase(data))
+          .toList();
+
+      AppLogger.success(_tag, 'Reviews fetched successfully', {
+        'count': reviews.length,
+      });
+
+      return reviews;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to fetch reviews', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Get review by ID
+  Future<Review?> getReviewById(String reviewId) async {
+    try {
+      final response = await _supabase
+          .from(_reviewsTable)
+          .select()
+          .eq('id', reviewId)
+          .maybeSingle();
+
+      if (response == null) {
+        AppLogger.warning(_tag, 'Review not found', {'reviewId': reviewId});
+        return null;
+      }
+
+      return Review.fromSupabase(response);
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to fetch review by ID', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// Update a review
   Future<bool> updateReview({
     required String reviewId,
-    required String destinationId,
-    required double oldRating,
-    required double newRating,
-    required String title,
-    required String content,
-    List<String>? photoUrls,
+    required String reviewerId,
+    double? rating,
+    String? content,
+    List<String>? imageUrls,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       AppLogger.debug(_tag, 'Updating review', {
         'reviewId': reviewId,
+        'reviewerId': reviewerId,
       });
 
-      await _reviewsCollection.doc(reviewId).update({
-        'rating': newRating,
-        'title': title,
-        'content': content,
-        'photoUrls': photoUrls,
-        'updatedAt': Timestamp.now(),
-      });
+      final updates = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
 
-      // Update rating summary if rating changed
-      if (oldRating != newRating) {
-        await _updateRatingSummary(
-          destinationId,
-          newRating,
-          oldRating: oldRating,
-        );
+      if (rating != null) updates['rating'] = rating;
+      if (content != null) updates['content'] = content;
+      if (imageUrls != null) updates['image_urls'] = imageUrls;
+      if (metadata != null) updates['metadata'] = metadata;
+
+      await _supabase
+          .from(_reviewsTable)
+          .update(updates)
+          .eq('id', reviewId)
+          .eq('reviewer_id', reviewerId);
+
+      // Update target's average rating if rating changed
+      if (rating != null) {
+        final review = await getReviewById(reviewId);
+        if (review != null) {
+          await _updateTargetRating(review.targetId, review.targetType);
+        }
       }
 
-      AppLogger.info(_tag, 'Review updated successfully');
-
+      AppLogger.success(_tag, 'Review updated successfully');
       return true;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to update review', e, stackTrace);
@@ -114,25 +187,29 @@ class ReviewService {
   /// Delete a review
   Future<bool> deleteReview({
     required String reviewId,
-    required String destinationId,
-    required double rating,
+    required String reviewerId,
   }) async {
     try {
       AppLogger.debug(_tag, 'Deleting review', {
         'reviewId': reviewId,
+        'reviewerId': reviewerId,
       });
 
-      await _reviewsCollection.doc(reviewId).delete();
+      // Get review details before deletion for rating update
+      final review = await getReviewById(reviewId);
 
-      // Update rating summary
-      await _updateRatingSummary(
-        destinationId,
-        rating,
-        isDelete: true,
-      );
+      await _supabase
+          .from(_reviewsTable)
+          .delete()
+          .eq('id', reviewId)
+          .eq('reviewer_id', reviewerId);
 
-      AppLogger.info(_tag, 'Review deleted successfully');
+      // Update target's average rating
+      if (review != null) {
+        await _updateTargetRating(review.targetId, review.targetType);
+      }
 
+      AppLogger.success(_tag, 'Review deleted successfully');
       return true;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to delete review', e, stackTrace);
@@ -140,75 +217,284 @@ class ReviewService {
     }
   }
 
-  /// Get reviews for a destination
-  Stream<List<DestinationReview>> getReviewsStream({
-    required String destinationId,
-    ReviewFilter filter = ReviewFilter.mostRecent,
-    int limit = 20,
-  }) {
-    AppLogger.debug(_tag, 'Getting reviews stream', {
-      'destinationId': destinationId,
-      'filter': filter.toString(),
-    });
-
-    return _reviewsCollection
-        .where('destinationId', isEqualTo: destinationId)
-        .orderBy(
-          ReviewSortHelper.getFirestoreField(filter),
-          descending: ReviewSortHelper.isDescending(filter),
-        )
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      AppLogger.debug(_tag, 'Reviews stream update', {
-        'count': snapshot.docs.length,
-      });
-
-      return snapshot.docs
-          .map((doc) => DestinationReview.fromFirestore(doc))
-          .toList();
-    });
-  }
-
-  /// Get rating summary for a destination
-  Stream<RatingSummary?> getRatingSummaryStream(String destinationId) {
-    return _ratingSummariesCollection.doc(destinationId).snapshots().map(
-      (snapshot) {
-        if (!snapshot.exists) {
-          return RatingSummary(
-            destinationId: destinationId,
-            averageRating: 0.0,
-            totalReviews: 0,
-            ratingDistribution: {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
-          );
-        }
-        return RatingSummary.fromFirestore(snapshot);
-      },
-    );
-  }
-
-  /// Get user's review for a destination
-  Future<DestinationReview?> getUserReview({
-    required String destinationId,
+  /// Mark review as helpful
+  Future<bool> markReviewHelpful({
+    required String reviewId,
     required String userId,
   }) async {
     try {
-      final snapshot = await _reviewsCollection
-          .where('destinationId', isEqualTo: destinationId)
-          .where('userId', isEqualTo: userId)
-          .limit(1)
-          .get();
+      AppLogger.debug(_tag, 'Marking review as helpful', {
+        'reviewId': reviewId,
+        'userId': userId,
+      });
 
-      if (snapshot.docs.isEmpty) return null;
+      await _supabase
+          .from(_reviewHelpfulTable)
+          .upsert({
+            'review_id': reviewId,
+            'user_id': userId,
+            'created_at': DateTime.now().toIso8601String(),
+          });
 
-      return DestinationReview.fromFirestore(snapshot.docs.first);
+      // Update helpful count
+      await _supabase.rpc('increment_review_helpful', params: {
+        'review_id': reviewId,
+      });
+
+      AppLogger.success(_tag, 'Review marked as helpful');
+      return true;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get user review', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to mark review as helpful', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Remove helpful mark from review
+  Future<bool> removeHelpfulMark({
+    required String reviewId,
+    required String userId,
+  }) async {
+    try {
+      await _supabase
+          .from(_reviewHelpfulTable)
+          .delete()
+          .eq('review_id', reviewId)
+          .eq('user_id', userId);
+
+      // Update helpful count
+      await _supabase.rpc('decrement_review_helpful', params: {
+        'review_id': reviewId,
+      });
+
+      AppLogger.success(_tag, 'Helpful mark removed');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to remove helpful mark', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Get review statistics for a target
+  Future<Map<String, dynamic>> getReviewStats({
+    required String targetId,
+    required String targetType,
+  }) async {
+    try {
+      final response = await _supabase.rpc('get_review_stats', params: {
+        'target_id': targetId,
+        'target_type': targetType,
+      });
+
+      return {
+        'average_rating': response['average_rating'] ?? 0.0,
+        'total_reviews': response['total_reviews'] ?? 0,
+        'rating_distribution': response['rating_distribution'] ?? {},
+      };
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get review stats', e, stackTrace);
+      return {
+        'average_rating': 0.0,
+        'total_reviews': 0,
+        'rating_distribution': {},
+      };
+    }
+  }
+
+  /// Get user's reviews
+  Future<List<Review>> getUserReviews({
+    required String userId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_reviewsTable)
+          .select()
+          .eq('reviewer_id', userId)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return response
+          .map((data) => Review.fromSupabase(data))
+          .toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user reviews', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Check if user has reviewed a target
+  Future<bool> hasUserReviewed({
+    required String userId,
+    required String targetId,
+    required String targetType,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_reviewsTable)
+          .select('id')
+          .eq('reviewer_id', userId)
+          .eq('target_id', targetId)
+          .eq('target_type', targetType)
+          .maybeSingle();
+
+      return response != null;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to check if user reviewed', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Get user's review for a specific target
+  Future<Review?> getUserReviewForTarget({
+    required String userId,
+    required String targetId,
+    required String targetType,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_reviewsTable)
+          .select()
+          .eq('reviewer_id', userId)
+          .eq('target_id', targetId)
+          .eq('target_type', targetType)
+          .maybeSingle();
+
+      if (response == null) return null;
+
+      return Review.fromSupabase(response);
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user review for target', e, stackTrace);
       return null;
     }
   }
 
-  /// Mark review as helpful
+  /// Get recent reviews
+  Future<List<Review>> getRecentReviews({
+    int limit = 10,
+    String? targetType,
+  }) async {
+    try {
+      var query = _supabase
+          .from(_reviewsTable)
+          .select();
+
+      if (targetType != null) {
+        query = query.eq('target_type', targetType);
+      }
+
+      final response = await query
+          .order('created_at', ascending: false)
+          .limit(limit);
+
+      return response
+          .map((data) => Review.fromSupabase(data))
+          .toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get recent reviews', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Upload review photos
+  Future<List<String>> uploadReviewPhotos(List<String> imagePaths) async {
+    try {
+      AppLogger.debug(_tag, 'Uploading review photos', {'count': imagePaths.length});
+      
+      final List<String> photoUrls = [];
+      
+      for (int i = 0; i < imagePaths.length; i++) {
+        final fileName = 'review_${DateTime.now().millisecondsSinceEpoch}_$i.jpg';
+        
+        // For now, return mock URLs - implement actual upload later
+        photoUrls.add('https://example.com/reviews/$fileName');
+      }
+      
+      return photoUrls;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to upload review photos', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Get reviews stream for real-time updates
+  Stream<List<Review>> getReviewsStream({
+    required String targetId,
+    required String targetType,
+    int limit = 20,
+  }) {
+    try {
+      return _supabase
+          .from(_reviewsTable)
+          .stream(primaryKey: ['id']).map((data) {
+            final filtered = data.where((json) => 
+              json['target_id'] == targetId && 
+              json['target_type'] == targetType
+            ).toList();
+            
+            filtered.sort((a, b) => DateTime.parse(b['created_at'] ?? '').compareTo(DateTime.parse(a['created_at'] ?? '')));
+            
+            return filtered.take(limit).map((json) => Review.fromMap(json)).toList();
+          });
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get reviews stream', e, stackTrace);
+      return Stream.value([]);
+    }
+  }
+
+  /// Get rating summary stream
+  Stream<RatingSummary> getRatingSummaryStream({
+    required String targetId,
+    required String targetType,
+  }) {
+    try {
+      return _supabase
+          .from(_reviewsTable)
+          .stream(primaryKey: ['id']).map((data) {
+        final filtered = data.where((json) => 
+          json['target_id'] == targetId && 
+          json['target_type'] == targetType
+        ).toList();
+        
+        if (filtered.isEmpty) {
+          return RatingSummary(
+            destinationId: targetId,
+            averageRating: 0.0,
+            totalReviews: 0,
+            ratingDistribution: <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+          );
+        }
+        
+        final reviews = filtered.map((json) => Review.fromMap(json)).toList();
+        final totalReviews = reviews.length;
+        final totalRating = reviews.fold<double>(0.0, (sum, review) => sum + review.rating);
+        final averageRating = totalRating / totalReviews;
+        
+        final ratingDistribution = <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0};
+        for (final review in reviews) {
+          final rating = review.rating.round();
+          ratingDistribution[rating] = (ratingDistribution[rating] ?? 0) + 1;
+        }
+        
+        return RatingSummary(
+          destinationId: targetId,
+          averageRating: averageRating,
+          totalReviews: totalReviews,
+          ratingDistribution: ratingDistribution,
+        );
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get rating summary stream', e, stackTrace);
+      return Stream.value(RatingSummary(
+        destinationId: targetId,
+        averageRating: 0.0,
+        totalReviews: 0,
+        ratingDistribution: <int, int>{1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+      ));
+    }
+  }
+
+  /// Toggle helpful status of a review
   Future<bool> toggleHelpful({
     required String reviewId,
     required String userId,
@@ -216,278 +502,49 @@ class ReviewService {
     try {
       AppLogger.debug(_tag, 'Toggling helpful status', {
         'reviewId': reviewId,
+        'userId': userId,
       });
 
-      final doc = await _reviewsCollection.doc(reviewId).get();
-      if (!doc.exists) return false;
+      // Check if user already marked as helpful
+      final existing = await _supabase
+          .from(_reviewHelpfulTable)
+          .select()
+          .eq('review_id', reviewId)
+          .eq('user_id', userId)
+          .maybeSingle();
 
-      final review = DestinationReview.fromFirestore(doc);
-      final isCurrentlyHelpful = review.isMarkedHelpfulBy(userId);
-
-      if (isCurrentlyHelpful) {
-        // Remove helpful
-        await _reviewsCollection.doc(reviewId).update({
-          'helpfulUserIds': FieldValue.arrayRemove([userId]),
-          'helpfulCount': FieldValue.increment(-1),
-        });
+      if (existing != null) {
+        // Remove helpful mark
+        await _supabase
+            .from(_reviewHelpfulTable)
+            .delete()
+            .eq('review_id', reviewId)
+            .eq('user_id', userId);
       } else {
-        // Add helpful
-        await _reviewsCollection.doc(reviewId).update({
-          'helpfulUserIds': FieldValue.arrayUnion([userId]),
-          'helpfulCount': FieldValue.increment(1),
+        // Add helpful mark
+        await _supabase.from(_reviewHelpfulTable).insert({
+          'review_id': reviewId,
+          'user_id': userId,
+          'created_at': DateTime.now().toIso8601String(),
         });
       }
 
-      AppLogger.info(_tag, 'Helpful status toggled', {
-        'wasHelpful': isCurrentlyHelpful,
-        'nowHelpful': !isCurrentlyHelpful,
-      });
-
       return true;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to toggle helpful', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to toggle helpful status', e, stackTrace);
       return false;
     }
   }
 
-  /// Update rating summary for a destination
-  Future<void> _updateRatingSummary(
-    String destinationId,
-    double rating, {
-    double? oldRating,
-    bool isNew = false,
-    bool isDelete = false,
-  }) async {
+  /// Private method to update target's average rating
+  Future<void> _updateTargetRating(String targetId, String targetType) async {
     try {
-      AppLogger.debug(_tag, 'Updating rating summary', {
-        'destinationId': destinationId,
-        'isNew': isNew,
-        'isDelete': isDelete,
-      });
-
-      final summaryDoc = _ratingSummariesCollection.doc(destinationId);
-      final snapshot = await summaryDoc.get();
-
-      RatingSummary summary;
-
-      if (!snapshot.exists) {
-        // Create new summary
-        summary = RatingSummary(
-          destinationId: destinationId,
-          averageRating: rating,
-          totalReviews: 1,
-          ratingDistribution: {
-            1: rating == 1 ? 1 : 0,
-            2: rating == 2 ? 1 : 0,
-            3: rating == 3 ? 1 : 0,
-            4: rating == 4 ? 1 : 0,
-            5: rating == 5 ? 1 : 0,
-          },
-        );
-      } else {
-        summary = RatingSummary.fromFirestore(snapshot);
-
-        // Calculate new values
-        int newTotalReviews = summary.totalReviews;
-        Map<int, int> newDistribution = Map.from(summary.ratingDistribution);
-
-        if (isNew) {
-          newTotalReviews++;
-          newDistribution[rating.round()] =
-              (newDistribution[rating.round()] ?? 0) + 1;
-        } else if (isDelete) {
-          newTotalReviews--;
-          newDistribution[rating.round()] =
-              (newDistribution[rating.round()] ?? 0) - 1;
-        } else if (oldRating != null) {
-          // Update (rating changed)
-          newDistribution[oldRating.round()] =
-              (newDistribution[oldRating.round()] ?? 0) - 1;
-          newDistribution[rating.round()] =
-              (newDistribution[rating.round()] ?? 0) + 1;
-        }
-
-        // Calculate new average
-        double totalRating = 0;
-        newDistribution.forEach((star, reviewCount) {
-          totalRating += star * reviewCount;
-        });
-
-        final newAverage =
-            newTotalReviews > 0 ? totalRating / newTotalReviews : 0.0;
-
-        summary = RatingSummary(
-          destinationId: destinationId,
-          averageRating: newAverage,
-          totalReviews: newTotalReviews,
-          ratingDistribution: newDistribution,
-        );
-      }
-
-      await summaryDoc.set(summary.toFirestore());
-
-      AppLogger.info(_tag, 'Rating summary updated', {
-        'averageRating': summary.averageRating,
-        'totalReviews': summary.totalReviews,
+      await _supabase.rpc('update_target_rating', params: {
+        'target_id': targetId,
+        'target_type': targetType,
       });
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to update rating summary', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to update target rating', e, stackTrace);
     }
-  }
-
-  /// Get recent reviews across all destinations (for home feed)
-  Stream<List<DestinationReview>> getRecentReviewsStream({int limit = 10}) {
-    return _reviewsCollection
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => DestinationReview.fromFirestore(doc))
-          .toList();
-    });
-  }
-
-  /// Get user's all reviews
-  Stream<List<DestinationReview>> getUserReviewsStream(String userId) {
-    return _reviewsCollection
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => DestinationReview.fromFirestore(doc))
-          .toList();
-    });
-  }
-
-  /// Upload review photos to Firebase Storage
-  Future<List<String>> uploadReviewPhotos({
-    required String userId,
-    required String destinationId,
-    required List<File> photoFiles,
-  }) async {
-    final List<String> photoUrls = [];
-
-    try {
-      AppLogger.debug(_tag, 'Uploading review photos', {
-        'count': photoFiles.length,
-      });
-
-      for (int i = 0; i < photoFiles.length; i++) {
-        final file = photoFiles[i];
-
-        // Optimize image
-        final optimizedImage = await _optimizeImage(file);
-        if (optimizedImage == null) {
-          AppLogger.warning(_tag, 'Failed to optimize image $i, skipping');
-          continue;
-        }
-
-        // Upload to Cloudinary
-        final fileName = 'review_${destinationId}_${userId}_${DateTime.now().millisecondsSinceEpoch}_$i';
-
-        AppLogger.debug(_tag, 'Uploading photo ${i + 1}/${photoFiles.length} to Cloudinary');
-
-        final photoUrl = await _cloudinaryService.uploadFile(
-          file: optimizedImage,
-          folder: 'review_photos',
-          fileName: fileName,
-        );
-        photoUrls.add(photoUrl);
-
-        // Clean up optimized file
-        await optimizedImage.delete();
-
-        AppLogger.info(_tag, 'Photo ${i + 1} uploaded successfully');
-      }
-
-      AppLogger.success(_tag, 'All review photos uploaded', {
-        'uploaded': photoUrls.length,
-        'total': photoFiles.length,
-      });
-
-      return photoUrls;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to upload review photos', e, stackTrace);
-      return photoUrls; // Return whatever was successfully uploaded
-    }
-  }
-
-  /// Optimize image for review (reduce size and quality)
-  Future<File?> _optimizeImage(File imageFile) async {
-    try {
-      AppLogger.debug(_tag, 'Optimizing image', {
-        'originalSize': imageFile.lengthSync(),
-      });
-
-      // Read image
-      final bytes = await imageFile.readAsBytes();
-      final image = img.decodeImage(bytes);
-
-      if (image == null) {
-        AppLogger.error(_tag, 'Failed to decode image');
-        return null;
-      }
-
-      // Resize if needed (max 1920x1920)
-      final resized = image.width > 1920 || image.height > 1920
-          ? img.copyResize(
-              image,
-              width: image.width > image.height ? 1920 : null,
-              height: image.height > image.width ? 1920 : null,
-            )
-          : image;
-
-      // Compress to JPEG with 85% quality
-      final compressed = img.encodeJpg(resized, quality: 85);
-
-      // Write to temporary file
-      final tempDir = await Directory.systemTemp.createTemp('review_image_');
-      final tempFile = File('${tempDir.path}/optimized.jpg');
-      await tempFile.writeAsBytes(compressed);
-
-      AppLogger.info(_tag, 'Image optimized', {
-        'originalSize': imageFile.lengthSync(),
-        'optimizedSize': tempFile.lengthSync(),
-        'reduction': '${((1 - tempFile.lengthSync() / imageFile.lengthSync()) * 100).toStringAsFixed(1)}%',
-      });
-
-      return tempFile;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to optimize image', e, stackTrace);
-      return null;
-    }
-  }
-
-  /// Initialize service
-  Future<void> initialize() async {
-    await _cloudinaryService.initialize();
-    AppLogger.info(_tag, 'Review Service initialized with Cloudinary');
-  }
-
-  /// Get optimized image URL for review photos
-  String getOptimizedImageUrl({
-    required String originalUrl,
-    int? width,
-    int? height,
-    String quality = 'auto',
-  }) {
-    return _cloudinaryService.getOptimizedImageUrl(
-      secureUrl: originalUrl,
-      width: width,
-      height: height,
-      quality: quality,
-    );
-  }
-
-  /// Get thumbnail URL for review photo preview
-  String getThumbnailUrl(String originalUrl, {int size = 150}) {
-    return getOptimizedImageUrl(
-      originalUrl: originalUrl,
-      width: size,
-      height: size,
-      quality: 'auto',
-    );
   }
 }

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/config/env_config.dart';
+import 'core/config/supabase_config.dart';
 import 'core/utils/logger.dart';
 import 'core/database/hive_service.dart';
 import 'core/utils/connectivity_service.dart';
@@ -42,7 +42,6 @@ import 'presentation/splash/splash_screen.dart';
 import 'presentation/onboarding/onboarding_screen.dart';
 import 'presentation/auth/auth_screen.dart';
 import 'presentation/main/main_screen.dart';
-import 'firebase_options.dart';
 
 void main() async {
   const String tag = 'Main';
@@ -67,12 +66,10 @@ void main() async {
 
     AppLogger.info(tag, 'Configuration summary', EnvConfig.getSanitizedConfig());
 
-    // Initialize Firebase
-    AppLogger.debug(tag, 'Initializing Firebase');
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    AppLogger.success(tag, 'Firebase initialized successfully');
+    // Initialize Supabase (FREE Backend)
+    AppLogger.debug(tag, 'Initializing Supabase');
+    await SupabaseConfig.initialize();
+    AppLogger.success(tag, 'Supabase initialized successfully');
 
     // Initialize Hive database for offline storage
     AppLogger.debug(tag, 'Initializing Hive database');

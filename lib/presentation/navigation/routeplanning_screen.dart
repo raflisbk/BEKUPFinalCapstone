@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../core/widgets/mock_google_maps.dart'; // Mock implementation while migrating to Mapbox
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/models/route_model.dart';

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../core/stubs/firebase_stubs.dart';
 import '../core/utils/logger.dart';
 
 /// Booking types
@@ -352,7 +352,7 @@ class BookingService {
           .orderBy('createdAt', descending: true)
           .get();
 
-      return snapshot.docs.map((doc) => Booking.fromMap(doc.data())).toList();
+      return snapshot.docs.map((doc) => Booking.fromMap(doc.data() ?? {})).toList();
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to get user bookings', e, stackTrace);
       return [];
@@ -372,7 +372,7 @@ class BookingService {
           .orderBy('checkInDate')
           .get();
 
-      return snapshot.docs.map((doc) => Booking.fromMap(doc.data())).toList();
+      return snapshot.docs.map((doc) => Booking.fromMap(doc.data() ?? {})).toList();
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to get upcoming bookings', e, stackTrace);
       return [];
@@ -491,7 +491,7 @@ class BookingService {
           .orderBy('checkInDate')
           .get();
 
-      return snapshot.docs.map((doc) => Booking.fromMap(doc.data())).toList();
+      return snapshot.docs.map((doc) => Booking.fromMap(doc.data() ?? {})).toList();
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to get trip bookings', e, stackTrace);
       return [];

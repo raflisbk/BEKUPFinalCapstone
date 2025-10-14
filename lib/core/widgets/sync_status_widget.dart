@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/sync/sync_queue_manager.dart';
 import '../../services/sync/background_sync_service.dart';
 import '../../core/utils/connectivity_service.dart';
+import '../models/sync_model.dart';
 
 /// Widget that displays sync status and allows manual sync trigger
 class SyncStatusWidget extends StatefulWidget {
@@ -33,8 +34,9 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
     _updateSyncStatus();
     
     // Listen to sync progress
-    _syncQueue.syncProgress.listen((progress) {
+    _syncQueue.syncProgress.listen((progressMap) {
       if (mounted) {
+        final progress = SyncProgress.fromMap(progressMap);
         setState(() {
           _isSyncing = progress.status == SyncStatus.syncing;
           _totalCount = progress.total ?? 0;
@@ -44,7 +46,7 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
   }
 
   Future<void> _updateSyncStatus() async {
-    final count = _syncQueue.getPendingCount();
+    final count = await _syncQueue.getPendingCount();
     if (mounted) {
       setState(() {
         _pendingCount = count;
@@ -322,48 +324,55 @@ class SyncStatusIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final syncQueue = SyncQueueManager();
     
-    return StreamBuilder<SyncProgress>(
+    return StreamBuilder<Map<String, dynamic>>(
       stream: syncQueue.syncProgress,
-      builder: (context, snapshot) {
-        final progress = snapshot.data;
+      builder: (context, streamSnapshot) {
+        final progressMap = streamSnapshot.data;
+        final progress = progressMap != null ? SyncProgress.fromMap(progressMap) : null;
         final isSyncing = progress?.status == SyncStatus.syncing;
-        final pending = syncQueue.getPendingCount();
 
-        return Stack(
-          children: [
-            IconButton(
-              icon: Icon(
-                isSyncing ? Icons.sync : Icons.cloud_queue,
-                color: pending > 0 ? Colors.orange : Colors.grey[700],
-              ),
-              onPressed: () => _showSyncDialog(context),
-            ),
-            if (pending > 0)
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.red,
-                    shape: BoxShape.circle,
+        return FutureBuilder<int>(
+          future: syncQueue.getPendingCount(),
+          builder: (context, countSnapshot) {
+            final pending = countSnapshot.data ?? 0;
+
+            return Stack(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    isSyncing ? Icons.sync : Icons.cloud_queue,
+                    color: pending > 0 ? Colors.orange : Colors.grey[700],
                   ),
-                  constraints: const BoxConstraints(
-                    minWidth: 16,
-                    minHeight: 16,
-                  ),
-                  child: Text(
-                    pending > 9 ? '9+' : '$pending',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
+                  onPressed: () => _showSyncDialog(context),
                 ),
-              ),
-          ],
+                if (pending > 0)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        pending > 9 ? '9+' : '$pending',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         );
       },
     );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../core/widgets/mock_google_maps.dart'; // Mock implementation while migrating to Mapbox
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -34,7 +34,8 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   static const String _tag = 'ExploreScreen';
 
-  GoogleMapController? _mapController;
+  // GoogleMapController? _mapController; // DISABLED - Using Mapbox instead
+  dynamic _mapController;
 
   // Progressive loading settings
   static const int _markerBatchSize = 10;

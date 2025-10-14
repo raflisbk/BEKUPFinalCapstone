@@ -1,81 +1,38 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/models/social_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/logger.dart';
-import 'user_safety_service.dart';
 
-/// Service for managing social features (follow, activity feed)
+/// Service for social features like following, posts, and interactions - Supabase version
 class SocialService {
   static const String _tag = 'SocialService';
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final UserSafetyService _safetyService = UserSafetyService();
+  final SupabaseClient _supabase = Supabase.instance.client;
 
-  CollectionReference get _socialCollection => _firestore.collection('social_connections');
-  CollectionReference get _activityCollection => _firestore.collection('activities');
+  // Table names
+  static const String _followsTable = 'user_follows';
+  static const String _postsTable = 'social_posts';
+  static const String _likesTable = 'post_likes';
+  static const String _commentsTable = 'post_comments';
 
   /// Follow a user
   Future<bool> followUser({
-    required String currentUserId,
-    required String targetUserId,
-    required String currentUserName,
-    String? currentUserPhotoUrl,
+    required String followerId,
+    required String followingId,
   }) async {
     try {
       AppLogger.debug(_tag, 'Following user', {
-        'currentUserId': currentUserId,
-        'targetUserId': targetUserId,
+        'followerId': followerId,
+        'followingId': followingId,
       });
 
-      // Safety Check: Verify neither user has blocked the other
-      final isBlocked = await _safetyService.isUserBlocked(
-        userId: currentUserId,
-        blockedUserId: targetUserId,
-      );
+      await _supabase
+          .from(_followsTable)
+          .upsert({
+            'follower_id': followerId,
+            'following_id': followingId,
+            'created_at': DateTime.now().toIso8601String(),
+          });
 
-      if (isBlocked) {
-        AppLogger.warning(_tag, 'Cannot follow: User is blocked', {
-          'currentUserId': currentUserId,
-          'targetUserId': targetUserId,
-        });
-        return false;
-      }
-
-      final isBlockedBy = await _safetyService.isUserBlocked(
-        userId: targetUserId,
-        blockedUserId: currentUserId,
-      );
-
-      if (isBlockedBy) {
-        AppLogger.warning(_tag, 'Cannot follow: Blocked by target user', {
-          'currentUserId': currentUserId,
-          'targetUserId': targetUserId,
-        });
-        return false;
-      }
-
-      // Update current user's following
-      await _socialCollection.doc(currentUserId).set({
-        'following': FieldValue.arrayUnion([targetUserId]),
-        'followingCount': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-
-      // Update target user's followers
-      await _socialCollection.doc(targetUserId).set({
-        'followers': FieldValue.arrayUnion([currentUserId]),
-        'followersCount': FieldValue.increment(1),
-      }, SetOptions(merge: true));
-
-      // Create activity
-      await _createActivity(
-        userId: currentUserId,
-        userName: currentUserName,
-        userPhotoUrl: currentUserPhotoUrl,
-        type: ActivityType.follow,
-        action: 'started following you',
-        targetId: targetUserId,
-      );
-
-      AppLogger.info(_tag, 'User followed successfully');
+      AppLogger.success(_tag, 'User followed successfully');
       return true;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to follow user', e, stackTrace);
@@ -85,28 +42,22 @@ class SocialService {
 
   /// Unfollow a user
   Future<bool> unfollowUser({
-    required String currentUserId,
-    required String targetUserId,
+    required String followerId,
+    required String followingId,
   }) async {
     try {
       AppLogger.debug(_tag, 'Unfollowing user', {
-        'currentUserId': currentUserId,
-        'targetUserId': targetUserId,
+        'followerId': followerId,
+        'followingId': followingId,
       });
 
-      // Update current user's following
-      await _socialCollection.doc(currentUserId).update({
-        'following': FieldValue.arrayRemove([targetUserId]),
-        'followingCount': FieldValue.increment(-1),
-      });
+      await _supabase
+          .from(_followsTable)
+          .delete()
+          .eq('follower_id', followerId)
+          .eq('following_id', followingId);
 
-      // Update target user's followers
-      await _socialCollection.doc(targetUserId).update({
-        'followers': FieldValue.arrayRemove([currentUserId]),
-        'followersCount': FieldValue.increment(-1),
-      });
-
-      AppLogger.info(_tag, 'User unfollowed successfully');
+      AppLogger.success(_tag, 'User unfollowed successfully');
       return true;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to unfollow user', e, stackTrace);
@@ -114,241 +65,389 @@ class SocialService {
     }
   }
 
-  /// Get social connection for user
-  Future<SocialConnection?> getSocialConnection(String userId) async {
-    try {
-      final doc = await _socialCollection.doc(userId).get();
-
-      if (!doc.exists) {
-        // Create initial connection
-        await _socialCollection.doc(userId).set({
-          'following': [],
-          'followers': [],
-          'followingCount': 0,
-          'followersCount': 0,
-        });
-
-        final newDoc = await _socialCollection.doc(userId).get();
-        return SocialConnection.fromFirestore(newDoc);
-      }
-
-      return SocialConnection.fromFirestore(doc);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get social connection', e, stackTrace);
-      return null;
-    }
-  }
-
-  /// Get social connection stream
-  Stream<SocialConnection?> getSocialConnectionStream(String userId) {
-    return _socialCollection.doc(userId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return SocialConnection.fromFirestore(doc);
-    });
-  }
-
-  /// Create activity
-  Future<void> _createActivity({
-    required String userId,
-    required String userName,
-    String? userPhotoUrl,
-    required ActivityType type,
-    required String action,
-    String? targetId,
-    String? targetName,
-    String? targetImageUrl,
+  /// Check if user is following another user
+  Future<bool> isFollowing({
+    required String followerId,
+    required String followingId,
   }) async {
     try {
-      final activity = ActivityItem(
-        id: '',
-        userId: userId,
-        userName: userName,
-        userPhotoUrl: userPhotoUrl,
-        type: type,
-        action: action,
-        targetId: targetId,
-        targetName: targetName,
-        targetImageUrl: targetImageUrl,
-        createdAt: DateTime.now(),
-      );
+      final response = await _supabase
+          .from(_followsTable)
+          .select('id')
+          .eq('follower_id', followerId)
+          .eq('following_id', followingId)
+          .maybeSingle();
 
-      await _activityCollection.add(activity.toFirestore());
+      return response != null;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to create activity', e, stackTrace);
-    }
-  }
-
-  /// Get activity feed for user (from people they follow)
-  Stream<List<ActivityItem>> getActivityFeedStream(String userId) {
-    return _activityCollection
-        .orderBy('createdAt', descending: true)
-        .limit(50)
-        .snapshots()
-        .asyncMap((snapshot) async {
-      // Get user's following list
-      final connection = await getSocialConnection(userId);
-      final following = connection?.following ?? [];
-
-      // Safety Check: Get blocked users list
-      final blockedUsers = await _safetyService.getBlockedUsers(userId);
-
-      // Filter activities from people user follows (plus own activities)
-      // AND filter out activities from blocked users
-      final activities = snapshot.docs
-          .map((doc) => ActivityItem.fromFirestore(doc))
-          .where((activity) {
-            // Skip if activity is from a blocked user
-            if (blockedUsers.contains(activity.userId)) {
-              return false;
-            }
-            
-            // Include activities from people user follows, own activities,
-            // or activities targeting the user
-            return following.contains(activity.userId) ||
-                activity.userId == userId ||
-                activity.targetId == userId;
-          })
-          .toList();
-
-      AppLogger.debug(_tag, 'Activity feed filtered', {
-        'totalActivities': snapshot.docs.length,
-        'filteredActivities': activities.length,
-        'blockedCount': blockedUsers.length,
-      });
-
-      return activities;
-    });
-  }
-
-  /// Get user's own activities
-  Stream<List<ActivityItem>> getUserActivitiesStream(String userId) {
-    return _activityCollection
-        .where('userId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
-        .limit(30)
-        .snapshots()
-        .asyncMap((snapshot) async {
-      // Safety Check: Get blocked users list to filter activities
-      final blockedUsers = await _safetyService.getBlockedUsers(userId);
-      
-      // Filter out activities targeting blocked users
-      final activities = snapshot.docs
-          .map((doc) => ActivityItem.fromFirestore(doc))
-          .where((activity) {
-            // Hide activities that involve blocked users
-            if (activity.targetId != null && 
-                blockedUsers.contains(activity.targetId)) {
-              return false;
-            }
-            return true;
-          })
-          .toList();
-
-      AppLogger.debug(_tag, 'User activities filtered', {
-        'totalActivities': snapshot.docs.length,
-        'visibleActivities': activities.length,
-      });
-
-      return activities;
-    });
-  }
-
-  /// Check if user is following another user
-  Future<bool> isFollowing(String currentUserId, String targetUserId) async {
-    try {
-      final connection = await getSocialConnection(currentUserId);
-      return connection?.isFollowing(targetUserId) ?? false;
-    } catch (e) {
+      AppLogger.error(_tag, 'Failed to check following status', e, stackTrace);
       return false;
     }
   }
 
-  /// Get filtered followers list (excluding blocked users)
-  Future<List<String>> getVisibleFollowers(String userId) async {
+  /// Get followers list
+  Future<List<String>> getFollowers(String userId) async {
     try {
-      final connection = await getSocialConnection(userId);
-      if (connection == null) return [];
+      final response = await _supabase
+          .from(_followsTable)
+          .select('follower_id')
+          .eq('following_id', userId);
 
-      // Get blocked users
-      final blockedUsers = await _safetyService.getBlockedUsers(userId);
-
-      // Filter out blocked users from followers list
-      final visibleFollowers = connection.followers
-          .where((followerId) => !blockedUsers.contains(followerId))
+      return response
+          .map((item) => item['follower_id'] as String)
           .toList();
-
-      AppLogger.debug(_tag, 'Visible followers filtered', {
-        'totalFollowers': connection.followers.length,
-        'visibleFollowers': visibleFollowers.length,
-        'blockedCount': blockedUsers.length,
-      });
-
-      return visibleFollowers;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get visible followers', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to get followers', e, stackTrace);
       return [];
     }
   }
 
-  /// Get filtered following list (excluding blocked users)
-  Future<List<String>> getVisibleFollowing(String userId) async {
+  /// Get following list
+  Future<List<String>> getFollowing(String userId) async {
     try {
-      final connection = await getSocialConnection(userId);
-      if (connection == null) return [];
+      final response = await _supabase
+          .from(_followsTable)
+          .select('following_id')
+          .eq('follower_id', userId);
 
-      // Get blocked users
-      final blockedUsers = await _safetyService.getBlockedUsers(userId);
-
-      // Filter out blocked users from following list
-      final visibleFollowing = connection.following
-          .where((followingId) => !blockedUsers.contains(followingId))
+      return response
+          .map((item) => item['following_id'] as String)
           .toList();
-
-      AppLogger.debug(_tag, 'Visible following filtered', {
-        'totalFollowing': connection.following.length,
-        'visibleFollowing': visibleFollowing.length,
-        'blockedCount': blockedUsers.length,
-      });
-
-      return visibleFollowing;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get visible following', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to get following', e, stackTrace);
       return [];
     }
   }
 
-  /// Remove blocked users from following when they are blocked
-  Future<void> cleanupBlockedConnections(
-    String userId,
-    String blockedUserId,
-  ) async {
+  /// Create a social post
+  Future<String?> createPost({
+    required String userId,
+    required String content,
+    List<String>? imageUrls,
+    String? location,
+    List<String>? tags,
+  }) async {
     try {
-      AppLogger.debug(_tag, 'Cleaning up blocked connections', {
+      AppLogger.debug(_tag, 'Creating social post', {
         'userId': userId,
-        'blockedUserId': blockedUserId,
+        'content': content.length,
       });
 
-      // Unfollow if currently following
-      final connection = await getSocialConnection(userId);
-      if (connection != null && connection.isFollowing(blockedUserId)) {
-        await unfollowUser(
-          currentUserId: userId,
-          targetUserId: blockedUserId,
-        );
-      }
+      final response = await _supabase
+          .from(_postsTable)
+          .insert({
+            'user_id': userId,
+            'content': content,
+            'image_urls': imageUrls ?? [],
+            'location': location,
+            'tags': tags ?? [],
+            'likes_count': 0,
+            'comments_count': 0,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
 
-      // Remove from followers if they're following
-      final blockedConnection = await getSocialConnection(blockedUserId);
-      if (blockedConnection != null && blockedConnection.isFollowing(userId)) {
-        await unfollowUser(
-          currentUserId: blockedUserId,
-          targetUserId: userId,
-        );
-      }
-
-      AppLogger.info(_tag, 'Blocked connections cleaned up successfully');
+      final postId = response['id'] as String;
+      AppLogger.success(_tag, 'Social post created', {'postId': postId});
+      return postId;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to cleanup blocked connections', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to create post', e, stackTrace);
+      return null;
     }
   }
-}
+
+  /// Get user posts
+  Future<List<Map<String, dynamic>>> getUserPosts({
+    required String userId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_postsTable)
+          .select()
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get user posts', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Get timeline posts (posts from followed users)
+  Future<List<Map<String, dynamic>>> getTimelinePosts({
+    required String userId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      // Get following list
+      final following = await getFollowing(userId);
+      if (following.isEmpty) return [];
+
+      final response = await _supabase
+          .from(_postsTable)
+          .select()
+          .inFilter('user_id', following)
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get timeline posts', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Like a post
+  Future<bool> likePost({
+    required String postId,
+    required String userId,
+  }) async {
+    try {
+      await _supabase
+          .from(_likesTable)
+          .upsert({
+            'post_id': postId,
+            'user_id': userId,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+
+      // Update likes count
+      await _supabase.rpc('increment_post_likes', params: {
+        'post_id': postId,
+      });
+
+      AppLogger.success(_tag, 'Post liked successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to like post', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Unlike a post
+  Future<bool> unlikePost({
+    required String postId,
+    required String userId,
+  }) async {
+    try {
+      await _supabase
+          .from(_likesTable)
+          .delete()
+          .eq('post_id', postId)
+          .eq('user_id', userId);
+
+      // Update likes count
+      await _supabase.rpc('decrement_post_likes', params: {
+        'post_id': postId,
+      });
+
+      AppLogger.success(_tag, 'Post unliked successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to unlike post', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Add comment to post
+  Future<String?> addComment({
+    required String postId,
+    required String userId,
+    required String content,
+    String? parentCommentId,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_commentsTable)
+          .insert({
+            'post_id': postId,
+            'user_id': userId,
+            'content': content,
+            'parent_comment_id': parentCommentId,
+            'created_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
+
+      // Update comments count
+      await _supabase.rpc('increment_post_comments', params: {
+        'post_id': postId,
+      });
+
+      final commentId = response['id'] as String;
+      AppLogger.success(_tag, 'Comment added', {'commentId': commentId});
+      return commentId;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to add comment', e, stackTrace);
+      return null;
+    }
+  }
+
+  /// Get post comments
+  Future<List<Map<String, dynamic>>> getPostComments({
+    required String postId,
+    int limit = 50,
+    int offset = 0,
+  }) async {
+    try {
+      final response = await _supabase
+          .from(_commentsTable)
+          .select()
+          .eq('post_id', postId)
+          .order('created_at', ascending: true)
+          .range(offset, offset + limit - 1);
+
+      return response;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get post comments', e, stackTrace);
+      return [];
+    }
+  }
+
+  /// Delete post
+  Future<bool> deletePost({
+    required String postId,
+    required String userId,
+  }) async {
+    try {
+      await _supabase
+          .from(_postsTable)
+          .delete()
+          .eq('id', postId)
+          .eq('user_id', userId);
+
+      AppLogger.success(_tag, 'Post deleted successfully');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete post', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Get follower count
+  Future<int> getFollowerCount(String userId) async {
+    try {
+      final response = await _supabase
+          .from(_followsTable)
+          .select('id')
+          .eq('following_id', userId);
+
+      return response.length;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get follower count', e, stackTrace);
+      return 0;
+    }
+  }
+
+  /// Get following count
+  Future<int> getFollowingCount(String userId) async {
+    try {
+      final response = await _supabase
+          .from(_followsTable)
+          .select('id')
+          .eq('follower_id', userId);
+
+      return response.length;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get following count', e, stackTrace);
+      return 0;
+    }
+  }
+
+  /// Get posts count
+  Future<int> getPostsCount(String userId) async {
+    try {
+      final response = await _supabase
+          .from(_postsTable)
+          .select('id')
+          .eq('user_id', userId);
+
+      return response.length;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get posts count', e, stackTrace);
+      return 0;
+    }
+  }
+
+  /// Get social connection status between two users
+  Future<Map<String, dynamic>> getSocialConnection(String currentUserId, String targetUserId) async {
+    try {
+      AppLogger.debug(_tag, 'Getting social connection', {
+        'currentUserId': currentUserId,
+        'targetUserId': targetUserId,
+      });
+
+      if (currentUserId == targetUserId) {
+        return {
+          'isFollowing': false,
+          'isFollower': false,
+          'areFriends': false,
+          'connectionType': 'self',
+        };
+      }
+
+      // Check if current user follows target user
+      final following = await _supabase
+          .from(_followsTable)
+          .select()
+          .eq('follower_id', currentUserId)
+          .eq('following_id', targetUserId)
+          .maybeSingle();
+
+      // Check if target user follows current user
+      final follower = await _supabase
+          .from(_followsTable)
+          .select()
+          .eq('follower_id', targetUserId)
+          .eq('following_id', currentUserId)
+          .maybeSingle();
+
+      final isFollowing = following != null;
+      final isFollower = follower != null;
+      final areFriends = isFollowing && isFollower;
+
+      return {
+        'isFollowing': isFollowing,
+        'isFollower': isFollower,
+        'areFriends': areFriends,
+        'connectionType': areFriends ? 'friends' : isFollowing ? 'following' : isFollower ? 'follower' : 'none',
+      };
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get social connection', e, stackTrace);
+      return {
+        'isFollowing': false,
+        'isFollower': false,
+        'areFriends': false,
+        'connectionType': 'none',
+      };
+    }
+  }
+
+  /// Get activity feed stream for user
+  Stream<List<Map<String, dynamic>>> getActivityFeedStream(String userId) {
+    try {
+      AppLogger.debug(_tag, 'Getting activity feed stream', {'userId': userId});
+
+      // Get posts from users that the current user follows
+      return _supabase
+          .from(_postsTable)
+          .stream(primaryKey: ['id']).map((data) {
+        // Filter posts from followed users (simplified - in real implementation,
+        // you'd join with follows table)
+        return data.where((post) {
+          // For now, return all posts - implement proper filtering later
+          return true;
+        }).toList();
+      });
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to get activity feed stream', e, stackTrace);
+      return Stream.value([]);
+    }
+  }

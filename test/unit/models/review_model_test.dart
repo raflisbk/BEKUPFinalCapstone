@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../lib/core/stubs/firebase_stubs.dart';
 import 'package:mockito/mockito.dart';
 import 'package:relink/core/models/review_model.dart';
 import '../../test_setup.dart';

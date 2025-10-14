@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:firebase_core/firebase_core.dart';
+// Firebase Messaging replaced with OneSignal (FREE)
+// OneSignal provides: unlimited push notifications, in-app messaging, email & SMS
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/utils/logger.dart';
 
@@ -146,10 +146,6 @@ class NotificationService {
       
       while (token == null && retryCount < maxRetries) {
         token = await _fcm.getToken();
-        if (token == null) {
-          retryCount++;
-          await Future.delayed(Duration(seconds: retryCount * 2));
-        }
       }
 
       if (token != null) {

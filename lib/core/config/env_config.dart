@@ -49,11 +49,30 @@ class EnvConfig {
     return key;
   }
 
-  /// Get Cloudinary Configuration
+  /// Get Supabase Configuration (FREE Backend)
+  static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
+  static String get supabaseAnonKey => dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  static String get supabaseServiceRoleKey => dotenv.env['SUPABASE_SERVICE_ROLE_KEY'] ?? '';
+  
+  /// Get OneSignal Configuration (FREE Push Notifications)
+  static String get oneSignalAppId => dotenv.env['ONESIGNAL_APP_ID'] ?? '';
+  static String get oneSignalApiKey => dotenv.env['ONESIGNAL_API_KEY'] ?? '';
+
+  /// Get Mapbox Configuration (FREE Maps & Navigation)
+  static String get mapboxPublicToken => dotenv.env['MAPBOX_PUBLIC_TOKEN'] ?? '';
+  static String get mapboxSecretToken => dotenv.env['MAPBOX_SECRET_TOKEN'] ?? '';
+
+  /// Get Cloudinary Configuration (FREE Media Storage)
   static String get cloudinaryCloudName => dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
   static String get cloudinaryApiKey => dotenv.env['CLOUDINARY_API_KEY'] ?? '';
   static String get cloudinaryApiSecret => dotenv.env['CLOUDINARY_API_SECRET'] ?? '';
   static String get cloudinaryUploadPreset => dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
+
+  /// Get OpenRoute Service Configuration (FREE Routing)
+  static String get openRouteApiKey => dotenv.env['OPENROUTE_API_KEY'] ?? '';
+
+  /// Get OpenWeather API Configuration (FREE Weather Data)
+  static String get openWeatherApiKey => dotenv.env['OPENWEATHER_API_KEY'] ?? '';
 
   /// Get App Security Settings
   static String get appSecretKey => dotenv.env['APP_SECRET_KEY'] ?? '';
@@ -95,6 +114,57 @@ class EnvConfig {
     return isValid;
   }
 
+  /// Check if Supabase is configured
+  static bool get hasSupabaseConfig {
+    final url = supabaseUrl;
+    final anonKey = supabaseAnonKey;
+    final isValid = url.isNotEmpty && 
+                   url != 'YOUR_SUPABASE_PROJECT_URL' && 
+                   anonKey.isNotEmpty && 
+                   anonKey != 'YOUR_SUPABASE_ANON_KEY';
+
+    if (!isValid) {
+      AppLogger.warning(
+        _tag,
+        'Supabase configuration is not properly set up',
+      );
+    }
+
+    return isValid;
+  }
+
+  /// Check if OneSignal is configured
+  static bool get hasOneSignalConfig {
+    final appId = oneSignalAppId;
+    final isValid = appId.isNotEmpty && appId != 'YOUR_ONESIGNAL_APP_ID';
+
+    if (!isValid) {
+      AppLogger.warning(
+        _tag,
+        'OneSignal configuration is not properly set up',
+      );
+    }
+
+    return isValid;
+  }
+
+  /// Check if Mapbox is configured
+  static bool get hasMapboxConfig {
+    final publicToken = mapboxPublicToken;
+    final isValid = publicToken.isNotEmpty && 
+                   publicToken.startsWith('pk.') && 
+                   publicToken != 'pk.your-mapbox-public-token';
+
+    if (!isValid) {
+      AppLogger.warning(
+        _tag,
+        'Mapbox configuration is not properly set up',
+      );
+    }
+
+    return isValid;
+  }
+
   /// Check if Cloudinary is configured
   static bool get hasCloudinaryConfig {
     final cloudName = cloudinaryCloudName;
@@ -102,7 +172,7 @@ class EnvConfig {
     final isValid = cloudName.isNotEmpty && 
                    cloudName != 'your-cloud-name' && 
                    uploadPreset.isNotEmpty && 
-                   uploadPreset != 'your-upload-preset';
+                   uploadPreset != 'your-unsigned-upload-preset';
 
     if (!isValid) {
       AppLogger.warning(
@@ -114,14 +184,48 @@ class EnvConfig {
     return isValid;
   }
 
+  /// Check if OpenRoute Service is configured
+  static bool get hasOpenRouteConfig {
+    final apiKey = openRouteApiKey;
+    final isValid = apiKey.isNotEmpty && apiKey != 'your-openroute-api-key';
+
+    if (!isValid) {
+      AppLogger.warning(
+        _tag,
+        'OpenRoute Service configuration is not properly set up',
+      );
+    }
+
+    return isValid;
+  }
+
+  /// Check if OpenWeather API is configured
+  static bool get hasOpenWeatherConfig {
+    final apiKey = openWeatherApiKey;
+    final isValid = apiKey.isNotEmpty && apiKey != 'your-openweather-api-key';
+
+    if (!isValid) {
+      AppLogger.warning(
+        _tag,
+        'OpenWeather API configuration is not properly set up',
+      );
+    }
+
+    return isValid;
+  }
+
   /// Validate all critical configurations
   static bool validateConfiguration() {
     AppLogger.info(_tag, 'Validating environment configuration...');
     
     final validations = <String, bool>{
-      'Google Maps API': hasGoogleMapsApiKey,
+      'Supabase Backend': hasSupabaseConfig,
+      'Mapbox Maps': hasMapboxConfig,
+      'Cloudinary Storage': hasCloudinaryConfig,
+      'OneSignal Push': hasOneSignalConfig,
+      'OpenRoute Service': hasOpenRouteConfig,
+      'OpenWeather API': hasOpenWeatherConfig,
       'Gemini AI API': hasGeminiApiKey,
-      'Cloudinary Config': hasCloudinaryConfig,
     };
 
     bool allValid = true;
@@ -148,9 +252,13 @@ class EnvConfig {
     return {
       'environment': environment,
       'debugMode': isDebugMode,
-      'hasGoogleMapsKey': hasGoogleMapsApiKey,
-      'hasGeminiKey': hasGeminiApiKey,
+      'hasSupabaseConfig': hasSupabaseConfig,
+      'hasMapboxConfig': hasMapboxConfig,
       'hasCloudinaryConfig': hasCloudinaryConfig,
+      'hasOneSignalConfig': hasOneSignalConfig,
+      'hasOpenRouteConfig': hasOpenRouteConfig,
+      'hasOpenWeatherConfig': hasOpenWeatherConfig,
+      'hasGeminiKey': hasGeminiApiKey,
       'appVersion': dotenv.env['APP_VERSION'] ?? 'unknown',
     };
   }

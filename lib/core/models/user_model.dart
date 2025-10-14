@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+// Removed Firebase Firestore import - using Supabase now
 
 class UserModel {
   final String uid;
@@ -53,35 +53,37 @@ class UserModel {
     this.isLocationShared,
   });
 
-  // Create from Firestore document
-  factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-
+  // Create from Supabase data
+  factory UserModel.fromSupabase(Map<String, dynamic> data) {
     return UserModel(
-      uid: doc.id,
+      uid: data['id'] ?? data['uid'] ?? '',
       email: data['email'] ?? '',
-      displayName: data['displayName'] ?? 'User',
-      photoUrl: data['photoUrl'],
+      displayName: data['display_name'] ?? data['displayName'] ?? 'User',
+      photoUrl: data['photo_url'] ?? data['photoUrl'],
       bio: data['bio'] ?? '',
       interests: List<String>.from(data['interests'] ?? []),
       languages: List<String>.from(data['languages'] ?? ['English']),
-      isGuide: data['isGuide'] ?? false,
-      isVerified: data['isVerified'] ?? false,
+      isGuide: data['is_guide'] ?? data['isGuide'] ?? false,
+      isVerified: data['is_verified'] ?? data['isVerified'] ?? false,
       rating: (data['rating'] ?? 0.0).toDouble(),
-      reviewCount: data['reviewCount'] ?? 0,
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      reviewCount: data['review_count'] ?? data['reviewCount'] ?? 0,
+      createdAt: data['created_at'] != null 
+          ? DateTime.parse(data['created_at']) 
+          : (data['createdAt'] != null ? DateTime.parse(data['createdAt']) : DateTime.now()),
+      updatedAt: data['updated_at'] != null 
+          ? DateTime.parse(data['updated_at']) 
+          : (data['updatedAt'] != null ? DateTime.parse(data['updatedAt']) : DateTime.now()),
       expertise: data['expertise'],
-      pricePerDay: data['pricePerDay']?.toDouble(),
+      pricePerDay: data['price_per_day']?.toDouble() ?? data['pricePerDay']?.toDouble(),
       specializations: data['specializations'] != null
           ? List<String>.from(data['specializations'])
           : null,
-      yearsOfExperience: data['yearsOfExperience'],
-      toursCompleted: data['toursCompleted'],
+      yearsOfExperience: data['years_of_experience'] ?? data['yearsOfExperience'],
+      toursCompleted: data['tours_completed'] ?? data['toursCompleted'],
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
-      currentLocation: data['currentLocation'],
-      isLocationShared: data['isLocationShared'] ?? false,
+      currentLocation: data['current_location'] ?? data['currentLocation'],
+      isLocationShared: data['is_location_shared'] ?? data['isLocationShared'] ?? false,
     );
   }
 
@@ -118,31 +120,40 @@ class UserModel {
   // Create from Map (for offline cache) - alias for fromJson
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel.fromJson(map);
 
-  // Convert to map for Firestore
+  // Create from Firestore DocumentSnapshot (compatibility stub)
+  factory UserModel.fromFirestore(dynamic doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    return UserModel.fromJson({
+      'uid': doc.id,
+      ...data,
+    });
+  }
+
+  // Convert to map for Supabase (using snake_case for database columns)
   Map<String, dynamic> toMap() {
     return {
-      'uid': uid,
+      'id': uid,
       'email': email,
-      'displayName': displayName,
-      'photoUrl': photoUrl,
+      'display_name': displayName,
+      'photo_url': photoUrl,
       'bio': bio,
       'interests': interests,
       'languages': languages,
-      'isGuide': isGuide,
-      'isVerified': isVerified,
+      'is_guide': isGuide,
+      'is_verified': isVerified,
       'rating': rating,
-      'reviewCount': reviewCount,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'review_count': reviewCount,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
       if (expertise != null) 'expertise': expertise,
-      if (pricePerDay != null) 'pricePerDay': pricePerDay,
+      if (pricePerDay != null) 'price_per_day': pricePerDay,
       if (specializations != null) 'specializations': specializations,
-      if (yearsOfExperience != null) 'yearsOfExperience': yearsOfExperience,
-      if (toursCompleted != null) 'toursCompleted': toursCompleted,
+      if (yearsOfExperience != null) 'years_of_experience': yearsOfExperience,
+      if (toursCompleted != null) 'tours_completed': toursCompleted,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
-      if (currentLocation != null) 'currentLocation': currentLocation,
-      'isLocationShared': isLocationShared ?? false,
+      if (currentLocation != null) 'current_location': currentLocation,
+      'is_location_shared': isLocationShared ?? false,
     };
   }
 

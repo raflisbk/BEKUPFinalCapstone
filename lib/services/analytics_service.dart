@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../core/stubs/firebase_stubs.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/utils/logger.dart';
@@ -737,10 +736,11 @@ Format as a structured response I can parse.
           .get();
 
       final expenses = snapshot.docs.map((doc) => doc.data()).toList();
-      final totalSpending = expenses.map((e) => e['amount'] ?? 0.0).fold(0.0, (a, b) => a + b);
+      final totalSpending = expenses.map((e) => (e ?? {})['amount'] ?? 0.0).fold(0.0, (a, b) => a + b);
       
       final categoryBreakdown = <String, int>{};
       for (final expense in expenses) {
+        if (expense == null) continue;
         final category = expense['category'] ?? 'other';
         categoryBreakdown[category] = (categoryBreakdown[category] ?? 0) + 1;
       }

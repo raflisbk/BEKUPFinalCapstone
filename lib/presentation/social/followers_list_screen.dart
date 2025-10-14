@@ -40,19 +40,10 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Get social connection
-      final connection = await _socialService.getSocialConnection(widget.userId);
-
-      if (connection == null) {
-        setState(() {
-          _users = [];
-          _isLoading = false;
-        });
-        return;
-      }
-
-      // Get list of user IDs
-      final userIds = widget.isFollowers ? connection.followers : connection.following;
+      // Get list of user IDs based on whether we're showing followers or following
+      final userIds = widget.isFollowers 
+        ? await _socialService.getFollowers(widget.userId)
+        : await _socialService.getFollowing(widget.userId);
 
       if (userIds.isEmpty) {
         setState(() {
@@ -260,7 +251,10 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
 
   Widget _buildFollowButton(UserModel user, String currentUserId) {
     return FutureBuilder<bool>(
-      future: _socialService.isFollowing(currentUserId, user.uid),
+      future: _socialService.isFollowing(
+        followerId: currentUserId,
+        followingId: user.uid,
+      ),
       builder: (context, snapshot) {
         final isFollowing = snapshot.data ?? false;
 
@@ -268,24 +262,16 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
           onPressed: () async {
             await HapticHelper.buttonTap();
 
-            // ignore: use_build_context_synchronously
-            final authProvider = Provider.of<AuthProvider>(context, listen: false);
-            final currentUser = authProvider.user;
-
-            if (currentUser == null) return;
-
             bool success;
             if (isFollowing) {
               success = await _socialService.unfollowUser(
-                currentUserId: currentUserId,
-                targetUserId: user.uid,
+                followerId: currentUserId,
+                followingId: user.uid,
               );
             } else {
               success = await _socialService.followUser(
-                currentUserId: currentUserId,
-                targetUserId: user.uid,
-                currentUserName: currentUser.displayName ?? 'Unknown',
-                currentUserPhotoUrl: currentUser.photoURL,
+                followerId: currentUserId,
+                followingId: user.uid,
               );
             }
 

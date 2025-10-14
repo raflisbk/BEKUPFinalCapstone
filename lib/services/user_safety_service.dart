@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/logger.dart';
 import '../core/models/report_model.dart';
 
-/// Service for handling user reports and blocking
+/// Service for handling user reports and blocking - Supabase version
 class UserSafetyService {
   static const String _tag = 'UserSafetyService';
   static UserSafetyService? _instance;
@@ -14,11 +14,11 @@ class UserSafetyService {
   
   UserSafetyService._();
 
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseClient _supabase = Supabase.instance.client;
   
-  // Collections
-  CollectionReference get _reportsCollection => _firestore.collection('reports');
-  CollectionReference get _blockedUsersCollection => _firestore.collection('blocked_users');
+  // Table names
+  static const String _reportsTable = 'reports';
+  static const String _blockedUsersTable = 'blocked_users';
   
   // Cache management
   final Map<String, List<String>> _blockedUsersCache = {};
@@ -61,23 +61,37 @@ class UserSafetyService {
       );
 
       // Check for existing reports
-      final existing = await _reportsCollection
-          .where('reporterId', isEqualTo: reporterId)
-          .where('reportedUserId', isEqualTo: reportedUserId)
-          .where('status', isNotEqualTo: ReportStatus.resolved.toString())
-          .get();
+      final existing = await _supabase
+          .from(_reportsTable)
+          .select('id')
+          .eq('reporter_id', reporterId)
+          .eq('reported_user_id', reportedUserId)
+          .neq('status', ReportStatus.resolved.toString());
 
-      if (existing.docs.isNotEmpty) {
+      if (existing.isNotEmpty) {
         AppLogger.warning(_tag, 'Active report already exists', {
-          'reportId': existing.docs.first.id,
+          'reportId': existing.first['id'],
         });
         return false;
       }
 
-      final docRef = await _reportsCollection.add(report.toJson());
+      final response = await _supabase
+          .from(_reportsTable)
+          .insert({
+            'reporter_id': reporterId,
+            'reported_user_id': reportedUserId,
+            'reason': reason,
+            'details': details,
+            'evidence_urls': evidenceUrls ?? [],
+            'status': ReportStatus.pending.toString(),
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .select('id')
+          .single();
 
       AppLogger.success(_tag, 'User report created', {
-        'reportId': docRef.id,
+        'reportId': response['id'],
       });
       return true;
     } catch (e, stackTrace) {
@@ -100,25 +114,21 @@ class UserSafetyService {
         'blockedUserId': blockedUserId,
       });
 
-      final doc = _blockedUsersCollection.doc(userId);
-      await doc.set({
-        'blockedUsers': FieldValue.arrayUnion([blockedUserId]),
-        'updatedAt': Timestamp.now(),
-      }, SetOptions(merge: true));
+      // Insert or update blocked user relationship
+      await _supabase
+          .from(_blockedUsersTable)
+          .upsert({
+            'user_id': userId,
+            'blocked_user_id': blockedUserId,
+            'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          });
 
       // Update cache
-      _blockedUsersCache[userId] = [...(_blockedUsersCache[userId] ?? []), blockedUserId];
-      _cacheTimestamp[userId] = DateTime.now();
+      _updateBlockedUsersCache(userId, blockedUserId, isBlocked: true);
 
-      // Call cleanup callback if provided (for social connections, etc.)
-      if (onBlockCallback != null) {
-        try {
-          onBlockCallback(userId, blockedUserId);
-        } catch (e, stackTrace) {
-          AppLogger.error(_tag, 'Block callback failed', e, stackTrace);
-          // Don't fail the block operation if callback fails
-        }
-      }
+      // Execute callback
+      onBlockCallback?.call(userId, blockedUserId);
 
       AppLogger.success(_tag, 'User blocked successfully');
       return true;
@@ -128,10 +138,11 @@ class UserSafetyService {
     }
   }
 
-  /// Unblock a user with cache update
+  /// Unblock a user
   Future<bool> unblockUser({
     required String userId,
     required String blockedUserId,
+    Function(String, String)? onUnblockCallback,
   }) async {
     try {
       await _ensureWriteInterval();
@@ -141,17 +152,17 @@ class UserSafetyService {
         'blockedUserId': blockedUserId,
       });
 
-      final doc = _blockedUsersCollection.doc(userId);
-      await doc.update({
-        'blockedUsers': FieldValue.arrayRemove([blockedUserId]),
-        'updatedAt': Timestamp.now(),
-      });
+      await _supabase
+          .from(_blockedUsersTable)
+          .delete()
+          .eq('user_id', userId)
+          .eq('blocked_user_id', blockedUserId);
 
       // Update cache
-      if (_blockedUsersCache.containsKey(userId)) {
-        _blockedUsersCache[userId]?.remove(blockedUserId);
-        _cacheTimestamp[userId] = DateTime.now();
-      }
+      _updateBlockedUsersCache(userId, blockedUserId, isBlocked: false);
+
+      // Execute callback
+      onUnblockCallback?.call(userId, blockedUserId);
 
       AppLogger.success(_tag, 'User unblocked successfully');
       return true;
@@ -161,46 +172,41 @@ class UserSafetyService {
     }
   }
 
-  /// Check if user is blocked with caching
+  /// Check if a user is blocked
   Future<bool> isUserBlocked({
     required String userId,
-    required String blockedUserId,
+    required String checkedUserId,
   }) async {
     try {
       await _ensureReadInterval();
 
       // Check cache first
-      if (_blockedUsersCache.containsKey(userId)) {
-        final timestamp = _cacheTimestamp[userId];
-        if (timestamp != null && 
-            DateTime.now().difference(timestamp) < _cacheDuration) {
-          final isBlocked = _blockedUsersCache[userId]?.contains(blockedUserId) ?? false;
-          AppLogger.debug(_tag, 'Block status retrieved from cache', {
-            'isBlocked': isBlocked,
-          });
-          return isBlocked;
-        }
+      if (_isCacheValid(userId)) {
+        final cachedList = _blockedUsersCache[userId] ?? [];
+        return cachedList.contains(checkedUserId);
       }
 
-      final doc = await _blockedUsersCollection.doc(userId).get();
-      if (!doc.exists) {
-        _blockedUsersCache[userId] = [];
-        _cacheTimestamp[userId] = DateTime.now();
-        return false;
-      }
-
-      final blockedUsers = List<String>.from(doc.get('blockedUsers') ?? []);
-      
-      // Update cache
-      _blockedUsersCache[userId] = blockedUsers;
-      _cacheTimestamp[userId] = DateTime.now();
-
-      AppLogger.debug(_tag, 'Block status retrieved from Firestore', {
-        'isBlocked': blockedUsers.contains(blockedUserId),
+      AppLogger.debug(_tag, 'Checking if user is blocked', {
+        'userId': userId,
+        'checkedUserId': checkedUserId,
       });
-      return blockedUsers.contains(blockedUserId);
+
+      final response = await _supabase
+          .from(_blockedUsersTable)
+          .select('blocked_user_id')
+          .eq('user_id', userId)
+          .eq('blocked_user_id', checkedUserId)
+          .maybeSingle();
+
+      final isBlocked = response != null;
+
+      AppLogger.debug(_tag, 'User block status checked', {
+        'isBlocked': isBlocked,
+      });
+
+      return isBlocked;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to check block status', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to check if user is blocked', e, stackTrace);
       return false;
     }
   }
@@ -211,98 +217,176 @@ class UserSafetyService {
       await _ensureReadInterval();
 
       // Check cache first
-      if (_blockedUsersCache.containsKey(userId)) {
-        final timestamp = _cacheTimestamp[userId];
-        if (timestamp != null && 
-            DateTime.now().difference(timestamp) < _cacheDuration) {
-          AppLogger.debug(_tag, 'Blocked users retrieved from cache');
-          return _blockedUsersCache[userId] ?? [];
-        }
+      if (_isCacheValid(userId)) {
+        return _blockedUsersCache[userId] ?? [];
       }
 
-      final doc = await _blockedUsersCollection.doc(userId).get();
-      if (!doc.exists) {
-        _blockedUsersCache[userId] = [];
-        _cacheTimestamp[userId] = DateTime.now();
-        return [];
-      }
+      AppLogger.debug(_tag, 'Fetching blocked users', {
+        'userId': userId,
+      });
 
-      final blockedUsers = List<String>.from(doc.get('blockedUsers') ?? []);
-      
+      final response = await _supabase
+          .from(_blockedUsersTable)
+          .select('blocked_user_id')
+          .eq('user_id', userId);
+
+      final blockedUsers = response
+          .map((item) => item['blocked_user_id'] as String)
+          .toList();
+
       // Update cache
       _blockedUsersCache[userId] = blockedUsers;
       _cacheTimestamp[userId] = DateTime.now();
 
-      AppLogger.debug(_tag, 'Blocked users retrieved from Firestore', {
+      AppLogger.debug(_tag, 'Blocked users fetched', {
         'count': blockedUsers.length,
       });
+
       return blockedUsers;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get blocked users', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to fetch blocked users', e, stackTrace);
       return [];
     }
   }
 
-  /// Get user's reports with pagination
-  Future<List<UserReport>> getUserReports(String userId, {
+  /// Get user reports with pagination
+  Future<List<UserReport>> getUserReports({
+    String? reporterId,
+    String? reportedUserId,
+    ReportStatus? status,
     int limit = 20,
-    DocumentSnapshot? startAfter,
+    int offset = 0,
   }) async {
     try {
       await _ensureReadInterval();
 
-      var query = _reportsCollection
-          .where('reporterId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .limit(limit);
+      AppLogger.debug(_tag, 'Fetching user reports', {
+        'reporterId': reporterId,
+        'reportedUserId': reportedUserId,
+        'status': status?.toString(),
+        'limit': limit,
+        'offset': offset,
+      });
 
-      if (startAfter != null) {
-        query = query.startAfterDocument(startAfter);
+      var query = _supabase
+          .from(_reportsTable)
+          .select();
+
+      if (reporterId != null) {
+        query = query.eq('reporter_id', reporterId);
       }
 
-      final snapshot = await query.get();
-      
-      final reports = snapshot.docs.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        return UserReport.fromJson({...data, 'id': doc.id});
-      }).toList();
+      if (reportedUserId != null) {
+        query = query.eq('reported_user_id', reportedUserId);
+      }
 
-      AppLogger.debug(_tag, 'User reports retrieved', {
+      if (status != null) {
+        query = query.eq('status', status.toString());
+      }
+
+      final response = await query
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit - 1);
+
+      final reports = response
+          .map((data) => UserReport.fromSupabase(data))
+          .toList();
+
+      AppLogger.debug(_tag, 'User reports fetched', {
         'count': reports.length,
       });
+
       return reports;
     } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get user reports', e, stackTrace);
+      AppLogger.error(_tag, 'Failed to fetch user reports', e, stackTrace);
       return [];
     }
   }
 
-  // Ensure write interval for rate limiting
+  /// Update report status
+  Future<bool> updateReportStatus({
+    required String reportId,
+    required ReportStatus status,
+    String? moderatorNotes,
+  }) async {
+    try {
+      await _ensureWriteInterval();
+
+      AppLogger.debug(_tag, 'Updating report status', {
+        'reportId': reportId,
+        'status': status.toString(),
+      });
+
+      await _supabase
+          .from(_reportsTable)
+          .update({
+            'status': status.toString(),
+            'moderator_notes': moderatorNotes,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', reportId);
+
+      AppLogger.success(_tag, 'Report status updated');
+      return true;
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to update report status', e, stackTrace);
+      return false;
+    }
+  }
+
+  /// Clear cache for a specific user
+  void clearUserCache(String userId) {
+    _blockedUsersCache.remove(userId);
+    _cacheTimestamp.remove(userId);
+    AppLogger.debug(_tag, 'Cache cleared for user', {'userId': userId});
+  }
+
+  /// Clear all cache
+  void clearAllCache() {
+    _blockedUsersCache.clear();
+    _cacheTimestamp.clear();
+    AppLogger.debug(_tag, 'All cache cleared');
+  }
+
+  // Private helper methods
+
+  bool _isCacheValid(String userId) {
+    final timestamp = _cacheTimestamp[userId];
+    if (timestamp == null) return false;
+    
+    return DateTime.now().difference(timestamp) < _cacheDuration;
+  }
+
+  void _updateBlockedUsersCache(String userId, String blockedUserId, {required bool isBlocked}) {
+    final currentList = _blockedUsersCache[userId] ?? [];
+    
+    if (isBlocked && !currentList.contains(blockedUserId)) {
+      currentList.add(blockedUserId);
+    } else if (!isBlocked) {
+      currentList.remove(blockedUserId);
+    }
+    
+    _blockedUsersCache[userId] = currentList;
+    _cacheTimestamp[userId] = DateTime.now();
+  }
+
   Future<void> _ensureWriteInterval() async {
     if (_lastWrite != null) {
-      final timeSinceLastWrite = DateTime.now().difference(_lastWrite!);
-      if (timeSinceLastWrite < _minWriteInterval) {
-        await Future.delayed(_minWriteInterval - timeSinceLastWrite);
+      final elapsed = DateTime.now().difference(_lastWrite!);
+      if (elapsed < _minWriteInterval) {
+        await Future.delayed(_minWriteInterval - elapsed);
       }
     }
     _lastWrite = DateTime.now();
   }
 
-  // Ensure read interval for rate limiting
   Future<void> _ensureReadInterval() async {
     if (_lastRead != null) {
-      final timeSinceLastRead = DateTime.now().difference(_lastRead!);
-      if (timeSinceLastRead < _minReadInterval) {
-        await Future.delayed(_minReadInterval - timeSinceLastRead);
+      final elapsed = DateTime.now().difference(_lastRead!);
+      if (elapsed < _minReadInterval) {
+        await Future.delayed(_minReadInterval - elapsed);
       }
     }
     _lastRead = DateTime.now();
-  }
-
-  // Clear cache
-  void clearCache() {
-    _blockedUsersCache.clear();
-    _cacheTimestamp.clear();
-    AppLogger.debug(_tag, 'Cache cleared');
   }
 }

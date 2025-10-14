@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import '../../core/widgets/mock_google_maps.dart'; // Mock implementation while migrating to Mapbox
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/destination_detail_ui_provider.dart';

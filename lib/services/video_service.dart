@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/utils/logger.dart';
+import 'cloudinary_service.dart';
 
 /// Video metadata model
 class VideoMetadata {
@@ -60,7 +60,7 @@ class VideoMetadata {
 class VideoService {
   static const String _tag = 'VideoService';
 
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
   // Video size limits
   static const int maxVideoSizeInMB = 100;
@@ -111,31 +111,24 @@ class VideoService {
         referenceId,
       );
 
-      // Upload video
+      // Upload video to Cloudinary
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'videos/$category/$referenceId/${userId}_$timestamp.mp4';
-      final storageRef = _storage.ref().child(fileName);
-
-      final uploadTask = storageRef.putFile(
-        compressedVideo,
-        SettableMetadata(contentType: 'video/mp4'),
+      final fileName = '${userId}_$timestamp';
+      
+      final downloadUrl = await _cloudinaryService.uploadFile(
+        file: compressedVideo,
+        folder: 'videos/$category/$referenceId',
+        fileName: fileName,
+        resourceType: 'video', // Cloudinary video resource type
       );
 
-      // Monitor upload progress
-      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
-        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
-        onProgress?.call(progress);
-
-        AppLogger.debug(_tag, 'Upload progress', {
-          'progress': '${(progress * 100).toStringAsFixed(1)}%',
-        });
-      });
-
-      final taskSnapshot = await uploadTask;
-      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      // Note: Cloudinary progress monitoring would need to be implemented
+      // in the CloudinaryService if needed
+      onProgress?.call(1.0); // Complete
 
       // Get video metadata
       final metadata = await _getVideoMetadata(compressedVideo);
+      final originalFileSize = await compressedVideo.length();
 
       // Clean up temporary files
       await compressedVideo.delete();
@@ -149,7 +142,7 @@ class VideoService {
         url: downloadUrl,
         thumbnailUrl: thumbnailUrl,
         durationInSeconds: metadata['duration'] ?? 0,
-        sizeInBytes: await taskSnapshot.ref.getMetadata().then((m) => m.size ?? 0),
+        sizeInBytes: originalFileSize,
         width: metadata['width'] ?? 0,
         height: metadata['height'] ?? 0,
         uploadedAt: DateTime.now(),
@@ -223,7 +216,7 @@ class VideoService {
     }
   }
 
-  /// Upload thumbnail to Firebase Storage
+  /// Upload thumbnail to Cloudinary
   Future<String> _uploadThumbnail(
     File thumbnail,
     String userId,
@@ -232,17 +225,16 @@ class VideoService {
   ) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'video_thumbnails/$category/$referenceId/${userId}_$timestamp.jpg';
-      final storageRef = _storage.ref().child(fileName);
-
-      final uploadTask = await storageRef.putFile(
-        thumbnail,
-        SettableMetadata(contentType: 'image/jpeg'),
+      final fileName = '${userId}_$timestamp';
+      
+      final downloadUrl = await _cloudinaryService.uploadFile(
+        file: thumbnail,
+        folder: 'video_thumbnails/$category/$referenceId',
+        fileName: fileName,
+        resourceType: 'image',
       );
 
-      final downloadUrl = await uploadTask.ref.getDownloadURL();
-
-      AppLogger.success(_tag, 'Thumbnail uploaded');
+      AppLogger.success(_tag, 'Thumbnail uploaded to Cloudinary');
       return downloadUrl;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to upload thumbnail', e, stackTrace);
@@ -279,29 +271,59 @@ class VideoService {
     }
   }
 
-  /// Delete video from Firebase Storage
+  /// Delete video from Cloudinary
   Future<bool> deleteVideo(String videoUrl, String thumbnailUrl) async {
     try {
       AppLogger.info(_tag, 'Deleting video', {
         'url': videoUrl,
       });
 
+      // Extract public ID from Cloudinary URLs and delete
+      bool videoDeleted = false;
+      bool thumbnailDeleted = true; // Default to true if no thumbnail
+
       // Delete video
-      final videoRef = _storage.refFromURL(videoUrl);
-      await videoRef.delete();
+      try {
+        final videoPublicId = _extractPublicIdFromUrl(videoUrl);
+        videoDeleted = await _cloudinaryService.deleteFile(videoPublicId);
+      } catch (e) {
+        AppLogger.error(_tag, 'Failed to delete video file', e);
+      }
 
       // Delete thumbnail
       if (thumbnailUrl.isNotEmpty) {
-        final thumbnailRef = _storage.refFromURL(thumbnailUrl);
-        await thumbnailRef.delete();
+        try {
+          final thumbnailPublicId = _extractPublicIdFromUrl(thumbnailUrl);
+          thumbnailDeleted = await _cloudinaryService.deleteFile(thumbnailPublicId);
+        } catch (e) {
+          AppLogger.error(_tag, 'Failed to delete thumbnail file', e);
+        }
       }
 
-      AppLogger.success(_tag, 'Video deleted successfully');
-      return true;
+      final success = videoDeleted && thumbnailDeleted;
+      if (success) {
+        AppLogger.success(_tag, 'Video deleted successfully from Cloudinary');
+      }
+      
+      return success;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to delete video', e, stackTrace);
       return false;
     }
+  }
+
+  /// Extract public ID from Cloudinary URL
+  String _extractPublicIdFromUrl(String url) {
+    final uri = Uri.parse(url);
+    final pathSegments = uri.pathSegments;
+    final uploadIndex = pathSegments.indexOf('upload');
+    
+    if (uploadIndex == -1) {
+      throw Exception('Invalid Cloudinary URL format: $url');
+    }
+    
+    final publicIdParts = pathSegments.sublist(uploadIndex + 1);
+    return publicIdParts.join('/').split('.').first; // Remove extension
   }
 
   /// Check if file is a valid video

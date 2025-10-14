@@ -44,7 +44,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<List<ActivityItem>>(
+      body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: _socialService.getActivityFeedStream(currentUserId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -81,6 +81,22 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
             return _buildEmptyState(currentUserId);
           }
 
+          // Convert Map to ActivityItem-like objects for display
+          final activityItems = activities.map((data) {
+            return {
+              'id': data['id'] ?? '',
+              'userId': data['user_id'] ?? '',
+              'userName': data['user_name'] ?? 'Unknown',
+              'userPhotoUrl': data['user_photo_url'],
+              'type': _parseActivityType(data['type'] ?? ''),
+              'action': data['action'] ?? '',
+              'targetId': data['target_id'],
+              'targetName': data['target_name'],
+              'targetImageUrl': data['target_image_url'],
+              'createdAt': DateTime.tryParse(data['created_at']?.toString() ?? '') ?? DateTime.now(),
+            };
+          }).toList();
+
           return RefreshIndicator(
             onRefresh: () async {
               await HapticHelper.lightImpact();
@@ -88,9 +104,9 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
             },
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: activities.length,
+              itemCount: activityItems.length,
               itemBuilder: (context, index) {
-                return _buildActivityItem(activities[index], currentUserId);
+                return _buildActivityItem(activityItems[index], currentUserId);
               },
             ),
           );
@@ -153,7 +169,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
     );
   }
 
-  Widget _buildActivityItem(ActivityItem activity, String currentUserId) {
+  Widget _buildActivityItem(Map<String, dynamic> activity, String currentUserId) {
     return InkWell(
       onTap: () {
         HapticHelper.lightImpact();
@@ -178,11 +194,11 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
                       style: Theme.of(context).textTheme.bodyMedium,
                       children: [
                         TextSpan(
-                          text: activity.userName,
+                          text: activity['userName'] ?? 'Unknown',
                           style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         TextSpan(
-                          text: ' ${activity.action}',
+                          text: ' ${activity['action'] ?? ''}',
                           style: const TextStyle(color: AppColors.grey700),
                         ),
                       ],
@@ -191,7 +207,7 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
                   const SizedBox(height: 4),
                   // Timestamp
                   Text(
-                    _formatTimestamp(activity.createdAt),
+                    _formatTimestamp(activity['createdAt'] as DateTime),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.grey500,
                         ),
@@ -203,13 +219,13 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _getActivityColor(activity.type).withValues(alpha: 0.1),
+                color: _getActivityColor(activity['type'] as ActivityType).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                _getActivityIcon(activity.type),
+                _getActivityIcon(activity['type'] as ActivityType),
                 size: 20,
-                color: _getActivityColor(activity.type),
+                color: _getActivityColor(activity['type'] as ActivityType),
               ),
             ),
           ],
@@ -218,10 +234,11 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
     );
   }
 
-  Widget _buildAvatar(ActivityItem activity) {
-    if (activity.userPhotoUrl != null && activity.userPhotoUrl!.startsWith('avatar:')) {
+  Widget _buildAvatar(Map<String, dynamic> activity) {
+    final userPhotoUrl = activity['userPhotoUrl'] as String?;
+    if (userPhotoUrl != null && userPhotoUrl.startsWith('avatar:')) {
       // Emoji avatar
-      final emoji = activity.userPhotoUrl!.replaceFirst('avatar:', '');
+      final emoji = userPhotoUrl.replaceFirst('avatar:', '');
       return Container(
         width: 48,
         height: 48,
@@ -237,11 +254,11 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
           ),
         ),
       );
-    } else if (activity.userPhotoUrl != null) {
+    } else if (userPhotoUrl != null) {
       // Photo avatar
       return CircleAvatar(
         radius: 24,
-        backgroundImage: NetworkImage(activity.userPhotoUrl!),
+        backgroundImage: NetworkImage(userPhotoUrl),
         backgroundColor: AppColors.grey100,
       );
     } else {
@@ -251,6 +268,17 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
         backgroundColor: AppColors.grey200,
         child: Icon(Icons.person, color: AppColors.grey500),
       );
+    }
+  }
+
+  ActivityType _parseActivityType(String typeStr) {
+    try {
+      return ActivityType.values.firstWhere(
+        (e) => e.toString().split('.').last == typeStr,
+        orElse: () => ActivityType.like,
+      );
+    } catch (e) {
+      return ActivityType.like;
     }
   }
 
@@ -305,46 +333,50 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
     }
   }
 
-  void _handleActivityTap(ActivityItem activity) {
+  void _handleActivityTap(Map<String, dynamic> activity) {
+    final activityType = activity['type'] as ActivityType;
+    final userId = activity['userId'] as String?;
+    final targetId = activity['targetId'] as String?;
+
     // Navigate based on activity type
-    switch (activity.type) {
+    switch (activityType) {
       case ActivityType.follow:
         // Navigate to user profile
-        if (activity.userId.isNotEmpty) {
+        if (userId != null && userId.isNotEmpty) {
           Navigator.pushNamed(
             context,
             '/user-profile',
-            arguments: {'userId': activity.userId},
+            arguments: {'userId': userId},
           );
         }
         break;
       case ActivityType.photo:
         // Navigate to photo detail
-        if (activity.targetId != null) {
+        if (targetId != null) {
           Navigator.pushNamed(
             context,
             '/photo-detail',
-            arguments: {'photoId': activity.targetId},
+            arguments: {'photoId': targetId},
           );
         }
         break;
       case ActivityType.review:
         // Navigate to destination/review
-        if (activity.targetId != null) {
+        if (targetId != null) {
           Navigator.pushNamed(
             context,
             '/destination-detail',
-            arguments: {'destinationId': activity.targetId},
+            arguments: {'destinationId': targetId},
           );
         }
         break;
       case ActivityType.trip:
         // Navigate to trip detail
-        if (activity.targetId != null) {
+        if (targetId != null) {
           Navigator.pushNamed(
             context,
             '/trip-detail',
-            arguments: {'tripId': activity.targetId},
+            arguments: {'tripId': targetId},
           );
         }
         break;
