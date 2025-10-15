@@ -46,26 +46,28 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
   Future<void> _toggleLike(String userId) async {
     await HapticHelper.lightImpact();
 
-    final success = await _galleryService.toggleLike(
-      photoId: _currentPhoto.id,
-      userId: userId,
-    );
-
-    if (success) {
-      // Optimistically update UI
-      setState(() {
-        if (_currentPhoto.isLikedBy(userId)) {
+    try {
+      if (_currentPhoto.isLikedBy(userId)) {
+        await _galleryService.unlikePhoto(_currentPhoto.id);
+        // Optimistically update UI
+        setState(() {
           _currentPhoto = _currentPhoto.copyWith(
             likes: _currentPhoto.likes - 1,
             likedBy: _currentPhoto.likedBy.where((id) => id != userId).toList(),
           );
-        } else {
+        });
+      } else {
+        await _galleryService.likePhoto(_currentPhoto.id);
+        // Optimistically update UI
+        setState(() {
           _currentPhoto = _currentPhoto.copyWith(
             likes: _currentPhoto.likes + 1,
             likedBy: [..._currentPhoto.likedBy, userId],
           );
-        }
-      });
+        });
+      }
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to toggle like', e);
     }
   }
 
@@ -74,15 +76,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
     await HapticHelper.submit();
 
-    final commentId = await _galleryService.addComment(
-      photoId: _currentPhoto.id,
-      userId: userId,
-      userName: userName,
-      userPhotoUrl: photoUrl,
-      comment: _commentController.text.trim(),
-    );
+    try {
+      await _galleryService.addPhotoComment(
+        photoId: _currentPhoto.id,
+        comment: _commentController.text.trim(),
+      );
 
-    if (commentId != null) {
       _commentController.clear();
       if (mounted) FocusScope.of(context).unfocus();
 
@@ -92,6 +91,16 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
             content: Text('Comment added'),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to add comment', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to add comment'),
+            backgroundColor: AppColors.error,
           ),
         );
       }
@@ -130,14 +139,11 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
 
     AppLogger.debug(_tag, 'Deleting photo', {'photoId': _currentPhoto.id});
 
-    final success = await _galleryService.deletePhoto(
-      _currentPhoto.id,
-      _currentPhoto.imageUrl,
-    );
+    try {
+      await _galleryService.deletePhoto(_currentPhoto.id);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Photo deleted successfully');
 
@@ -150,9 +156,12 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
           ),
         );
       }
-    } else {
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to delete photo', e);
+      
+      if (!mounted) return;
+
       await HapticHelper.error();
-      AppLogger.error(_tag, 'Failed to delete photo');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -257,9 +266,13 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
                         constraints: const BoxConstraints(),
                         onPressed: () async {
                           await HapticHelper.delete();
-                          await _galleryService.deleteComment(
-                            comment.id,
-                            _currentPhoto.id,
+                          // Note: Comment deletion not implemented in service yet
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Comment deletion coming soon'),
+                              backgroundColor: AppColors.warning,
+                            ),
                           );
                         },
                       ),
@@ -438,8 +451,11 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
                     // Comments
                     SizedBox(
                       height: 300,
-                      child: StreamBuilder<List<PhotoComment>>(
-                        stream: _galleryService.getCommentsStream(_currentPhoto.id),
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _galleryService.getPhotoComments(
+                          photoId: _currentPhoto.id,
+                          limit: 50,
+                        ),
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.waiting) {
                             return const Center(
@@ -449,7 +465,19 @@ class _PhotoDetailScreenState extends State<PhotoDetailScreen> {
                             );
                           }
 
-                          final comments = snapshot.data ?? [];
+                          final commentsData = snapshot.data ?? [];
+                          
+                          // Convert to PhotoComment objects
+                          final comments = commentsData.map((data) {
+                            return PhotoComment(
+                              id: data['id'] ?? '',
+                              photoId: data['photo_id'] ?? '',
+                              userId: data['user_id'] ?? '',
+                              userName: 'User', // This would need user service integration
+                              comment: data['comment'] ?? '',
+                              createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
+                            );
+                          }).toList();
 
                           if (comments.isEmpty) {
                             return Center(
