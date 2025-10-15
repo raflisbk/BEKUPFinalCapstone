@@ -7,8 +7,7 @@ import '../../core/providers/chat_provider.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/models/chat_models.dart';
-import '../../core/config/service_locator.dart';
-import '../../services/interfaces/i_chat_service.dart';
+import '../../services/chat_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -33,19 +32,15 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   static const String _tag = 'ChatScreen';
 
-  // Services
-  late final IChatService _chatService;
-
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ImagePicker _imagePicker = ImagePicker();
+  final ChatService _chatService = ChatService();
   bool _isSendingImage = false;
 
   @override
   void initState() {
     super.initState();
-    _chatService = ServiceLocator.chatServiceInterface;
-    
     AppLogger.debug(_tag, 'Chat screen initialized', {
       'conversationId': widget.conversation.id,
     });
@@ -482,18 +477,6 @@ class _ChatScreenState extends State<ChatScreen> {
         date1.day == date2.day;
   }
 
-  MessageType _parseMessageType(String? typeString) {
-    switch (typeString?.toLowerCase()) {
-      case 'image':
-        return MessageType.image;
-      case 'system':
-        return MessageType.system;
-      case 'text':
-      default:
-        return MessageType.text;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -625,26 +608,11 @@ class _ChatScreenState extends State<ChatScreen> {
                       _scrollToBottom();
                     });
 
-                    // Convert Map data to ChatMessage objects
-                    final chatMessages = messages.map((messageData) {
-                      return ChatMessage(
-                        id: messageData['id'] ?? '',
-                        conversationId: messageData['conversation_id'] ?? widget.conversation.id,
-                        senderId: messageData['sender_id'] ?? '',
-                        senderName: messageData['sender_name'] ?? 'Unknown',
-                        senderPhotoUrl: messageData['sender_photo_url'],
-                        text: messageData['content'] ?? '',
-                        type: _parseMessageType(messageData['message_type']),
-                        sentAt: DateTime.parse(messageData['created_at'] ?? DateTime.now().toIso8601String()),
-                        isRead: messageData['is_read'] ?? false,
-                      );
-                    }).toList();
-
                     return ListView(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       children: _buildMessageListWithSeparators(
-                        chatMessages,
+                        messages as dynamic, // Temporary fix - pass as dynamic
                         currentUserId,
                       ),
                     );
