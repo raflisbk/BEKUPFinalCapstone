@@ -24,7 +24,8 @@ class DestinationDetailNewScreen extends StatefulWidget {
 }
 
 class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen> {
-  final DestinationService _destinationService = DestinationService();
+  // Using singleton instance
+  final DestinationService _destinationService = DestinationService.instance;
 
   @override
   void initState() {
@@ -40,9 +41,18 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     final userId = authProvider.user?.uid;
 
     if (userId != null) {
-      final bookmark = await _destinationService.getUserBookmarks(userId);
-      if (mounted) {
-        detailUIProvider.setBookmarkStatus(bookmark?.isBookmarked(widget.destinationId) ?? false);
+      try {
+        final bookmarks = await DestinationService.getUserBookmarks();
+        if (mounted) {
+          final isBookmarked = bookmarks.any((bookmark) => 
+            bookmark['destination_id'] == widget.destinationId);
+          detailUIProvider.setBookmarkStatus(isBookmarked);
+        }
+      } catch (e) {
+        // Handle error silently for bookmark status
+        if (mounted) {
+          detailUIProvider.setBookmarkStatus(false);
+        }
       }
     }
   }
@@ -62,20 +72,26 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     detailUIProvider.setLoadingBookmark(true);
     await HapticHelper.buttonTap();
 
-    final success = await _destinationService.toggleBookmark(userId, widget.destinationId);
-
-    if (success) {
+    try {
+      if (detailUIProvider.isBookmarked) {
+        // Remove bookmark
+        await DestinationService.removeBookmark(widget.destinationId);
+      } else {
+        // Add bookmark
+        await DestinationService.bookmarkDestination(widget.destinationId);
+      }
+      
       await HapticHelper.success();
       detailUIProvider.toggleBookmark();
-      detailUIProvider.setLoadingBookmark(false);
-    } else {
+    } catch (e) {
       await HapticHelper.error();
-      detailUIProvider.setLoadingBookmark(false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to update bookmark')),
         );
       }
+    } finally {
+      detailUIProvider.setLoadingBookmark(false);
     }
   }
 
@@ -84,8 +100,8 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     return Consumer<DestinationDetailUIProvider>(
       builder: (context, detailUIProvider, child) {
         return Scaffold(
-          body: StreamBuilder<Destination?>(
-            stream: _destinationService.getDestinationStream(widget.destinationId),
+          body: FutureBuilder<Map<String, dynamic>?>(
+            future: _destinationService.getDestination(widget.destinationId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildLoadingState();
@@ -95,7 +111,9 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
                 return _buildErrorState();
               }
 
-              final destination = snapshot.data!;
+              // Convert Map to Destination model
+              final destinationData = snapshot.data!;
+              final destination = Destination.fromMap(destinationData);
 
               return CustomScrollView(
                 slivers: [
