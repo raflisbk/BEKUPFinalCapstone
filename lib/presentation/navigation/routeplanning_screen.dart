@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/models/route_model.dart';
 import '../../core/models/trip_model.dart';
-import '../../core/models/analytics_model.dart';
 import '../../core/utils/logger.dart';
 import '../../services/ai/ai_route_planning_service.dart';
 import '../../services/analytics_service.dart';
@@ -32,7 +31,6 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
   static const String _tag = 'RouteplanningScreen';
 
   // Services
-  final AIRoutePlanningService _routePlanningService = AIRoutePlanningService();
   final AnalyticsService _analyticsService = AnalyticsService();
 
   // Controllers
@@ -84,8 +82,6 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
 
   Future<void> _initializeServices() async {
     try {
-      await _routePlanningService.initialize();
-      await _analyticsService.initialize();
       AppLogger.info(_tag, 'Services initialized successfully');
     } catch (e) {
       AppLogger.error(_tag, 'Failed to initialize services', e);
@@ -576,16 +572,48 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
         longitude: widget.destination?.longitude ?? _initialPosition.longitude,
       );
 
-      // Create route plan
-      final routePlan = await _routePlanningService.createRoutePlan(
+      // Create route plan using generateRoutePlan method
+      final routePlanData = await AIRoutePlanningService.generateRoutePlan(
+        destinations: [
+          {
+            'name': destination.name,
+            'description': destination.address,
+            'latitude': destination.latitude,
+            'longitude': destination.longitude,
+          },
+          ..._waypoints.map((waypoint) => {
+            'name': waypoint.name,
+            'description': waypoint.address,
+            'latitude': waypoint.latitude,
+            'longitude': waypoint.longitude,
+          }),
+        ],
+        startLocation: origin.name,
+        endLocation: destination.name,
+        routeType: AIRoutePlanningService.routeTypeMultiStop,
+        optimizationCriteria: _getOptimizationCriteria(_selectedOptimization),
+        transportMode: _getTransportMode(_selectedTravelMode),
+      );
+
+      // Create RoutePlan from the response
+      final routePlan = RoutePlan(
+        id: routePlanData['route_plan_id']?.toString() ?? 'temp_${DateTime.now().millisecondsSinceEpoch}',
         userId: userId,
         tripId: widget.trip.id,
         name: _routeNameController.text,
         origin: origin,
         destination: destination,
         waypoints: _waypoints,
+        steps: [], // Would be populated from route_plan data
+        totalDistance: '${(routePlanData['total_distance'] ?? 0).toDouble()} km',
+        totalDuration: '${(routePlanData['total_duration'] ?? 0).toDouble()} min',
+        estimatedCost: (routePlanData['estimated_cost'] ?? 0).toDouble(),
         travelMode: _selectedTravelMode,
         optimization: _selectedOptimization,
+        aiSuggestions: [], // Would be populated from AI response
+        routeMetadata: routePlanData['route_plan'] ?? {},
+        createdAt: DateTime.now(),
+        isActive: true,
       );
 
       setState(() {
@@ -597,10 +625,9 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
       _updateMapWithRoute(routePlan);
       
       // Track successful route planning
-      _analyticsService.trackEvent(
-        eventType: AnalyticsEventType.userAction,
-        eventName: 'route_planned',
-        properties: {
+      await _analyticsService.trackEvent(
+        'route_planned',
+        {
           'trip_id': widget.trip.id,
           'travel_mode': _selectedTravelMode.value,
           'waypoints_count': _waypoints.length,
@@ -758,9 +785,8 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
     });
     
     _analyticsService.trackEvent(
-      eventType: AnalyticsEventType.userAction,
-      eventName: 'travel_mode_selected',
-      properties: {'mode': mode.value},
+      'travel_mode_selected',
+      {'mode': mode.value},
     );
   }
 
@@ -925,9 +951,8 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
 
   void _applySuggestion(AIRouteSuggestion suggestion) {
     _analyticsService.trackEvent(
-      eventType: AnalyticsEventType.aiInteraction,
-      eventName: 'ai_suggestion_applied',
-      properties: {
+      'ai_suggestion_applied',
+      {
         'suggestion_id': suggestion.suggestionId,
         'suggestion_type': suggestion.optimizationType.value,
       },
@@ -1004,6 +1029,36 @@ class _RouteplanningScreenState extends State<RouteplanningScreen>
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  // Helper methods for mapping route options to AI service constants
+  String _getOptimizationCriteria(RouteOptimization optimization) {
+    switch (optimization) {
+      case RouteOptimization.fastest:
+        return AIRoutePlanningService.optimizeTime;
+      case RouteOptimization.shortest:
+        return AIRoutePlanningService.optimizeDistance;
+      case RouteOptimization.economic:
+        return AIRoutePlanningService.optimizeCost;
+      case RouteOptimization.scenic:
+        return AIRoutePlanningService.optimizeExperience;
+      case RouteOptimization.avoidTolls:
+      case RouteOptimization.avoidHighways:
+        return AIRoutePlanningService.optimizeBalance;
+    }
+  }
+
+  String _getTransportMode(TravelMode travelMode) {
+    switch (travelMode) {
+      case TravelMode.driving:
+        return AIRoutePlanningService.transportCar;
+      case TravelMode.walking:
+        return AIRoutePlanningService.transportWalking;
+      case TravelMode.bicycling:
+        return AIRoutePlanningService.transportCar; // No specific bicycle mode
+      case TravelMode.transit:
+        return AIRoutePlanningService.transportPublic;
+    }
   }
 
   @override
