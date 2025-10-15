@@ -28,7 +28,6 @@ class AddEditDestinationScreen extends StatefulWidget {
 
 class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
   final _formKey = GlobalKey<FormState>();
-  final DestinationService _destinationService = DestinationService();
   final ImagePicker _imagePicker = ImagePicker();
 
   // Form controllers
@@ -189,21 +188,20 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
 
       if (widget.destinationId == null) {
         // Create new destination
-        final destinationId = await _destinationService.createDestination(
+        final destination = await DestinationService.createDestination(
           name: _nameController.text,
           description: _descriptionController.text,
-          location: _locationController.text,
           latitude: double.parse(_latitudeController.text),
           longitude: double.parse(_longitudeController.text),
           category: uiProvider.selectedCategory,
-          images: imageUrls,
-          priceRange: uiProvider.priceRange,
-          facilities: uiProvider.facilities,
-          activities: uiProvider.activities,
-          openingHours: _openingHoursController.text,
-          bestTimeToVisit: _bestTimeController.text,
-          userId: userId,
+          address: _locationController.text,
+          imageUrls: imageUrls,
+          pricing: {'range': uiProvider.priceRange},
+          facilities: {'list': uiProvider.facilities},
+          openingHours: {'hours': _openingHoursController.text},
         );
+
+        final destinationId = destination['id'];
 
         if (destinationId != null) {
           await HapticHelper.success();
@@ -218,21 +216,21 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
         }
       } else {
         // Update existing destination
-        final success = await _destinationService.updateDestination(
+        final destination = await DestinationService.updateDestination(
           destinationId: widget.destinationId!,
           name: _nameController.text,
           description: _descriptionController.text,
-          location: _locationController.text,
           latitude: double.parse(_latitudeController.text),
           longitude: double.parse(_longitudeController.text),
           category: uiProvider.selectedCategory,
-          images: imageUrls,
-          priceRange: uiProvider.priceRange,
-          facilities: uiProvider.facilities,
-          activities: uiProvider.activities,
-          openingHours: _openingHoursController.text,
-          bestTimeToVisit: _bestTimeController.text,
+          address: _locationController.text,
+          imageUrls: imageUrls,
+          pricing: {'range': uiProvider.priceRange},
+          facilities: {'list': uiProvider.facilities},
+          openingHours: {'hours': _openingHoursController.text},
         );
+
+        final success = destination['id'] != null;
 
         if (success) {
           await HapticHelper.success();
