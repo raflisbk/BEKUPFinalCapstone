@@ -1,19 +1,23 @@
 import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 import '../utils/logger.dart';
-import '../../services/user_service.dart';
+import '../../services/interfaces/i_user_service.dart';
 import '../../services/supabase_auth_service.dart';
 import '../../services/supabase_database_service.dart';
+import '../utils/service_locator.dart';
 
 class UserProvider with ChangeNotifier {
   static const String _tag = 'UserProvider';
 
-  // Service instance
-  final UserService _userService = UserService.instance;
+  // Service instance with dependency injection
+  final IUserService _userService = ServiceLocator.instance.get<IUserService>();
 
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
+
+  // Constructor with ServiceLocator
+  UserProvider();
 
   // Getters
   UserModel? get currentUser => _currentUser;
@@ -98,11 +102,10 @@ class UserProvider with ChangeNotifier {
         updatedAt: DateTime.now(),
       );
 
-      await _userService.createUserProfile(
+      await _userService.updateUserProfile(
         userId: user.id,
-        email: user.email ?? '',
         fullName: user.userMetadata?['full_name'] ?? 'User',
-        avatarUrl: user.userMetadata?['avatar_url'],
+        profileImageUrl: user.userMetadata?['avatar_url'],
       );
 
       _currentUser = newUser;
@@ -124,6 +127,7 @@ class UserProvider with ChangeNotifier {
 
       // Update profile using individual parameters
       await _userService.updateUserProfile(
+        userId: updatedUser.uid,
         fullName: updatedUser.displayName,
         bio: updatedUser.bio,
         // Note: Other fields would need to be added based on UserModel structure
