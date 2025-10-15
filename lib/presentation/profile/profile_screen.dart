@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -8,7 +9,7 @@ import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
 import '../../core/constants/default_avatars.dart';
 import '../../core/widgets/sync_status_widget.dart';
-import '../../services/cloudinary_photo_upload_service.dart';
+import '../../services/file_upload_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -491,7 +492,7 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _bioController;
-  final CloudinaryPhotoUploadService _photoService = CloudinaryPhotoUploadService();
+  final ImagePicker _imagePicker = ImagePicker();
   File? _selectedImage;
   String? _newPhotoUrl;
 
@@ -542,10 +543,15 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                 title: const Text('Gallery'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final image = await _photoService.pickImageFromGallery();
+                  final XFile? image = await _imagePicker.pickImage(
+                    source: ImageSource.gallery,
+                    maxWidth: 1080,
+                    maxHeight: 1080,
+                    imageQuality: 85,
+                  );
                   if (image != null) {
                     setState(() {
-                      _selectedImage = image;
+                      _selectedImage = File(image.path);
                     });
                   }
                 },
@@ -562,10 +568,15 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
                 title: const Text('Camera'),
                 onTap: () async {
                   Navigator.pop(context);
-                  final image = await _photoService.pickImageFromCamera();
+                  final XFile? image = await _imagePicker.pickImage(
+                    source: ImageSource.camera,
+                    maxWidth: 1080,
+                    maxHeight: 1080,
+                    imageQuality: 85,
+                  );
                   if (image != null) {
                     setState(() {
-                      _selectedImage = image;
+                      _selectedImage = File(image.path);
                     });
                   }
                 },
@@ -708,9 +719,11 @@ class _EditProfileScreenState extends State<_EditProfileScreen> {
           ),
         );
 
-        final uploadedUrl = await _photoService.uploadAvatar(_selectedImage!);
-        if (uploadedUrl != null) {
-          photoUrl = uploadedUrl;
+        final uploadResult = await FileUploadService.uploadAvatar(
+          imageFile: _selectedImage!,
+        );
+        if (uploadResult['secure_url'] != null) {
+          photoUrl = uploadResult['secure_url'];
         } else {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
