@@ -17,7 +17,8 @@ class ActivityFeedScreen extends StatefulWidget {
 }
 
 class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
-  final SocialService _socialService = SocialService();
+  final String _selectedFeedType = 'following';
+  Key _refreshKey = UniqueKey();
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +45,12 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
           ),
         ),
       ),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _socialService.getActivityFeedStream(currentUserId),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        key: ValueKey('activity_feed_${_refreshKey.toString()}'),
+        future: SocialService.getSocialFeed(
+          userId: currentUserId,
+          feedType: _selectedFeedType,
+        ),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return _buildLoadingState();
@@ -75,32 +80,39 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
             );
           }
 
-          final activities = snapshot.data ?? [];
+          final posts = snapshot.data ?? [];
 
-          if (activities.isEmpty) {
+          if (posts.isEmpty) {
             return _buildEmptyState(currentUserId);
           }
 
-          // Convert Map to ActivityItem-like objects for display
-          final activityItems = activities.map((data) {
+          // Convert social posts to activity-like objects for display
+          final activityItems = posts.map((post) {
+            final content = post['content']?.toString() ?? '';
             return {
-              'id': data['id'] ?? '',
-              'userId': data['user_id'] ?? '',
-              'userName': data['user_name'] ?? 'Unknown',
-              'userPhotoUrl': data['user_photo_url'],
-              'type': _parseActivityType(data['type'] ?? ''),
-              'action': data['action'] ?? '',
-              'targetId': data['target_id'],
-              'targetName': data['target_name'],
-              'targetImageUrl': data['target_image_url'],
-              'createdAt': DateTime.tryParse(data['created_at']?.toString() ?? '') ?? DateTime.now(),
+              'id': post['id'] ?? '',
+              'userId': post['user_id'] ?? '',
+              'userName': post['user_data']?['name'] ?? 'Unknown',
+              'userPhotoUrl': post['user_data']?['avatar_url'],
+              'type': _parseActivityTypeFromPost(post['post_type'] ?? ''),
+              'action': _getActionFromPostType(post['post_type'] ?? ''),
+              'targetId': post['id'],
+              'targetName': content.length > 50 
+                  ? '${content.substring(0, 50)}...'
+                  : content,
+              'targetImageUrl': (post['image_urls'] as List?)?.isNotEmpty == true 
+                  ? post['image_urls'][0] 
+                  : null,
+              'createdAt': DateTime.tryParse(post['created_at']?.toString() ?? '') ?? DateTime.now(),
             };
           }).toList();
 
           return RefreshIndicator(
             onRefresh: () async {
               await HapticHelper.lightImpact();
-              setState(() {});
+              setState(() {
+                _refreshKey = UniqueKey();
+              });
             },
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -271,14 +283,33 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
     }
   }
 
-  ActivityType _parseActivityType(String typeStr) {
-    try {
-      return ActivityType.values.firstWhere(
-        (e) => e.toString().split('.').last == typeStr,
-        orElse: () => ActivityType.like,
-      );
-    } catch (e) {
-      return ActivityType.like;
+  ActivityType _parseActivityTypeFromPost(String postType) {
+    switch (postType.toLowerCase()) {
+      case 'image':
+        return ActivityType.photo;
+      case 'trip_update':
+        return ActivityType.trip;
+      case 'recommendation':
+        return ActivityType.review;
+      default:
+        return ActivityType.like; // Default for text posts
+    }
+  }
+
+  String _getActionFromPostType(String postType) {
+    switch (postType.toLowerCase()) {
+      case 'image':
+        return 'shared a photo';
+      case 'video':
+        return 'shared a video';
+      case 'trip_update':
+        return 'updated their trip';
+      case 'recommendation':
+        return 'wrote a recommendation';
+      case 'story':
+        return 'shared a story';
+      default:
+        return 'made a post';
     }
   }
 
@@ -351,36 +382,27 @@ class _ActivityFeedScreenState extends State<ActivityFeedScreen> {
         }
         break;
       case ActivityType.photo:
-        // Navigate to photo detail
+        // Navigate to post detail
         if (targetId != null) {
           Navigator.pushNamed(
             context,
-            '/photo-detail',
-            arguments: {'photoId': targetId},
+            '/post-detail',
+            arguments: {'postId': targetId},
           );
         }
         break;
       case ActivityType.review:
-        // Navigate to destination/review
-        if (targetId != null) {
-          Navigator.pushNamed(
-            context,
-            '/destination-detail',
-            arguments: {'destinationId': targetId},
-          );
-        }
-        break;
       case ActivityType.trip:
-        // Navigate to trip detail
+      case ActivityType.like:
+      case ActivityType.comment:
+        // Navigate to post detail for all social content
         if (targetId != null) {
           Navigator.pushNamed(
             context,
-            '/trip-detail',
-            arguments: {'tripId': targetId},
+            '/post-detail',
+            arguments: {'postId': targetId},
           );
         }
-        break;
-      default:
         break;
     }
   }
