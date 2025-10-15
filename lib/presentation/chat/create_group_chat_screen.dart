@@ -3,7 +3,8 @@ import 'package:provider/provider.dart';
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
-import '../../services/chat_service.dart';
+import '../../core/config/service_locator.dart';
+import '../../services/interfaces/i_chat_service.dart';
 import '../../services/social_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -21,8 +22,9 @@ class CreateGroupChatScreen extends StatefulWidget {
 class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   static const String _tag = 'CreateGroupChatScreen';
 
-  final ChatService _chatService = ChatService();
-  final SocialService _socialService = SocialService();
+  // Services
+  late final IChatService _chatService;
+
   final TextEditingController _groupNameController = TextEditingController();
 
   List<UserModel> _followingUsers = [];
@@ -33,6 +35,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   @override
   void initState() {
     super.initState();
+    _chatService = ServiceLocator.chatServiceInterface;
     _loadFollowingUsers();
   }
 
@@ -54,7 +57,8 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
       AppLogger.debug(_tag, 'Loading following users');
 
       // Get following user IDs
-      final followingIds = await _socialService.getFollowing(currentUserId);
+      final followingUsers = await SocialService.getUserFollowing(userId: currentUserId);
+      final followingIds = followingUsers.map((user) => user['id'] as String).toList();
 
       // Load user details for following users
       final users = <UserModel>[];
@@ -151,24 +155,17 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
         };
       }
 
-      final conversation = await _chatService.createGroupChat(
-        adminId: currentUserId,
-        adminName: currentUserName,
-        adminPhotoUrl: currentUserPhotoUrl,
+      final conversation = await _chatService.createConversation(
         participantIds: participantIds,
-        participantData: participantData,
-        groupName: groupName,
+        title: groupName,
+        type: 'group',
       );
 
-      if (conversation != null) {
-        AppLogger.success(_tag, 'Group chat created successfully');
-        await HapticHelper.success();
+      AppLogger.success(_tag, 'Group chat created successfully');
+      await HapticHelper.success();
 
-        if (mounted) {
-          Navigator.pop(context, conversation);
-        }
-      } else {
-        throw Exception('Failed to create group chat');
+      if (mounted) {
+        Navigator.pop(context, conversation);
       }
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to create group chat', e, stackTrace);
