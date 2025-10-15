@@ -198,17 +198,24 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
           'title': _titleController.text,
         });
 
-        success = await _tripService.updateTrip(
-          tripId: widget.trip!.id,
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          startDate: uiProvider.startDate!,
-          endDate: uiProvider.endDate!,
-          isPublic: uiProvider.isPublic,
-        );
+        try {
+          final result = await _tripService.updateTrip(
+            tripId: widget.trip!.id,
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim(),
+            startDate: uiProvider.startDate!,
+            endDate: uiProvider.endDate!,
+            isPublic: uiProvider.isPublic,
+          );
 
-        if (success) {
-          AppLogger.success(_tag, 'Trip updated successfully');
+          success = result.isNotEmpty;
+
+          if (success) {
+            AppLogger.success(_tag, 'Trip updated successfully');
+          }
+        } catch (e) {
+          success = false;
+          AppLogger.error(_tag, 'Failed to update trip', e);
         }
       } else {
         // Create new trip
@@ -217,23 +224,28 @@ class _CreateEditTripScreenState extends State<CreateEditTripScreen> {
           'duration': _getDurationInDays(uiProvider),
         });
 
-        final tripId = await _tripService.createTrip(
-          userId: user.uid,
-          userName: user.displayName ?? 'Anonymous',
-          userPhotoUrl: user.photoURL,
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          startDate: uiProvider.startDate!,
-          endDate: uiProvider.endDate!,
-          isPublic: uiProvider.isPublic,
-        );
+        try {
+          final result = await _tripService.createTrip(
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim(),
+            startDate: uiProvider.startDate!,
+            endDate: uiProvider.endDate!,
+            destination: 'TBD', // Default destination - can be updated later
+            maxParticipants: 10, // Default max participants
+            isPublic: uiProvider.isPublic,
+            category: 'general', // Default category
+          );
 
-        success = tripId != null;
+          success = result.isNotEmpty;
 
-        if (success) {
-          AppLogger.success(_tag, 'Trip created successfully', {
-            'tripId': tripId,
-          });
+          if (success) {
+            AppLogger.success(_tag, 'Trip created successfully', {
+              'tripId': result['id'],
+            });
+          }
+        } catch (e) {
+          success = false;
+          AppLogger.error(_tag, 'Failed to create trip', e);
         }
       }
 
