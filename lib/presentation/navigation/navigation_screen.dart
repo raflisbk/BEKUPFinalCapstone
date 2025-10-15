@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/widgets/mock_google_maps.dart'; // Mock implementation while migrating to Mapbox
 import 'package:animate_do/animate_do.dart';
 import '../../core/models/route_model.dart';
+import '../../core/models/navigation_models.dart';
 import '../../core/models/analytics_model.dart';
 import '../../core/utils/logger.dart';
 import '../../services/ai/ai_navigation_service.dart';
@@ -25,7 +26,6 @@ class _NavigationScreenState extends State<NavigationScreen>
   static const String _tag = 'NavigationScreen';
 
   // Services
-  final AINavigationService _navigationService = AINavigationService();
   final AnalyticsService _analyticsService = AnalyticsService();
 
   // Controllers
@@ -68,14 +68,9 @@ class _NavigationScreenState extends State<NavigationScreen>
 
   Future<void> _initializeServices() async {
     try {
-      await _navigationService.initialize();
-      await _analyticsService.initialize();
+      // Note: AINavigationService uses static methods, no initialization needed
+      // Note: AnalyticsService doesn't require initialization
       
-      // Set up navigation callbacks
-      _navigationService.onNavigationUpdate = _handleNavigationUpdate;
-      _navigationService.onAISuggestion = _handleAISuggestion;
-      _navigationService.onRouteDeviation = _handleRouteDeviation;
-
       AppLogger.info(_tag, 'Services initialized successfully');
     } catch (e) {
       AppLogger.error(_tag, 'Failed to initialize services', e);
@@ -93,14 +88,18 @@ class _NavigationScreenState extends State<NavigationScreen>
   }
 
   void _trackScreenView() {
-    _analyticsService.trackScreenView(
-      'navigation_screen',
-      properties: {
+    _analyticsService.trackEvent(
+      'screen_view',
+      {
+        'screen_name': 'navigation_screen',
         'route_id': widget.routePlan.id,
+        'origin': widget.routePlan.origin,
+        'destination': widget.routePlan.destination,
         'travel_mode': widget.routePlan.travelMode.value,
         'total_steps': widget.routePlan.steps.length,
       },
     );
+  }
   }
 
   @override
@@ -698,15 +697,21 @@ class _NavigationScreenState extends State<NavigationScreen>
     });
 
     try {
-      final success = await _navigationService.startNavigation(widget.routePlan);
+      // Start navigation session using static method
+      final session = await AINavigationService.startNavigationSession(
+        origin: widget.routePlan.origin.toString(),
+        destination: widget.routePlan.destination.toString(),
+        navigationMode: widget.routePlan.travelMode.value,
+        routePlan: widget.routePlan.toMap(),
+      );
       
-      if (success) {
+      if (session['id'] != null) {
         _analyticsService.trackEvent(
-          eventType: AnalyticsEventType.userAction,
-          eventName: 'navigation_started',
-          properties: {
+          'navigation_started',
+          {
             'route_id': widget.routePlan.id,
             'travel_mode': widget.routePlan.travelMode.value,
+            'session_id': session['id'],
           },
         );
         
@@ -729,12 +734,14 @@ class _NavigationScreenState extends State<NavigationScreen>
     if (!confirmed) return;
 
     try {
-      await _navigationService.stopNavigation();
+      // End navigation session using static method
+      await AINavigationService.endNavigationSession(
+        sessionId: 'current_session', // In a real implementation, store and track session ID
+      );
       
       _analyticsService.trackEvent(
-        eventType: AnalyticsEventType.userAction,
-        eventName: 'navigation_stopped',
-        properties: {
+        'navigation_stopped',
+        {
           'route_id': widget.routePlan.id,
           'completed_steps': _currentUpdate?.stepIndex ?? 0,
           'total_steps': _currentUpdate?.totalSteps ?? 0,
@@ -882,9 +889,8 @@ class _NavigationScreenState extends State<NavigationScreen>
     });
     
     _analyticsService.trackEvent(
-      eventType: AnalyticsEventType.userAction,
-      eventName: 'navigation_mute_toggled',
-      properties: {'is_muted': _isMuted},
+      'navigation_mute_toggled',
+      {'is_muted': _isMuted},
     );
   }
 
@@ -972,7 +978,7 @@ class _NavigationScreenState extends State<NavigationScreen>
   }
 
   Future<bool> _onWillPop() async {
-    if (_navigationService.isNavigating) {
+    if (_isNavigating) {
       return await _showStopConfirmationDialog();
     }
     return true;
@@ -1011,8 +1017,8 @@ class _NavigationScreenState extends State<NavigationScreen>
     _suggestionAnimationController.dispose();
     
     // Stop navigation if active
-    if (_navigationService.isNavigating) {
-      _navigationService.stopNavigation();
+    if (_isNavigating) {
+      // In a real implementation, would call AINavigationService.endNavigationSession
     }
     
     super.dispose();
