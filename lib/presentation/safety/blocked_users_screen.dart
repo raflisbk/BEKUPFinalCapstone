@@ -22,8 +22,7 @@ class BlockedUsersScreen extends StatefulWidget {
 class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   static const String _tag = 'BlockedUsersScreen';
 
-  final UserSafetyService _safetyService = UserSafetyService();
-  List<String> _blockedUserIds = [];
+  List<Map<String, dynamic>> _blockedUsers = [];
   bool _isLoading = true;
 
   @override
@@ -38,16 +37,16 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Future<void> _loadBlockedUsers() async {
     setState(() => _isLoading = true);
 
-    final blockedIds = await _safetyService.getBlockedUsers(widget.currentUserId);
+    final blockedUsers = await UserSafetyService.getBlockedUsers();
 
     if (mounted) {
       setState(() {
-        _blockedUserIds = blockedIds;
+        _blockedUsers = blockedUsers;
         _isLoading = false;
       });
 
       AppLogger.info(_tag, 'Blocked users loaded', {
-        'count': blockedIds.length,
+        'count': blockedUsers.length,
       });
     }
   }
@@ -86,17 +85,14 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
 
     if (confirmed != true) return;
 
-    final success = await _safetyService.unblockUser(
-      userId: widget.currentUserId,
-      blockedUserId: blockedUserId,
-    );
+    try {
+      await UserSafetyService.unblockUser(blockedUserId);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       await HapticHelper.success();
       setState(() {
-        _blockedUserIds.remove(blockedUserId);
+        _blockedUsers.removeWhere((user) => user['blocked_user_id'] == blockedUserId);
       });
 
       // ignore: use_build_context_synchronously
@@ -110,15 +106,19 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       AppLogger.info(_tag, 'User unblocked', {
         'blockedUserId': blockedUserId,
       });
-    } else {
+    } catch (e) {
+      if (!mounted) return;
+
       await HapticHelper.error();
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to unblock user'),
+        SnackBar(
+          content: Text('Failed to unblock user: ${e.toString()}'),
           backgroundColor: AppColors.error,
         ),
       );
+
+      AppLogger.error(_tag, 'Failed to unblock user', e);
     }
   }
 
@@ -147,7 +147,7 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.black))
-          : _blockedUserIds.isEmpty
+          : _blockedUsers.isEmpty
               ? _buildEmptyState()
               : _buildBlockedUsersList(),
     );
@@ -198,18 +198,21 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
   Widget _buildBlockedUsersList() {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: _blockedUserIds.length,
+      itemCount: _blockedUsers.length,
       itemBuilder: (context, index) {
-        final userId = _blockedUserIds[index];
+        final blockedUser = _blockedUsers[index];
         return FadeInUp(
           duration: Duration(milliseconds: 300 + (index * 50)),
-          child: _buildBlockedUserCard(userId, index),
+          child: _buildBlockedUserCard(blockedUser, index),
         );
       },
     );
   }
 
-  Widget _buildBlockedUserCard(String userId, int index) {
+  Widget _buildBlockedUserCard(Map<String, dynamic> blockedUser, int index) {
+    final blockedUserId = blockedUser['blocked_user_id'] as String;
+    final createdAt = DateTime.parse(blockedUser['created_at'] as String);
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -233,17 +236,30 @@ class _BlockedUsersScreenState extends State<BlockedUsersScreen> {
           ),
         ),
         title: Text(
-          'User ID: ${userId.substring(0, 8)}...',
+          'User ID: ${blockedUserId.substring(0, 8)}...',
           style: AppTextStyles.titleSmall,
         ),
-        subtitle: Text(
-          'Blocked',
-          style: AppTextStyles.bodySmall.copyWith(
-            color: AppColors.error,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Blocked',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.error,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Since: ${createdAt.day}/${createdAt.month}/${createdAt.year}',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ),
         trailing: OutlinedButton(
-          onPressed: () => _unblockUser(userId),
+          onPressed: () => _unblockUser(blockedUserId),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.success,
             side: const BorderSide(color: AppColors.success),
