@@ -30,6 +30,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
   final ReviewService _reviewService = ReviewService();
   ReviewFilter _selectedFilter = ReviewFilter.mostRecent;
+  
+  // Add a key to trigger rebuilds
+  Key _refreshKey = UniqueKey();
 
   Future<void> _navigateToWriteReview() async {
     final result = await Navigator.push(
@@ -44,6 +47,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
     if (result == true) {
       AppLogger.info(_tag, 'Review submitted, refreshing list');
+      setState(() {
+        _refreshKey = UniqueKey();
+      });
     }
   }
 
@@ -78,14 +84,11 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
 
     AppLogger.debug(_tag, 'Deleting review', {'reviewId': review.id});
 
-    final success = await _reviewService.deleteReview(
-      reviewId: review.id,
-      reviewerId: review.userId,
-    );
+    try {
+      await _reviewService.deleteReview(review.id);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Review deleted successfully');
 
@@ -96,14 +99,21 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-    } else {
+      
+      // Trigger rebuild to refresh the reviews list
+      setState(() {
+        _refreshKey = UniqueKey();
+      });
+    } catch (e) {
       await HapticHelper.error();
-      AppLogger.error(_tag, 'Failed to delete review');
+      AppLogger.error(_tag, 'Failed to delete review', e);
 
+      if (!mounted) return;
+      
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to delete review'),
+        SnackBar(
+          content: Text('Failed to delete review: ${e.toString()}'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -144,7 +154,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                   );
 
                   if (result == true && mounted) {
-                    setState(() {}); // Trigger rebuild to refresh data
+                    setState(() {
+                      _refreshKey = UniqueKey();
+                    }); // Trigger rebuild to refresh data
                   }
                 },
               ),
@@ -166,10 +178,23 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
   Future<void> _toggleHelpful(String reviewId, String userId) async {
     AppLogger.action('User toggled helpful', {'reviewId': reviewId});
 
-    await _reviewService.toggleHelpful(
-      reviewId: reviewId,
-      userId: userId,
-    );
+    try {
+      await _reviewService.markReviewHelpful(reviewId);
+      // Trigger rebuild to refresh the helpful count
+      setState(() {
+        _refreshKey = UniqueKey();
+      });
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to mark review as helpful', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark as helpful: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildRatingSummary(RatingSummary summary) {
@@ -293,6 +318,7 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                 if (selected) {
                   setState(() {
                     _selectedFilter = filter;
+                    _refreshKey = UniqueKey();
                   });
                   AppLogger.debug(_tag, 'Filter changed', {
                     'filter': filter.toString(),
@@ -574,17 +600,28 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
       body: Column(
         children: [
           // Rating summary
-          StreamBuilder<RatingSummary?>(
-            stream: _reviewService.getRatingSummaryStream(
-              targetId: widget.destinationId,
-              targetType: 'destination',
+          FutureBuilder<Map<String, dynamic>>(
+            key: ValueKey('rating_${_refreshKey.toString()}'),
+            future: _reviewService.getEntityStatistics(
+              entityId: widget.destinationId,
+              entityType: 'destination',
             ),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const SizedBox(height: 120);
               }
 
-              return _buildRatingSummary(snapshot.data!);
+              final stats = snapshot.data!;
+              final ratingSummary = RatingSummary(
+                destinationId: widget.destinationId,
+                averageRating: (stats['average_rating'] ?? 0.0).toDouble(),
+                totalReviews: stats['total_reviews'] ?? 0,
+                ratingDistribution: Map<int, int>.from(
+                  stats['rating_distribution'] ?? {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+                ),
+              );
+
+              return _buildRatingSummary(ratingSummary);
             },
           ),
 
@@ -598,10 +635,12 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
               builder: (context, authProvider, child) {
                 final currentUserId = authProvider.user?.uid;
 
-                return StreamBuilder<List<Review>>(
-                  stream: _reviewService.getReviewsStream(
-                    targetId: widget.destinationId,
-                    targetType: 'destination',
+                return FutureBuilder<List<Map<String, dynamic>>>(
+                  key: ValueKey('reviews_${_refreshKey.toString()}'),
+                  future: _reviewService.getEntityReviews(
+                    entityId: widget.destinationId,
+                    entityType: 'destination',
+                    sortBy: ReviewSortHelper.getFirestoreField(_selectedFilter),
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -625,9 +664,9 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                       );
                     }
 
-                    final reviews = snapshot.data ?? [];
+                    final reviewData = snapshot.data ?? [];
 
-                    if (reviews.isEmpty) {
+                    if (reviewData.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -665,6 +704,26 @@ class _ReviewsScreenState extends State<ReviewsScreen> {
                         ),
                       );
                     }
+
+                    // Convert review data to Review objects
+                    final reviews = reviewData.map((data) {
+                      return Review(
+                        id: data['id'] ?? '',
+                        destinationId: data['entity_id'] ?? widget.destinationId,
+                        destinationName: widget.destinationName,
+                        userId: data['user_id'] ?? '',
+                        userName: data['user']?['display_name'] ?? 'Anonymous',
+                        userPhotoUrl: data['user']?['photo_url'],
+                        rating: (data['rating'] ?? 0).toDouble(),
+                        title: data['title'] ?? '',
+                        content: data['content'] ?? '',
+                        photoUrls: List<String>.from(data['image_urls'] ?? []),
+                        createdAt: DateTime.tryParse(data['created_at'] ?? '') ?? DateTime.now(),
+                        updatedAt: DateTime.tryParse(data['updated_at'] ?? '') ?? DateTime.now(),
+                        helpfulCount: data['helpful_count'] ?? 0,
+                        helpfulUserIds: [], // This would need to be fetched separately if needed
+                      );
+                    }).toList();
 
                     return ListView.builder(
                       itemCount: reviews.length,
