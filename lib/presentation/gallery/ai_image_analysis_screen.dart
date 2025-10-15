@@ -87,13 +87,13 @@ class _AIImageAnalysisScreenState extends State<AIImageAnalysisScreen>
         _analysisResult = ImageAnalysisResult.fromMap(analysisResult);
         
         // Create mock results for features not yet implemented in service
-        _landmarkResult = LandmarkDetectionResult(
+        _landmarkResult = const LandmarkDetectionResult(
           isLandmark: false,
           description: 'Landmark detection coming soon',
           nearbyAttractions: [],
         );
         
-        _captionResult = PhotoCaption(
+        _captionResult = const PhotoCaption(
           captions: [
             CaptionOption(text: 'Beautiful travel moment captured!', type: 'short'),
             CaptionOption(text: 'Exploring new places and creating memories', type: 'storytelling'),
@@ -102,7 +102,7 @@ class _AIImageAnalysisScreenState extends State<AIImageAnalysisScreen>
           hashtags: ['#travel', '#adventure', '#explore'],
         );
         
-        _tipsResult = PhotographyTips(
+        _tipsResult = const PhotographyTips(
           rating: 8,
           tips: [
             'Great composition and lighting',
