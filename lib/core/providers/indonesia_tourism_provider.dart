@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import '../models/destination_model.dart';
 import '../models/indonesia_tourism_models.dart';
 import '../../services/indonesia_tourism_service.dart';
+import '../utils/service_locator.dart';
 
 /// Provider for Indonesia Tourism data
 class IndonesiaTourismProvider with ChangeNotifier {
-  final IndonesiaTourismService _tourismService = IndonesiaTourismService.instance;
+  // Access IndonesiaTourismService through ServiceLocator for dependency injection
+  IndonesiaTourismService get _tourismService => ServiceLocator.instance.get<IndonesiaTourismService>();
   
   List<Destination> _destinations = [];
   List<Destination> _trendingDestinations = [];
@@ -77,10 +79,10 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Use static method and convert category to ID, pass province ID if selected
+      // Use static method and convert category to ID, pass province name if selected
       final destinationsData = await _tourismService.getDestinationsByTourismCategory(
         category.id,
-        provinceId: _selectedProvince?.id,
+        province: _selectedProvince?.id,
         limit: 20,
       );
       
@@ -108,10 +110,22 @@ class IndonesiaTourismProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Use travel recommendations with current filters since there's no direct keyword search
+      // Use travel recommendations with current filters and required interests parameter
+      final interests = <String>[];
+      
+      // Add selected category as interest if available
+      if (_selectedCategory != null) {
+        interests.add(_selectedCategory!.id);
+      }
+      
+      // If no specific interests, use general categories
+      if (interests.isEmpty) {
+        interests.addAll(['wisata-alam', 'wisata-pantai', 'wisata-budaya']);
+      }
+      
       final destinationsData = await _tourismService.getTravelRecommendations(
-        preferredProvinces: _selectedProvince != null ? [_selectedProvince!.id] : null,
-        preferredCategories: _selectedCategory != null ? [_selectedCategory!.id] : null,
+        interests: interests,
+        startLocation: _selectedProvince?.id,
         limit: 20,
       );
       
