@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
-import '../../services/user_service.dart';
 import '../../services/social_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
@@ -24,10 +22,7 @@ class FollowersListScreen extends StatefulWidget {
 }
 
 class _FollowersListScreenState extends State<FollowersListScreen> {
-  final UserService _userService = UserService();
-  final SocialService _socialService = SocialService();
-
-  List<UserModel> _users = [];
+  List<Map<String, dynamic>> _followData = [];
   bool _isLoading = true;
 
   @override
@@ -40,24 +35,21 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Get list of user IDs based on whether we're showing followers or following
-      final userIds = widget.isFollowers 
-        ? await _socialService.getFollowers(widget.userId)
-        : await _socialService.getFollowing(widget.userId);
+      // Get follower/following data using SocialService
+      final data = widget.isFollowers 
+        ? await SocialService.getUserFollowers(userId: widget.userId)
+        : await SocialService.getUserFollowing(userId: widget.userId);
 
-      if (userIds.isEmpty) {
+      if (data.isEmpty) {
         setState(() {
-          _users = [];
+          _followData = [];
           _isLoading = false;
         });
         return;
       }
 
-      // Fetch user details
-      final users = await _userService.getUsersByIds(userIds);
-
       setState(() {
-        _users = users;
+        _followData = data;
         _isLoading = false;
       });
     } catch (e) {
@@ -116,7 +108,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
   }
 
   Widget _buildContent() {
-    if (_users.isEmpty) {
+    if (_followData.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -153,17 +145,27 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _users.length,
+      itemCount: _followData.length,
       itemBuilder: (context, index) {
-        return _buildUserItem(_users[index]);
+        return _buildUserItem(_followData[index]);
       },
     );
   }
 
-  Widget _buildUserItem(UserModel user) {
+  Widget _buildUserItem(Map<String, dynamic> followData) {
     final authProvider = Provider.of<AuthProvider>(context);
     final currentUserId = authProvider.user?.uid;
-    final isOwnProfile = currentUserId == user.uid;
+    
+    // Extract user data - SocialService returns enriched data with user_data
+    final userData = followData['user_data'] as Map<String, dynamic>? ?? {};
+    final userId = widget.isFollowers 
+        ? followData['follower_id'] as String? ?? ''
+        : followData['following_id'] as String? ?? '';
+    final displayName = userData['name'] as String? ?? 'Unknown User';
+    final username = userData['username'] as String? ?? '';
+    final avatarUrl = userData['avatar_url'] as String?;
+    
+    final isOwnProfile = currentUserId == userId;
 
     return InkWell(
       onTap: () {
@@ -171,7 +173,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
         Navigator.pushNamed(
           context,
           '/user-profile',
-          arguments: {'userId': user.uid},
+          arguments: {'userId': userId},
         );
       },
       child: Padding(
@@ -179,7 +181,7 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
         child: Row(
           children: [
             // Avatar
-            _buildAvatar(user),
+            _buildAvatar(avatarUrl),
             const SizedBox(width: 12),
             // User info
             Expanded(
@@ -187,15 +189,15 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    user.displayName,
+                    displayName,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                   ),
-                  if (user.email.isNotEmpty) ...[
+                  if (username.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      user.email,
+                      '@$username',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.grey600,
                           ),
@@ -206,17 +208,17 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
             ),
             // Follow button (only if not own profile)
             if (!isOwnProfile && currentUserId != null)
-              _buildFollowButton(user, currentUserId),
+              _buildFollowButton(userId, currentUserId),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAvatar(UserModel user) {
-    if (user.photoUrl != null && user.photoUrl!.startsWith('avatar:')) {
+  Widget _buildAvatar(String? photoUrl) {
+    if (photoUrl != null && photoUrl.startsWith('avatar:')) {
       // Emoji avatar
-      final emoji = user.photoUrl!.replaceFirst('avatar:', '');
+      final emoji = photoUrl.replaceFirst('avatar:', '');
       return Container(
         width: 56,
         height: 56,
@@ -232,11 +234,11 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
           ),
         ),
       );
-    } else if (user.photoUrl != null) {
+    } else if (photoUrl != null) {
       // Photo avatar
       return CircleAvatar(
         radius: 28,
-        backgroundImage: NetworkImage(user.photoUrl!),
+        backgroundImage: NetworkImage(photoUrl),
         backgroundColor: AppColors.grey100,
       );
     } else {
@@ -249,12 +251,9 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
     }
   }
 
-  Widget _buildFollowButton(UserModel user, String currentUserId) {
+  Widget _buildFollowButton(String userId, String currentUserId) {
     return FutureBuilder<bool>(
-      future: _socialService.isFollowing(
-        followerId: currentUserId,
-        followingId: user.uid,
-      ),
+      future: SocialService.isFollowing(userId),
       builder: (context, snapshot) {
         final isFollowing = snapshot.data ?? false;
 
@@ -262,28 +261,21 @@ class _FollowersListScreenState extends State<FollowersListScreen> {
           onPressed: () async {
             await HapticHelper.buttonTap();
 
-            bool success;
-            if (isFollowing) {
-              success = await _socialService.unfollowUser(
-                followerId: currentUserId,
-                followingId: user.uid,
-              );
-            } else {
-              success = await _socialService.followUser(
-                followerId: currentUserId,
-                followingId: user.uid,
-              );
-            }
+            try {
+              if (isFollowing) {
+                await SocialService.unfollowUser(userId);
+              } else {
+                await SocialService.followUser(userId);
+              }
 
-            if (success) {
               await HapticHelper.success();
               setState(() {}); // Refresh to update button state
-            } else {
+            } catch (e) {
               await HapticHelper.error();
               if (mounted) {
                 // ignore: use_build_context_synchronously
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Failed to update follow status')),
+                  SnackBar(content: Text('Failed to update follow status: $e')),
                 );
               }
             }
