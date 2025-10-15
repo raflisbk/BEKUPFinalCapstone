@@ -35,23 +35,34 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   ) async {
     AppLogger.debug(_tag, 'Joining trip', {'tripId': widget.trip.id});
 
-    final success = await _tripService.joinTrip(
-      tripId: widget.trip.id,
-      userId: userId,
-      userName: userName,
-      userPhotoUrl: photoUrl,
-    );
+    try {
+      final result = await _tripService.addTripParticipant(
+        tripId: widget.trip.id,
+        userId: userId,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success ? 'Joined trip successfully!' : 'Failed to join trip',
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.isNotEmpty ? 'Joined trip successfully!' : 'Failed to join trip',
+          ),
+          backgroundColor: result.isNotEmpty ? AppColors.success : AppColors.error,
         ),
-        backgroundColor: success ? AppColors.success : AppColors.error,
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to join trip'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      
+      AppLogger.error(_tag, 'Error joining trip', e);
+    }
   }
 
   Future<void> _leaveTrip(String userId) async {
@@ -79,14 +90,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     AppLogger.debug(_tag, 'Leaving trip', {'tripId': widget.trip.id});
 
-    final success = await _tripService.leaveTrip(
-      tripId: widget.trip.id,
-      userId: userId,
-    );
+    try {
+      await _tripService.removeTripParticipant(
+        tripId: widget.trip.id,
+        userId: userId,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       Navigator.pop(context); // Go back to trip list
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -94,13 +105,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-    } else {
+    } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Failed to leave trip'),
           backgroundColor: AppColors.error,
         ),
       );
+      
+      AppLogger.error(_tag, 'Error leaving trip', e);
     }
   }
 
@@ -138,11 +153,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     AppLogger.debug(_tag, 'Deleting trip', {'tripId': widget.trip.id});
 
-    final success = await _tripService.deleteTrip(widget.trip.id);
+    try {
+      await _tripService.deleteTrip(widget.trip.id);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       await HapticHelper.success();
       AppLogger.success(_tag, 'Trip deleted successfully');
 
@@ -155,9 +170,11 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-    } else {
+    } catch (e) {
       await HapticHelper.error();
-      AppLogger.error(_tag, 'Failed to delete trip');
+      AppLogger.error(_tag, 'Failed to delete trip', e);
+
+      if (!mounted) return;
 
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
@@ -784,8 +801,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                       child: ElevatedButton(
                         onPressed: () => _joinTrip(
                           currentUserId,
-                          authProvider.user!.displayName ?? 'Anonymous',
-                          authProvider.user!.photoURL,
+                          authProvider.user!.displayName,
+                          authProvider.user!.photoUrl,
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.black,
