@@ -4,8 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../core/models/analytics_model.dart';
 import '../../core/utils/logger.dart';
-import '../../core/config/service_locator.dart';
-import '../../services/interfaces/i_analytics_service.dart';
+import '../../services/analytics_service.dart';
 import '../../core/providers/auth_provider.dart';
 
 /// Advanced analytics dashboard with AI-powered insights and comprehensive metrics
@@ -21,7 +20,7 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen>
   static const String _tag = 'AnalyticsDashboardScreen';
 
   // Services
-  late final IAnalyticsService _analyticsService;
+  final AnalyticsService _analyticsService = AnalyticsService();
 
   // Controllers
   late TabController _tabController;
@@ -43,14 +42,10 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _initializeServices();
     _initializeControllers();
+    _initializeServices();
     _trackScreenView();
     _loadDashboardData();
-  }
-
-  void _initializeServices() {
-    _analyticsService = ServiceLocator.analyticsService;
   }
 
   void _initializeControllers() {
@@ -59,6 +54,16 @@ class _AnalyticsDashboardScreenState extends State<AnalyticsDashboardScreen>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      // Analytics service doesn't need explicit initialization
+      // await _analyticsService.initialize();
+      AppLogger.info(_tag, 'Analytics service initialized');
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to initialize analytics service', e);
+    }
   }
 
   void _trackScreenView() {
