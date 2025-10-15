@@ -1,11 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../models/chat_models.dart';
-import '../../services/chat_service.dart';
+import '../../services/interfaces/i_chat_service.dart';
+import '../config/service_locator.dart';
 import '../utils/logger.dart';
 
 /// Provider for chat state management
 class ChatProvider with ChangeNotifier {
   static const String _tag = 'ChatProvider';
+
+  // Chat Service instance
+  late final IChatService _chatService;
+  bool _isServiceInitialized = false;
 
   String? _currentUserId;
   List<ChatConversation> _conversations = [];
@@ -17,6 +22,15 @@ class ChatProvider with ChangeNotifier {
   List<ChatConversation> get conversations => _conversations;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+
+  // Helper method to safely get chat service
+  IChatService get chatService {
+    if (!_isServiceInitialized) {
+      _chatService = ServiceLocator.chatServiceInterface;
+      _isServiceInitialized = true;
+    }
+    return _chatService;
+  }
 
   /// Initialize chat provider with user ID
   void initialize(String userId) {
@@ -36,7 +50,7 @@ class ChatProvider with ChangeNotifier {
     AppLogger.debug(_tag, 'Loading conversations');
 
     // Subscribe to user conversations stream
-    ChatService.subscribeToUserConversations(_currentUserId!).listen(
+    chatService.subscribeToUserConversations(_currentUserId!).listen(
       (update) {
         AppLogger.debug(_tag, 'Conversation update received', {
           'type': update['type'],
@@ -59,7 +73,7 @@ class ChatProvider with ChangeNotifier {
   /// Refresh conversations from service
   Future<void> _refreshConversations() async {
     try {
-      final conversationsData = await ChatService.getUserConversations(
+      final conversationsData = await chatService.getUserConversations(
         userId: _currentUserId!,
       );
 
@@ -133,7 +147,7 @@ class ChatProvider with ChangeNotifier {
     });
 
     try {
-      final conversationData = await ChatService.createConversation(
+      final conversationData = await chatService.createConversation(
         participantIds: [otherUserId],
         type: 'direct',
       );
@@ -175,7 +189,7 @@ class ChatProvider with ChangeNotifier {
     });
 
     try {
-      await ChatService.sendMessage(
+      await chatService.sendMessage(
         conversationId: conversationId,
         content: text,
         messageType: 'text',
@@ -199,7 +213,7 @@ class ChatProvider with ChangeNotifier {
     });
 
     try {
-      await ChatService.markConversationAsRead(
+      await chatService.markConversationAsRead(
         conversationId: conversationId,
         userId: _currentUserId!,
       );
@@ -220,7 +234,7 @@ class ChatProvider with ChangeNotifier {
     try {
       // Note: ChatService doesn't have a direct delete method,
       // so we'll remove the current user from the conversation
-      await ChatService.removeParticipantFromConversation(
+      await chatService.removeParticipantFromConversation(
         conversationId: conversationId,
         userId: _currentUserId!,
       );
