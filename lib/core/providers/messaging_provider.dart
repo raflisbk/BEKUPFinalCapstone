@@ -1,33 +1,32 @@
 import 'package:flutter/foundation.dart';
-import '../models/chat_model.dart';
-import '../models/conversation_model.dart';
+import '../models/chat_models.dart';
 import '../models/user_model.dart';
-import '../../services/messaging_service.dart';
 import '../../services/chat_service.dart';
+import '../utils/service_locator.dart';
 
 /// Provider for managing messaging and chat functionality
 class MessagingProvider with ChangeNotifier {
-  final MessagingService _messagingService = MessagingService.instance;
-  final ChatService _chatService = ChatService.instance;
+  // Access services through ServiceLocator for dependency injection
+  ChatService get _chatService => ServiceLocator.instance.get<ChatService>();
 
-  List<Conversation> _conversations = [];
+  List<ChatConversation> _conversations = [];
   Map<String, List<ChatMessage>> _conversationMessages = {};
   bool _isLoading = false;
   String? _error;
 
-  Conversation? _activeConversation;
+  ChatConversation? _activeConversation;
   String? _newMessageText;
-  List<UserProfile> _searchResults = [];
+  List<UserModel> _searchResults = [];
   bool _isSearching = false;
 
   // Getters
-  List<Conversation> get conversations => _conversations;
+  List<ChatConversation> get conversations => _conversations;
   Map<String, List<ChatMessage>> get conversationMessages => _conversationMessages;
   bool get isLoading => _isLoading;
   String? get error => _error;
-  Conversation? get activeConversation => _activeConversation;
+  ChatConversation? get activeConversation => _activeConversation;
   String? get newMessageText => _newMessageText;
-  List<UserProfile> get searchResults => _searchResults;
+  List<UserModel> get searchResults => _searchResults;
   bool get isSearching => _isSearching;
 
   /// Load all conversations for the current user
@@ -37,8 +36,8 @@ class MessagingProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final conversationsData = await _messagingService.getConversations();
-      _conversations = conversationsData.map((data) => Conversation.fromMap(data)).toList();
+      final conversationsData = await _chatService.getUserConversations();
+      _conversations = conversationsData.map((data) => _convertToConversation(data)).toList();
       _isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -51,8 +50,8 @@ class MessagingProvider with ChangeNotifier {
   /// Load messages for a specific conversation
   Future<void> loadConversationMessages(String conversationId) async {
     try {
-      final messagesData = await _messagingService.getConversationMessages(conversationId);
-      _conversationMessages[conversationId] = messagesData.map((data) => ChatMessage.fromMap(data)).toList();
+      final messagesData = await _chatService.getMessages(conversationId: conversationId);
+      _conversationMessages[conversationId] = messagesData.map((data) => _convertToMessage(data)).toList();
       notifyListeners();
     } catch (e) {
       _error = e.toString();
@@ -67,14 +66,13 @@ class MessagingProvider with ChangeNotifier {
     String? messageType,
   }) async {
     try {
-      final messageData = await _messagingService.sendMessage(
+      final messageData = await _chatService.sendMessage(
         conversationId: conversationId,
-        message: message,
-        messageType: messageType ?? 'text',
+        content: message,
       );
 
       // Add the new message to local state
-      final newMessage = ChatMessage.fromMap(messageData);
+      final newMessage = _convertToMessage(messageData);
       if (_conversationMessages.containsKey(conversationId)) {
         _conversationMessages[conversationId]!.add(newMessage);
       } else {
@@ -84,9 +82,22 @@ class MessagingProvider with ChangeNotifier {
       // Update conversation's last message
       final conversationIndex = _conversations.indexWhere((c) => c.id == conversationId);
       if (conversationIndex != -1) {
-        _conversations[conversationIndex] = _conversations[conversationIndex].copyWith(
-          lastMessage: newMessage,
+        // Create updated conversation with new data
+        final oldConversation = _conversations[conversationIndex];
+        _conversations[conversationIndex] = ChatConversation(
+          id: oldConversation.id,
+          participantIds: oldConversation.participantIds,
+          participantData: oldConversation.participantData,
+          lastMessage: newMessage.text,
+          lastMessageTime: newMessage.sentAt,
+          lastMessageSenderId: newMessage.senderId,
+          unreadCount: oldConversation.unreadCount,
+          createdAt: oldConversation.createdAt,
           updatedAt: DateTime.now(),
+          isGroupChat: oldConversation.isGroupChat,
+          groupName: oldConversation.groupName,
+          groupPhotoUrl: oldConversation.groupPhotoUrl,
+          adminId: oldConversation.adminId,
         );
       }
 
@@ -98,19 +109,19 @@ class MessagingProvider with ChangeNotifier {
   }
 
   /// Create a new conversation
-  Future<Conversation?> createConversation({
+  Future<ChatConversation?> createConversation({
     required List<String> participantIds,
     String? conversationName,
     bool isGroup = false,
   }) async {
     try {
-      final conversationData = await _messagingService.createConversation(
+      final conversationData = await _chatService.createConversation(
         participantIds: participantIds,
-        conversationName: conversationName,
-        isGroup: isGroup,
+        title: conversationName,
+        type: isGroup ? 'group' : 'direct',
       );
 
-      final newConversation = Conversation.fromMap(conversationData);
+      final newConversation = _convertToConversation(conversationData);
       _conversations.insert(0, newConversation);
       notifyListeners();
 
@@ -122,7 +133,7 @@ class MessagingProvider with ChangeNotifier {
     }
   }
 
-  /// Search users for starting new conversations
+  /// Search users for starting new conversations (stub implementation)
   Future<void> searchUsers(String query) async {
     if (query.isEmpty) {
       _searchResults = [];
@@ -135,8 +146,8 @@ class MessagingProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final usersData = await _messagingService.searchUsers(query);
-      _searchResults = usersData.map((data) => UserProfile.fromMap(data)).toList();
+      // Stub implementation - no user search service available
+      _searchResults = [];
       _isSearching = false;
       notifyListeners();
     } catch (e) {
@@ -146,16 +157,31 @@ class MessagingProvider with ChangeNotifier {
     }
   }
 
-  /// Mark conversation as read
+  /// Mark conversation as read (stub implementation)
   Future<void> markConversationAsRead(String conversationId) async {
     try {
-      await _messagingService.markConversationAsRead(conversationId);
-      
-      // Update local state
+      // Stub implementation - mark as read in local state
       final conversationIndex = _conversations.indexWhere((c) => c.id == conversationId);
       if (conversationIndex != -1) {
-        _conversations[conversationIndex] = _conversations[conversationIndex].copyWith(
-          unreadCount: 0,
+        final oldConversation = _conversations[conversationIndex];
+        final newUnreadCount = Map<String, int>.from(oldConversation.unreadCount);
+        // Clear unread count for current user (would need actual user ID)
+        newUnreadCount.clear();
+        
+        _conversations[conversationIndex] = ChatConversation(
+          id: oldConversation.id,
+          participantIds: oldConversation.participantIds,
+          participantData: oldConversation.participantData,
+          lastMessage: oldConversation.lastMessage,
+          lastMessageTime: oldConversation.lastMessageTime,
+          lastMessageSenderId: oldConversation.lastMessageSenderId,
+          unreadCount: newUnreadCount,
+          createdAt: oldConversation.createdAt,
+          updatedAt: oldConversation.updatedAt,
+          isGroupChat: oldConversation.isGroupChat,
+          groupName: oldConversation.groupName,
+          groupPhotoUrl: oldConversation.groupPhotoUrl,
+          adminId: oldConversation.adminId,
         );
         notifyListeners();
       }
@@ -165,12 +191,10 @@ class MessagingProvider with ChangeNotifier {
     }
   }
 
-  /// Delete a conversation
+  /// Delete a conversation (stub implementation)
   Future<void> deleteConversation(String conversationId) async {
     try {
-      await _messagingService.deleteConversation(conversationId);
-      
-      // Remove from local state
+      // Stub implementation - no delete method available, just remove from local state
       _conversations.removeWhere((c) => c.id == conversationId);
       _conversationMessages.remove(conversationId);
       
@@ -185,38 +209,36 @@ class MessagingProvider with ChangeNotifier {
     }
   }
 
-  /// Send an image message
+  /// Send an image message (stub implementation)
   Future<void> sendImageMessage({
     required String conversationId,
     required String imagePath,
     String? caption,
   }) async {
     try {
-      final messageData = await _messagingService.sendImageMessage(
+      // Stub implementation - send as text message with image indicator
+      await sendMessage(
         conversationId: conversationId,
-        imagePath: imagePath,
-        caption: caption,
+        message: caption ?? 'Image shared',
+        messageType: 'image',
       );
-
-      // Add the new message to local state
-      final newMessage = ChatMessage.fromMap(messageData);
-      if (_conversationMessages.containsKey(conversationId)) {
-        _conversationMessages[conversationId]!.add(newMessage);
-      } else {
-        _conversationMessages[conversationId] = [newMessage];
-      }
-
-      notifyListeners();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
     }
   }
 
-  /// Get conversation statistics
+  /// Get conversation statistics (stub implementation)
   Future<Map<String, dynamic>?> getConversationStats(String conversationId) async {
     try {
-      return await _messagingService.getConversationStats(conversationId);
+      // Stub implementation - return basic stats
+      final messages = _conversationMessages[conversationId] ?? [];
+      return {
+        'message_count': messages.length,
+        'participant_count': _conversations.any((c) => c.id == conversationId) 
+            ? _conversations.firstWhere((c) => c.id == conversationId).participantCount
+            : 0,
+      };
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -224,25 +246,31 @@ class MessagingProvider with ChangeNotifier {
     }
   }
 
-  /// Update conversation settings
+  /// Update conversation settings (stub implementation)
   Future<void> updateConversationSettings({
     required String conversationId,
     bool? muteNotifications,
     String? conversationName,
   }) async {
     try {
-      await _messagingService.updateConversationSettings(
-        conversationId: conversationId,
-        muteNotifications: muteNotifications,
-        conversationName: conversationName,
-      );
-
-      // Update local state
+      // Stub implementation - update local state only
       final conversationIndex = _conversations.indexWhere((c) => c.id == conversationId);
       if (conversationIndex != -1) {
-        _conversations[conversationIndex] = _conversations[conversationIndex].copyWith(
-          name: conversationName ?? _conversations[conversationIndex].name,
-          isMuted: muteNotifications ?? _conversations[conversationIndex].isMuted,
+        final oldConversation = _conversations[conversationIndex];
+        _conversations[conversationIndex] = ChatConversation(
+          id: oldConversation.id,
+          participantIds: oldConversation.participantIds,
+          participantData: oldConversation.participantData,
+          lastMessage: oldConversation.lastMessage,
+          lastMessageTime: oldConversation.lastMessageTime,
+          lastMessageSenderId: oldConversation.lastMessageSenderId,
+          unreadCount: oldConversation.unreadCount,
+          createdAt: oldConversation.createdAt,
+          updatedAt: DateTime.now(),
+          isGroupChat: oldConversation.isGroupChat,
+          groupName: conversationName ?? oldConversation.groupName,
+          groupPhotoUrl: oldConversation.groupPhotoUrl,
+          adminId: oldConversation.adminId,
         );
         notifyListeners();
       }
@@ -253,7 +281,7 @@ class MessagingProvider with ChangeNotifier {
   }
 
   // State management methods
-  void setActiveConversation(Conversation? conversation) {
+  void setActiveConversation(ChatConversation? conversation) {
     _activeConversation = conversation;
     notifyListeners();
   }
@@ -275,12 +303,17 @@ class MessagingProvider with ChangeNotifier {
 
   /// Get unread message count
   int get totalUnreadCount {
-    return _conversations.fold(0, (sum, conversation) => sum + conversation.unreadCount);
+    int total = 0;
+    for (final conversation in _conversations) {
+      // Sum all unread counts for all users in each conversation
+      total += conversation.unreadCount.values.fold<int>(0, (sum, count) => sum + count);
+    }
+    return total;
   }
 
   /// Get active conversations (recent activity)
-  List<Conversation> get activeConversations {
-    final sorted = List<Conversation>.from(_conversations);
+  List<ChatConversation> get activeConversations {
+    final sorted = List<ChatConversation>.from(_conversations);
     sorted.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return sorted.take(10).toList();
   }
@@ -288,5 +321,55 @@ class MessagingProvider with ChangeNotifier {
   /// Refresh conversations
   Future<void> refresh() async {
     await loadConversations();
+  }
+
+  /// Helper method to convert raw data to ChatConversation
+  ChatConversation _convertToConversation(Map<String, dynamic> data) {
+    return ChatConversation(
+      id: data['id'] ?? '',
+      participantIds: List<String>.from(data['participant_ids'] ?? []),
+      participantData: Map<String, dynamic>.from(data['participant_data'] ?? {}),
+      lastMessage: data['last_message'],
+      lastMessageTime: data['last_message_at'] != null 
+          ? DateTime.parse(data['last_message_at']) 
+          : null,
+      lastMessageSenderId: data['last_message_sender_id'],
+      unreadCount: Map<String, int>.from(data['unread_count'] ?? {}),
+      createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(data['updated_at'] ?? DateTime.now().toIso8601String()),
+      isGroupChat: data['type'] == 'group',
+      groupName: data['title'],
+      groupPhotoUrl: data['group_photo_url'],
+      adminId: data['created_by'],
+    );
+  }
+
+  /// Helper method to convert raw data to ChatMessage
+  ChatMessage _convertToMessage(Map<String, dynamic> data) {
+    return ChatMessage(
+      id: data['id'] ?? '',
+      conversationId: data['conversation_id'] ?? '',
+      senderId: data['sender_id'] ?? '',
+      senderName: data['sender_name'] ?? '',
+      senderPhotoUrl: data['sender_photo_url'],
+      text: data['content'] ?? '',
+      type: _parseMessageType(data['type']),
+      imageUrl: data['image_url'],
+      sentAt: DateTime.parse(data['sent_at'] ?? DateTime.now().toIso8601String()),
+      isRead: data['is_read'] ?? false,
+      readAt: data['read_at'] != null ? DateTime.parse(data['read_at']) : null,
+    );
+  }
+
+  /// Helper method to parse message type
+  MessageType _parseMessageType(String? type) {
+    switch (type) {
+      case 'image':
+        return MessageType.image;
+      case 'system':
+        return MessageType.system;
+      default:
+        return MessageType.text;
+    }
   }
 }
