@@ -17,6 +17,25 @@ class ReviewService implements IReviewService {
   // Content moderation service instance
   late final ContentModerationService _moderationService = ContentModerationService.instance;
 
+  /// Helper method for deleting records with multiple filter criteria
+  Future<void> _deleteWithFilters({
+    required String table,
+    required Map<String, dynamic> filters,
+  }) async {
+    AppLogger.debug(_tag, 'Deleting from $table with filters: $filters');
+    
+    var query = SupabaseConfig.client.from(table).delete();
+    
+    filters.forEach((key, value) {
+      if (value != null) {
+        query = query.eq(key, value);
+      }
+    });
+    
+    await query;
+    AppLogger.success(_tag, 'Successfully deleted from $table');
+  }
+
   // ===============================
   // REVIEW MANAGEMENT
   // ===============================
@@ -294,6 +313,7 @@ class ReviewService implements IReviewService {
         final moderationContent = '${title ?? existingReview['title']}\n${content ?? existingReview['content']}';
         final moderationResult = await _moderationService.moderateTextContent(
           content: moderationContent,
+          contentType: 'review',
           userId: userId,
         );
 
@@ -362,7 +382,7 @@ class ReviewService implements IReviewService {
       );
 
       // Delete associated likes
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _reviewLikesTable,
         filters: {'review_id': reviewId},
       );
@@ -405,7 +425,7 @@ class ReviewService implements IReviewService {
       bool isLiked;
       if (existingLike.isNotEmpty) {
         // Remove like
-        await SupabaseDatabaseService.delete(
+        await _deleteWithFilters(
           table: _reviewLikesTable,
           filters: {
             'review_id': reviewId,
@@ -455,14 +475,16 @@ class ReviewService implements IReviewService {
       AppLogger.debug(_tag, 'Marking review as helpful: $reviewId');
 
       // Increment helpful count
-      final review = await SupabaseDatabaseService.selectById(
+      final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
-        id: reviewId,
+        filters: {'id': reviewId},
       );
 
-      if (review == null) {
+      if (reviews.isEmpty) {
         throw Exception('Review not found');
       }
+
+      final review = reviews.first;
 
       final currentCount = review['helpful_count'] ?? 0;
       await SupabaseDatabaseService.update(
@@ -498,12 +520,12 @@ class ReviewService implements IReviewService {
       AppLogger.debug(_tag, 'Reporting review: $reviewId');
 
       // Check if review exists
-      final review = await SupabaseDatabaseService.selectById(
+      final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
-        id: reviewId,
+        filters: {'id': reviewId},
       );
 
-      if (review == null) {
+      if (reviews.isEmpty) {
         throw Exception('Review not found');
       }
 
@@ -690,18 +712,20 @@ class ReviewService implements IReviewService {
 
   Future<Map<String, dynamic>> _getUserData(String userId) async {
     try {
-      final userData = await SupabaseDatabaseService.selectById(
+      final users = await SupabaseDatabaseService.select(
         table: 'users',
-        id: userId,
+        filters: {'id': userId},
       );
 
-      if (userData == null) {
+      if (users.isEmpty) {
         return {
           'id': userId,
           'name': 'Unknown User',
           'avatar_url': null,
         };
       }
+
+      final userData = users.first;
 
       return {
         'id': userData['id'],
@@ -737,12 +761,12 @@ class ReviewService implements IReviewService {
           table = 'destinations';
       }
 
-      final entityData = await SupabaseDatabaseService.selectById(
+      final entities = await SupabaseDatabaseService.select(
         table: table,
-        id: entityId,
+        filters: {'id': entityId},
       );
 
-      return entityData ?? {'id': entityId, 'name': 'Unknown Entity'};
+      return entities.isNotEmpty ? entities.first : {'id': entityId, 'name': 'Unknown Entity'};
     } catch (e) {
       return {'id': entityId, 'name': 'Unknown Entity'};
     }
