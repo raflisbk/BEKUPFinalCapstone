@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
 import '../../core/models/trip_model.dart';
-import '../../services/trip_service.dart';
+import '../../services/budget_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -25,7 +25,7 @@ class BudgetOverviewScreen extends StatefulWidget {
 class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
   static const String _tag = 'BudgetOverviewScreen';
 
-  final TripService _tripService = TripService();
+  final BudgetService _budgetService = BudgetService();
 
   @override
   void initState() {
@@ -122,14 +122,11 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
 
     if (confirmed != true) return;
 
-    final success = await _tripService.deleteExpense(
-      tripId: widget.trip.id,
-      expenseId: expense.id,
-    );
+    try {
+      await _budgetService.deleteExpense(expense.id);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
       await HapticHelper.success();
       if (!mounted) return;
 
@@ -142,7 +139,7 @@ class _BudgetOverviewScreenState extends State<BudgetOverviewScreen> {
           backgroundColor: AppColors.success,
         ),
       );
-    } else {
+    } catch (e) {
       await HapticHelper.error();
       if (!mounted) return;
 
