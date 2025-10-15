@@ -43,6 +43,77 @@ class _GalleryScreenState extends State<GalleryScreen> {
     }
   }
 
+  Future<List<Photo>> _getPhotos({
+    required GalleryFilter filter,
+    String? userId,
+    required GallerySort sort,
+  }) async {
+    try {
+      List<Map<String, dynamic>> photoData = [];
+      
+      switch (filter) {
+        case GalleryFilter.all:
+          // Get photos from all public galleries
+          final galleries = await _galleryService.searchPublicGalleries(limit: 10);
+          for (final gallery in galleries) {
+            final galleryPhotos = await _galleryService.getGalleryPhotos(
+              galleryId: gallery['id'],
+              limit: 20,
+            );
+            photoData.addAll(galleryPhotos);
+          }
+          break;
+          
+        case GalleryFilter.myPhotos:
+          if (userId != null) {
+            final userGalleries = await _galleryService.getUserGalleries(
+              userId: userId,
+              limit: 10,
+            );
+            for (final gallery in userGalleries) {
+              final galleryPhotos = await _galleryService.getGalleryPhotos(
+                galleryId: gallery['id'],
+                limit: 20,
+              );
+              photoData.addAll(galleryPhotos);
+            }
+          }
+          break;
+          
+        case GalleryFilter.liked:
+        case GalleryFilter.destination:
+          // For now, return empty list as these features need additional implementation
+          photoData = [];
+          break;
+      }
+      
+      // Convert to Photo objects and add missing user information
+      final photos = photoData.map((data) {
+        return Photo(
+          id: data['id'] ?? '',
+          userId: data['uploaded_by'] ?? '',
+          userName: 'User', // This would need to be fetched from user service
+          userPhotoUrl: null,
+          imageUrl: data['original_url'] ?? '',
+          caption: data['description'],
+          location: data['location'],
+          tags: List<String>.from(data['tags'] ?? []),
+          likes: data['like_count'] ?? 0,
+          comments: data['comment_count'] ?? 0,
+          isPublic: true,
+          createdAt: DateTime.parse(data['created_at'] ?? DateTime.now().toIso8601String()),
+          updatedAt: DateTime.parse(data['updated_at'] ?? DateTime.now().toIso8601String()),
+        );
+      }).toList();
+      
+      // Apply sorting
+      return GallerySortHelper.sortPhotos(photos, sort);
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to get photos', e);
+      return [];
+    }
+  }
+
   void _navigateToPhotoDetail(Photo photo) async {
     await HapticHelper.cardTap();
 
@@ -354,8 +425,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
               builder: (context, authProvider, child) {
                 final userId = authProvider.user?.uid;
 
-                return StreamBuilder<List<Photo>>(
-                  stream: _galleryService.getPhotosStream(
+                return FutureBuilder<List<Photo>>(
+                  future: _getPhotos(
                     filter: _selectedFilter,
                     userId: userId,
                     sort: _selectedSort,
