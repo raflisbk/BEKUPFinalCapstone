@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../services/user_service.dart';
 import '../../services/social_service.dart';
@@ -22,11 +21,8 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  final UserService _userService = UserService();
-  final SocialService _socialService = SocialService();
-
-  UserModel? _user;
-  Map<String, dynamic>? _socialConnection;
+  Map<String, dynamic>? _userProfile;
+  Map<String, dynamic>? _socialStats;
   bool _isFollowing = false;
   bool _isLoading = true;
   bool _isFollowActionLoading = false;
@@ -41,31 +37,34 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Load user profile
-      final user = await _userService.getUserById(widget.userId);
+      // Load user profile using UserService
+      final userService = UserService();
+      final userProfile = await userService.getUserProfile(widget.userId);
+
+      if (userProfile == null) {
+        throw Exception('User not found');
+      }
 
       // Check if current user is following this user
       // ignore: use_build_context_synchronously
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       final currentUserId = authProvider.user?.uid;
 
-      // Load social connection
-      Map<String, dynamic>? connection;
-      if (currentUserId != null) {
-        connection = await _socialService.getSocialConnection(currentUserId, widget.userId);
-      }
-
+      // Load social statistics
+      Map<String, dynamic>? socialStats;
       bool following = false;
+      
       if (currentUserId != null) {
-        following = await _socialService.isFollowing(
-          followerId: currentUserId,
-          followingId: widget.userId,
-        );
+        // Get social statistics
+        socialStats = await SocialService.getUserSocialStatistics(userId: widget.userId);
+        
+        // Check if following
+        following = await SocialService.isFollowing(widget.userId);
       }
 
       setState(() {
-        _user = user;
-        _socialConnection = connection;
+        _userProfile = userProfile;
+        _socialStats = socialStats;
         _isFollowing = following;
         _isLoading = false;
       });
@@ -94,40 +93,24 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     setState(() => _isFollowActionLoading = true);
 
     try {
-      bool success;
       if (_isFollowing) {
-        success = await _socialService.unfollowUser(
-          followerId: currentUser.uid,
-          followingId: widget.userId,
-        );
+        await SocialService.unfollowUser(widget.userId);
       } else {
-        success = await _socialService.followUser(
-          followerId: currentUser.uid,
-          followingId: widget.userId,
-        );
+        await SocialService.followUser(widget.userId);
       }
 
-      if (success) {
-        setState(() {
-          _isFollowing = !_isFollowing;
-          // Update follower count in social connection
-          if (_socialConnection != null) {
-            final currentFollowersCount = _socialConnection!['followersCount'] as int? ?? 0;
-            _socialConnection = {
-              ..._socialConnection!,
-              'followersCount': currentFollowersCount + (_isFollowing ? 1 : -1),
-            };
-          }
-        });
-        await HapticHelper.success();
-      } else {
-        await HapticHelper.error();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to update follow status')),
-          );
+      setState(() {
+        _isFollowing = !_isFollowing;
+        // Update follower count in social stats
+        if (_socialStats != null) {
+          final currentFollowersCount = _socialStats!['followers_count'] as int? ?? 0;
+          _socialStats = {
+            ..._socialStats!,
+            'followers_count': currentFollowersCount + (_isFollowing ? 1 : -1),
+          };
         }
-      }
+      });
+      await HapticHelper.success();
     } catch (e) {
       await HapticHelper.error();
       if (mounted) {
@@ -188,7 +171,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildContent(bool isOwnProfile) {
-    if (_user == null) {
+    if (_userProfile == null) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -214,7 +197,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
           // Name
           Text(
-            _user!.displayName,
+            _userProfile!['display_name'] ?? 'Unknown User',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -222,9 +205,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           const SizedBox(height: 8),
 
           // Email
-          if (_user!.email.isNotEmpty)
+          if (_userProfile!['email'] != null && (_userProfile!['email'] as String).isNotEmpty)
             Text(
-              _user!.email,
+              _userProfile!['email'],
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.grey600,
                   ),
@@ -240,13 +223,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           const SizedBox(height: 32),
 
           // Bio section
-          if (_user!.bio.isNotEmpty) ...[
+          if (_userProfile!['bio'] != null && (_userProfile!['bio'] as String).isNotEmpty) ...[
             _buildBioSection(),
             const SizedBox(height: 32),
           ],
 
           // Interests section
-          if (_user!.interests.isNotEmpty) ...[
+          if (_userProfile!['interests'] != null && (_userProfile!['interests'] as List).isNotEmpty) ...[
             _buildInterestsSection(),
             const SizedBox(height: 32),
           ],
@@ -256,9 +239,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildProfilePhoto() {
-    if (_user!.photoUrl != null && _user!.photoUrl!.startsWith('avatar:')) {
+    final photoUrl = _userProfile!['photo_url'] as String?;
+    
+    if (photoUrl != null && photoUrl.startsWith('avatar:')) {
       // Emoji avatar
-      final emoji = _user!.photoUrl!.replaceFirst('avatar:', '');
+      final emoji = photoUrl.replaceFirst('avatar:', '');
       return Container(
         width: 120,
         height: 120,
@@ -274,11 +259,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           ),
         ),
       );
-    } else if (_user!.photoUrl != null) {
+    } else if (photoUrl != null) {
       // Photo avatar
       return CircleAvatar(
         radius: 60,
-        backgroundImage: NetworkImage(_user!.photoUrl!),
+        backgroundImage: NetworkImage(photoUrl),
         backgroundColor: AppColors.grey100,
       );
     } else {
@@ -322,7 +307,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       children: [
         _buildStatItem(
           label: 'Followers',
-          value: (_socialConnection?['followersCount'] as int?)?.toString() ?? '0',
+          value: (_socialStats?['followers_count'] as int?)?.toString() ?? '0',
           onTap: () => _navigateToFollowersList(isFollowers: true),
         ),
         Container(
@@ -332,7 +317,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
         _buildStatItem(
           label: 'Following',
-          value: (_socialConnection?['followingCount'] as int?)?.toString() ?? '0',
+          value: (_socialStats?['following_count'] as int?)?.toString() ?? '0',
           onTap: () => _navigateToFollowersList(isFollowers: false),
         ),
         Container(
@@ -342,7 +327,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
         _buildStatItem(
           label: 'Reviews',
-          value: _user!.reviewCount.toString(),
+          value: (_userProfile!['review_count'] as int?)?.toString() ?? '0',
         ),
       ],
     );
@@ -399,7 +384,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          _user!.bio,
+          _userProfile!['bio'] ?? 'No bio available',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
@@ -420,7 +405,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _user!.interests.map((interest) {
+          children: (_userProfile!['interests'] as List<dynamic>? ?? []).map((interest) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
