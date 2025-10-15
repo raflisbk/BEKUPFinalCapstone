@@ -19,8 +19,8 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
   // Sync status state - placeholder implementation
   bool _isSyncing = false;
   int _pendingCount = 0;
-  int _totalCount = 0;
-  bool _isOnline = true; // Mock connectivity status
+  final int _totalCount = 0;
+  final bool _isOnline = true; // Mock connectivity status
 
   @override
   void initState() {
