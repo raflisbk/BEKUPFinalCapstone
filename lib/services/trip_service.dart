@@ -3,7 +3,6 @@ import 'dart:math';
 import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
-import 'notification_service.dart';
 import 'interfaces/i_trip_service.dart';
 
 /// Trip Service Implementation
@@ -13,21 +12,32 @@ class TripService implements ITripService {
   static const String _tripsTable = 'trips';
   static const String _participantsTable = 'trip_participants';
 
-  // Dependencies
-  final SupabaseDatabaseService _databaseService;
-  final NotificationService _notificationService;
-
-  // Constructor with dependency injection
-  TripService({
-    SupabaseDatabaseService? databaseService,
-    NotificationService? notificationService,
-  }) : _databaseService = databaseService ?? SupabaseDatabaseService(),
-       _notificationService = notificationService ?? NotificationService();
+  // Constructor
+  TripService();
 
   /// Generate a simple UUID
   String _generateUuid() {
     final random = Random();
     return 'trip_${random.nextInt(999999999).toString().padLeft(9, '0')}';
+  }
+
+  /// Helper method for deleting records with multiple filter criteria
+  Future<void> _deleteWithFilters({
+    required String table,
+    required Map<String, dynamic> filters,
+  }) async {
+    AppLogger.debug(_tag, 'Deleting from $table with filters: $filters');
+    
+    var query = SupabaseConfig.client.from(table).delete();
+    
+    filters.forEach((key, value) {
+      if (value != null) {
+        query = query.eq(key, value);
+      }
+    });
+    
+    await query;
+    AppLogger.success(_tag, 'Successfully deleted from $table');
   }
 
   // ===============================
@@ -220,14 +230,14 @@ class TripService implements ITripService {
       if (tags != null) updateData['tags'] = tags;
       if (preferences != null) updateData['preferences'] = preferences;
 
-      final updatedTrip = await _databaseService.update(
+      final updatedTrip = await SupabaseDatabaseService.update(
         table: _tripsTable,
+        id: tripId,
         data: updateData,
-        filters: {'id': tripId},
       );
 
       AppLogger.success(_tag, 'Trip updated successfully: $tripId');
-      return updatedTrip.first;
+      return updatedTrip;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to update trip: $tripId', e, stackTrace);
       rethrow;
@@ -255,15 +265,15 @@ class TripService implements ITripService {
       }
 
       // Delete participants first
-      await _databaseService.delete(
+      await _deleteWithFilters(
         table: _participantsTable,
         filters: {'trip_id': tripId},
       );
 
       // Delete trip
-      await _databaseService.delete(
+      await SupabaseDatabaseService.delete(
         table: _tripsTable,
-        filters: {'id': tripId},
+        id: tripId,
       );
 
       AppLogger.success(_tag, 'Trip deleted successfully: $tripId');
@@ -303,7 +313,7 @@ class TripService implements ITripService {
       }
 
       // Check if user is already a participant
-      final existingParticipants = await _databaseService.select(
+      final existingParticipants = await SupabaseDatabaseService.select(
         table: _participantsTable,
         filters: {
           'trip_id': tripId,
@@ -357,7 +367,7 @@ class TripService implements ITripService {
       }
 
       // Remove participant
-      await _databaseService.delete(
+      await _deleteWithFilters(
         table: _participantsTable,
         filters: {
           'trip_id': tripId,
@@ -379,10 +389,11 @@ class TripService implements ITripService {
     try {
       AppLogger.debug(_tag, 'Getting participants for trip: $tripId');
 
-      final participants = await _databaseService.select(
+      final participants = await SupabaseDatabaseService.select(
         table: _participantsTable,
         filters: {'trip_id': tripId},
-        orderBy: {'joined_at': 'asc'},
+        orderBy: 'joined_at',
+        ascending: true,
       );
 
       AppLogger.success(_tag, 'Retrieved ${participants.length} participants for trip: $tripId');
@@ -427,17 +438,20 @@ class TripService implements ITripService {
         filters['max_participants'] = maxParticipants;
       }
 
-      final orderByMap = <String, String>{};
+      String orderByField;
+      bool orderAscending = ascending;
       if (sortBy != null) {
-        orderByMap[sortBy] = ascending ? 'asc' : 'desc';
+        orderByField = sortBy;
       } else {
-        orderByMap['created_at'] = 'desc';
+        orderByField = 'created_at';
+        orderAscending = false; // desc for created_at by default
       }
 
-      List<Map<String, dynamic>> trips = await _databaseService.select(
+      List<Map<String, dynamic>> trips = await SupabaseDatabaseService.select(
         table: _tripsTable,
         filters: filters,
-        orderBy: orderByMap,
+        orderBy: orderByField,
+        ascending: orderAscending,
         limit: limit,
         offset: offset,
       );
@@ -493,10 +507,11 @@ class TripService implements ITripService {
       AppLogger.debug(_tag, 'Getting recommended trips');
 
       // Simple recommendation: get popular public trips
-      final trips = await _databaseService.select(
+      final trips = await SupabaseDatabaseService.select(
         table: _tripsTable,
         filters: {'is_public': true, 'status': 'planned'},
-        orderBy: {'current_participants': 'desc'},
+        orderBy: 'current_participants',
+        ascending: false,
         limit: limit,
       );
 
@@ -520,10 +535,11 @@ class TripService implements ITripService {
       AppLogger.debug(_tag, 'Getting trending trips');
 
       // Simple trending: get recently created public trips with participants
-      final trips = await _databaseService.select(
+      final trips = await SupabaseDatabaseService.select(
         table: _tripsTable,
         filters: {'is_public': true},
-        orderBy: {'created_at': 'desc'},
+        orderBy: 'created_at',
+        ascending: false,
         limit: limit,
       );
 
@@ -553,14 +569,14 @@ class TripService implements ITripService {
     try {
       AppLogger.debug(_tag, 'Starting trip: $tripId');
 
-      await _databaseService.update(
+      await SupabaseDatabaseService.update(
         table: _tripsTable,
+        id: tripId,
         data: {
           'status': 'active',
           'actual_start_date': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         },
-        filters: {'id': tripId},
       );
 
       AppLogger.success(_tag, 'Trip started successfully: $tripId');
@@ -575,14 +591,14 @@ class TripService implements ITripService {
     try {
       AppLogger.debug(_tag, 'Completing trip: $tripId');
 
-      await _databaseService.update(
+      await SupabaseDatabaseService.update(
         table: _tripsTable,
+        id: tripId,
         data: {
           'status': 'completed',
           'actual_end_date': DateTime.now().toIso8601String(),
           'updated_at': DateTime.now().toIso8601String(),
         },
-        filters: {'id': tripId},
       );
 
       AppLogger.success(_tag, 'Trip completed successfully: $tripId');
@@ -606,10 +622,10 @@ class TripService implements ITripService {
         updateData['cancellation_reason'] = reason;
       }
 
-      await _databaseService.update(
+      await SupabaseDatabaseService.update(
         table: _tripsTable,
+        id: tripId,
         data: updateData,
-        filters: {'id': tripId},
       );
 
       AppLogger.success(_tag, 'Trip cancelled successfully: $tripId');
@@ -698,7 +714,7 @@ class TripService implements ITripService {
   }) async {
     try {
       final participantData = {
-        'id': SupabaseConfig.generateId(),
+        'id': _generateUuid(),
         'trip_id': tripId,
         'user_id': userId,
         'role': role,
@@ -707,7 +723,7 @@ class TripService implements ITripService {
         'status': 'active',
       };
 
-      await _databaseService.insert(
+      await SupabaseDatabaseService.insert(
         table: _participantsTable,
         data: participantData,
       );
@@ -721,13 +737,13 @@ class TripService implements ITripService {
     try {
       final participants = await getTripParticipants(tripId);
       
-      await _databaseService.update(
+      await SupabaseDatabaseService.update(
         table: _tripsTable,
+        id: tripId,
         data: {
           'current_participants': participants.length,
           'updated_at': DateTime.now().toIso8601String(),
         },
-        filters: {'id': tripId},
       );
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to update trip participant count', e, stackTrace);
