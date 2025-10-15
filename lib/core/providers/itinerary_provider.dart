@@ -3,9 +3,12 @@ import '../models/itinerary_model.dart' as itinerary;
 import '../models/destination_model.dart';
 import '../models/trip_model.dart' hide ItineraryItem;
 import '../../services/itinerary_service.dart';
+import '../utils/service_locator.dart';
 
 /// Provider for managing travel itineraries and trip planning
 class ItineraryProvider with ChangeNotifier {
+  // Access ItineraryService through ServiceLocator for dependency injection
+  ItineraryService get _itineraryService => ServiceLocator.instance.get<ItineraryService>();
 
   List<itinerary.Itinerary> _itineraries = [];
   itinerary.Itinerary? _selectedItinerary;
@@ -51,7 +54,7 @@ class ItineraryProvider with ChangeNotifier {
       // For now, we need a tripId to get itineraries
       // This is a limitation of the current service design
       if (_currentTrip?.id != null) {
-        final itinerariesData = await ItineraryService.getTripItineraries(_currentTrip!.id);
+        final itinerariesData = await _itineraryService.getTripItineraries(_currentTrip!.id);
         _itineraries = itinerariesData.map((data) => itinerary.Itinerary.fromMap(data)).toList();
       } else {
         // If no current trip, return empty list
@@ -74,12 +77,12 @@ class ItineraryProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final itineraryData = await ItineraryService.getItinerary(itineraryId);
+      final itineraryData = await _itineraryService.getItinerary(itineraryId);
       if (itineraryData != null) {
         _selectedItinerary = itinerary.Itinerary.fromMap(itineraryData);
         
         // Load itinerary items (activities)
-        final itemsData = await ItineraryService.getItineraryActivities(itineraryId);
+        final itemsData = await _itineraryService.getItineraryActivities(itineraryId);
         _itineraryItems = itemsData.map((data) => itinerary.ItineraryItem.fromMap(data)).toList();
         
         // Organize items by day
@@ -104,7 +107,7 @@ class ItineraryProvider with ChangeNotifier {
     String? tripId,
   }) async {
     try {
-      final itineraryData = await ItineraryService.createItinerary(
+      final itineraryData = await _itineraryService.createItinerary(
         tripId: tripId ?? '',
         title: name,
         description: description,
@@ -132,7 +135,7 @@ class ItineraryProvider with ChangeNotifier {
     DateTime? endDate,
   }) async {
     try {
-      final updatedData = await ItineraryService.updateItinerary(
+      final updatedData = await _itineraryService.updateItinerary(
         itineraryId: itineraryId,
         title: name,
         description: description,
@@ -158,7 +161,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Delete itinerary
   Future<void> deleteItinerary(String itineraryId) async {
     try {
-      await ItineraryService.deleteItinerary(itineraryId);
+      await _itineraryService.deleteItinerary(itineraryId);
       
       _itineraries.removeWhere((i) => i.id == itineraryId);
       
@@ -187,7 +190,7 @@ class ItineraryProvider with ChangeNotifier {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      final itemData = await ItineraryService.addActivity(
+      final itemData = await _itineraryService.addActivity(
         itineraryId: itineraryId,
         title: title,
         type: type ?? 'other',
@@ -223,7 +226,7 @@ class ItineraryProvider with ChangeNotifier {
     Map<String, dynamic>? metadata,
   }) async {
     try {
-      final updatedData = await ItineraryService.updateActivity(
+      final updatedData = await _itineraryService.updateActivity(
         activityId: itemId,
         title: title,
         type: type,
@@ -249,7 +252,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Delete itinerary item
   Future<void> deleteItineraryItem(String itemId) async {
     try {
-      await ItineraryService.deleteActivity(itemId);
+      await _itineraryService.deleteActivity(itemId);
       
       _itineraryItems.removeWhere((item) => item.id == itemId);
       _organizeDayPlans();
@@ -303,7 +306,7 @@ class ItineraryProvider with ChangeNotifier {
 
     try {
       // Stub implementation - create itinerary from generated data
-      final itineraryData = await ItineraryService.createItinerary(
+      final itineraryData = await _itineraryService.createItinerary(
         tripId: '',
         title: name,
         description: description ?? 'Itinerary created from AI generation',
@@ -325,7 +328,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Optimize itinerary route
   Future<void> optimizeItineraryRoute(String itineraryId) async {
     try {
-      final optimizedData = await ItineraryService.optimizeItineraryByLocation(itineraryId);
+      final optimizedData = await _itineraryService.optimizeItineraryByLocation(itineraryId);
       _routeOptimizations = optimizedData.map((item) => item).toList();
       notifyListeners();
     } catch (e) {
@@ -369,7 +372,7 @@ class ItineraryProvider with ChangeNotifier {
   }) async {
     try {
       // Stub implementation - create new itinerary with similar data
-      final itineraryData = await ItineraryService.createItinerary(
+      final itineraryData = await _itineraryService.createItinerary(
         tripId: '',
         title: newName,
         description: newDescription ?? 'Cloned itinerary',
@@ -390,7 +393,7 @@ class ItineraryProvider with ChangeNotifier {
   /// Get itinerary statistics
   Future<Map<String, dynamic>?> getItineraryStats(String itineraryId) async {
     try {
-      return await ItineraryService.getItineraryStatistics(itineraryId);
+      return await _itineraryService.getItineraryStatistics(itineraryId);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
