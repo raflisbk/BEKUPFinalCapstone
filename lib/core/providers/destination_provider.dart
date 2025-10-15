@@ -1,14 +1,16 @@
 import 'package:flutter/foundation.dart';
 import '../models/destination_model.dart';
 import '../utils/logger.dart';
-import '../../services/destination_service.dart';
+import '../../services/interfaces/i_destination_service.dart';
+import '../config/service_locator.dart';
 
 /// Provider for Destination management
 class DestinationProvider with ChangeNotifier {
   static const String _tag = 'DestinationProvider';
 
-  // Service instance
-  final DestinationService _destinationService = DestinationService.instance;
+  // Service instance with dependency injection
+  late final IDestinationService _destinationService;
+  bool _isServiceInitialized = false;
 
   List<Destination> _destinations = [];
   List<Destination> _popularDestinations = [];
@@ -19,6 +21,15 @@ class DestinationProvider with ChangeNotifier {
   String? _error;
   String _selectedCategory = '';
   String _selectedProvince = '';
+
+  // Helper method to safely get destination service
+  IDestinationService get destinationService {
+    if (!_isServiceInitialized) {
+      _destinationService = ServiceLocator.destinationService;
+      _isServiceInitialized = true;
+    }
+    return _destinationService;
+  }
 
   // Getters
   List<Destination> get destinations => _destinations;
@@ -65,14 +76,13 @@ class DestinationProvider with ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      final destinationsData = await _destinationService.getDestinations(
+      final destinationsData = await destinationService.searchDestinations(
         category: category,
-        province: province,
-        city: city,
+        location: province,
+        latitude: userLat,
+        longitude: userLng,
+        radiusKm: maxDistance,
         minRating: minRating,
-        maxDistance: maxDistance,
-        userLat: userLat,
-        userLng: userLng,
         limit: limit,
         offset: offset,
       );
@@ -96,7 +106,7 @@ class DestinationProvider with ChangeNotifier {
       AppLogger.debug(_tag, 'Loading popular destinations');
       _setError(null);
 
-      final destinationsData = await _destinationService.getPopularDestinations(
+      final destinationsData = await destinationService.getTrendingDestinations(
         limit: limit,
       );
 
@@ -121,12 +131,11 @@ class DestinationProvider with ChangeNotifier {
       AppLogger.debug(_tag, 'Loading nearby destinations');
       _setError(null);
 
-      // Note: This method needs to be implemented in DestinationService
-      // For now, we'll use getDestinations with user location
-      final destinationsData = await _destinationService.getDestinations(
-        userLat: latitude,
-        userLng: longitude,
-        maxDistance: radiusKm,
+      // Use getNearbyDestinations method from interface
+      final destinationsData = await destinationService.getNearbyDestinations(
+        latitude: latitude,
+        longitude: longitude,
+        radiusKm: radiusKm,
         limit: limit,
       );
 
@@ -146,9 +155,9 @@ class DestinationProvider with ChangeNotifier {
       AppLogger.debug(_tag, 'Loading bookmarked destinations');
       _setError(null);
 
-      // Note: This method needs to be implemented to return proper Destination objects
-      // For now, we'll use placeholder
-      _bookmarkedDestinations = [];
+      // Use getUserBookmarks method from interface
+      final bookmarksData = await destinationService.getUserBookmarks();
+      _bookmarkedDestinations = bookmarksData.map((data) => Destination.fromMap(data)).toList();
       notifyListeners();
 
       AppLogger.success(_tag, 'Loaded ${_bookmarkedDestinations.length} bookmarked destinations');
@@ -165,7 +174,7 @@ class DestinationProvider with ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      final destinationData = await _destinationService.getDestination(destinationId);
+      final destinationData = await destinationService.getDestination(destinationId);
       
       if (destinationData != null) {
         _selectedDestination = Destination.fromMap(destinationData);
@@ -194,17 +203,13 @@ class DestinationProvider with ChangeNotifier {
       _setLoading(true);
       _setError(null);
 
-      // Note: Search functionality needs to be implemented in DestinationService
-      // For now, we'll use basic filter
-      await loadDestinations();
+      // Use searchDestinations method from interface
+      final destinationsData = await destinationService.searchDestinations(
+        query: query,
+        limit: 50,
+      );
       
-      // Filter by query in memory (not ideal for large datasets)
-      _destinations = _destinations.where((dest) {
-        final name = dest.name.toLowerCase();
-        final description = dest.description.toLowerCase();
-        final searchQuery = query.toLowerCase();
-        return name.contains(searchQuery) || description.contains(searchQuery);
-      }).toList();
+      _destinations = destinationsData.map((data) => Destination.fromMap(data)).toList();
 
       AppLogger.success(_tag, 'Found ${_destinations.length} destinations for query: $query');
     } catch (e, stackTrace) {
@@ -232,20 +237,20 @@ class DestinationProvider with ChangeNotifier {
     try {
       AppLogger.debug(_tag, 'Toggling bookmark for destination: $destinationId');
       
-      final isBookmarked = _bookmarkedDestinations.any((dest) => dest.id == destinationId);
+      final isBookmarked = await destinationService.isDestinationBookmarked(destinationId);
       
       if (isBookmarked) {
         // Remove bookmark
+        await destinationService.removeBookmark(destinationId);
         _bookmarkedDestinations.removeWhere((dest) => dest.id == destinationId);
-        // Note: Call service method to remove bookmark from database
       } else {
         // Add bookmark
+        await destinationService.bookmarkDestination(destinationId);
         final destination = _destinations.firstWhere(
           (dest) => dest.id == destinationId,
           orElse: () => _popularDestinations.firstWhere((dest) => dest.id == destinationId),
         );
         _bookmarkedDestinations.add(destination);
-        // Note: Call service method to add bookmark to database
       }
       
       notifyListeners();
@@ -257,8 +262,13 @@ class DestinationProvider with ChangeNotifier {
   }
 
   /// Check if destination is bookmarked
-  bool isBookmarked(String destinationId) {
-    return _bookmarkedDestinations.any((dest) => dest.id == destinationId);
+  Future<bool> isBookmarked(String destinationId) async {
+    try {
+      return await destinationService.isDestinationBookmarked(destinationId);
+    } catch (e) {
+      // Fallback to checking local list
+      return _bookmarkedDestinations.any((dest) => dest.id == destinationId);
+    }
   }
 
   /// Clear all data
