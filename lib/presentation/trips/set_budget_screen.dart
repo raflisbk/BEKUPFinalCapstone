@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/trip_model.dart';
 import '../../core/providers/set_budget_ui_provider.dart';
-import '../../services/trip_service.dart';
+import '../../services/budget_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -23,7 +23,7 @@ class SetBudgetScreen extends StatefulWidget {
 class _SetBudgetScreenState extends State<SetBudgetScreen> {
   static const String _tag = 'SetBudgetScreen';
 
-  final TripService _tripService = TripService();
+  final BudgetService _budgetService = BudgetService();
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _totalBudgetController;
@@ -69,43 +69,77 @@ class _SetBudgetScreenState extends State<SetBudgetScreen> {
     uiProvider.setSubmitting(true);
     await HapticHelper.mediumImpact();
 
-    final success = await _tripService.setTripBudget(
-      tripId: widget.trip.id,
-      amount: totalBudget,
-      currency: uiProvider.currency,
-    );
+    try {
+      bool success = false;
+      
+      if (widget.trip.budget == null) {
+        // Create new budget
+        final result = await _budgetService.createBudget(
+          tripId: widget.trip.id,
+          totalBudget: totalBudget,
+          currency: uiProvider.currency,
+        );
+        success = result.isNotEmpty;
+      } else {
+        // Update existing budget - we need to get the budget ID first
+        final existingBudget = await _budgetService.getTripBudget(widget.trip.id);
+        if (existingBudget != null) {
+          final result = await _budgetService.updateBudget(
+            budgetId: existingBudget['id'],
+            totalBudget: totalBudget,
+            currency: uiProvider.currency,
+          );
+          success = result.isNotEmpty;
+        }
+      }
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (success) {
-      await HapticHelper.success();
-      // ignore: use_build_context_synchronously
-      Navigator.pop(context, true); // Return true to indicate success
-      // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.trip.budget == null
-                ? 'Budget set successfully'
-                : 'Budget updated successfully',
+      if (success) {
+        await HapticHelper.success();
+        // ignore: use_build_context_synchronously
+        Navigator.pop(context, true); // Return true to indicate success
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.trip.budget == null
+                  ? 'Budget set successfully'
+                  : 'Budget updated successfully',
+            ),
+            backgroundColor: AppColors.success,
           ),
-          backgroundColor: AppColors.success,
-        ),
-      );
-    } else {
+        );
+      } else {
+        await HapticHelper.error();
+        uiProvider.setSubmitting(false);
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              widget.trip.budget == null
+                  ? 'Failed to set budget'
+                  : 'Failed to update budget',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
       await HapticHelper.error();
       uiProvider.setSubmitting(false);
+      
+      if (!mounted) return;
+      
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            widget.trip.budget == null
-                ? 'Failed to set budget'
-                : 'Failed to update budget',
-          ),
+        const SnackBar(
+          content: Text('An error occurred while saving budget'),
           backgroundColor: AppColors.error,
         ),
       );
+      
+      AppLogger.error(_tag, 'Error saving budget', e);
     }
   }
 
