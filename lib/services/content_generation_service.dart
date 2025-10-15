@@ -19,7 +19,7 @@ class ContentGenerationService {
   ContentGenerationService._internal();
 
   // AI Service instance
-  late final AIService _aiService = AIService.instance;
+  final AIService _aiService = AIService();
 
   // Content types
   static const String typeDestinationDescription = 'destination_description';
