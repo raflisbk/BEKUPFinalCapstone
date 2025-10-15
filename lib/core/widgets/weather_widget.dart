@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../core/models/weather_model.dart';
 import '../../services/weather_service.dart';
+import '../../core/config/service_locator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -27,7 +28,7 @@ class WeatherWidget extends StatefulWidget {
 class _WeatherWidgetState extends State<WeatherWidget> {
   static const String _tag = 'WeatherWidget';
 
-  final WeatherService _weatherService = WeatherService.instance;
+  final WeatherService _weatherService = ServiceLocator.weatherService;
   WeatherInfo? _weatherInfo;
   bool _isLoading = true;
   String? _errorMessage;
