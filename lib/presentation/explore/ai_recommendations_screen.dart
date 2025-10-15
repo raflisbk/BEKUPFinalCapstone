@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/ai_recommendations_ui_provider.dart';
+import '../../core/models/ai_models.dart';
 import '../../services/ai/ai_recommendation_service.dart';
 import '../destinations/destination_detail_new_screen.dart';
 
@@ -18,8 +19,6 @@ class AIRecommendationsScreen extends StatefulWidget {
 
 class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
     with SingleTickerProviderStateMixin {
-  final AIRecommendationService _aiService = AIRecommendationService();
-
   late TabController _tabController;
 
   @override
@@ -49,26 +48,31 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
         throw Exception('User not authenticated');
       }
 
-      // Try to get cached recommendations first
-      final cached = await _aiService.getCachedRecommendations(userId);
-
-      if (cached != null && mounted) {
-        uiProvider.setPersonalizedRecs(cached);
-        uiProvider.setLoading(false);
-      }
-
-      // Load fresh recommendations in background
-      final personalized = await _aiService.getPersonalizedRecommendations(
+      // Load personalized recommendations using available method
+      final personalizedData = await AIRecommendationService.getPersonalizedRecommendations(
         userId: userId,
         limit: 15,
       );
 
-      final trending = await _aiService.getTrendingDestinations(limit: 10);
+      // Convert to DestinationRecommendation objects
+      final personalizedRecs = personalizedData.map((data) {
+        return DestinationRecommendation.fromMap(data);
+      }).toList();
+
+      // For trending, we'll use destination recommendations as placeholder
+      final trendingData = await AIRecommendationService.getDestinationRecommendations(
+        userId: userId,
+        limit: 10,
+      );
+
+      final trendingRecs = trendingData.map((data) {
+        return DestinationRecommendation.fromMap(data);
+      }).toList();
 
       if (mounted) {
         uiProvider.setRecommendations(
-          personalized: personalized,
-          trending: trending,
+          personalized: personalizedRecs,
+          trending: trendingRecs,
           loading: false,
         );
       }
@@ -315,14 +319,12 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
   }
 
   Widget _buildRecommendationCard(DestinationRecommendation rec) {
-    final dest = rec.destination;
-
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => DestinationDetailNewScreen(destinationId: dest.id),
+            builder: (_) => DestinationDetailNewScreen(destinationId: rec.id),
           ),
         );
       },
@@ -351,9 +353,9 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
-                  child: dest.images.isNotEmpty
+                  child: rec.imageUrl.isNotEmpty
                       ? Image.network(
-                          dest.images.first,
+                          rec.imageUrl,
                           height: 180,
                           width: double.infinity,
                           fit: BoxFit.cover,
@@ -379,7 +381,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: _getMatchColor(rec.matchScore),
+                      color: _getMatchColor(rec.matchScore.toInt()),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -392,7 +394,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${rec.matchScore}% Match',
+                          '${rec.matchScore.toInt()}% Match',
                           style: const TextStyle(
                             color: AppColors.white,
                             fontSize: 12,
@@ -417,7 +419,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                     children: [
                       Expanded(
                         child: Text(
-                          dest.name,
+                          rec.name,
                           style: AppTextStyles.titleMedium.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -432,7 +434,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            dest.rating.toStringAsFixed(1),
+                            rec.rating.toStringAsFixed(1),
                             style: AppTextStyles.bodySmall.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -444,7 +446,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
 
                   const SizedBox(height: 4),
 
-                  // Location
+                  // Location and price
                   Row(
                     children: [
                       const Icon(
@@ -453,18 +455,12 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                         color: AppColors.textSecondary,
                       ),
                       const SizedBox(width: 4),
-                      Text(
-                        dest.location,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        dest.priceRangeSymbol,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w600,
+                      Expanded(
+                        child: Text(
+                          rec.location,
+                          style: AppTextStyles.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -503,7 +499,7 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          rec.matchReason,
+                          rec.reason,
                           style: TextStyle(
                             fontSize: 13,
                             color: Colors.blue.shade900,
@@ -515,49 +511,32 @@ class _AIRecommendationsScreenState extends State<AIRecommendationsScreen>
 
                   const SizedBox(height: 8),
 
-                  // Best aspect
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.auto_awesome,
-                        size: 16,
-                        color: Colors.orange,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          rec.bestAspect,
-                          style: AppTextStyles.bodySmall.copyWith(
-                            fontWeight: FontWeight.w500,
+                  // Tags/Categories
+                  if (rec.tags.isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: rec.tags.take(3).map((tag) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  // Travel tip
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.tips_and_updates,
-                        size: 16,
-                        color: Colors.green,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          rec.travelTip,
-                          style: AppTextStyles.bodySmall.copyWith(
-                            color: AppColors.textSecondary,
+                          decoration: BoxDecoration(
+                            color: AppColors.grey50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.grey200),
                           ),
-                        ),
-                      ),
-                    ],
-                  ),
+                          child: Text(
+                            tag,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                 ],
               ),
             ),
