@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/models/review_model.dart';
 import '../../services/review_service.dart';
+import '../../services/file_upload_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
@@ -243,9 +244,12 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
 
         AppLogger.info(_tag, 'Uploading ${_newPhotoFiles.length} photos');
 
-        final uploadedUrls = await _reviewService.uploadReviewPhotos(
-          _newPhotoFiles.map((file) => file.path).toList(),
+        final uploadResults = await FileUploadService.uploadDestinationImages(
+          imageFiles: _newPhotoFiles,
+          destinationId: widget.destinationId,
         );
+
+        final uploadedUrls = uploadResults.map((result) => result['secure_url'] as String).toList();
 
         allPhotoUrls.addAll(uploadedUrls);
 
@@ -267,12 +271,12 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
 
         final result = await _reviewService.updateReview(
           reviewId: widget.existingReview!.id,
-          reviewerId: authProvider.user!.uid,
+          title: _titleController.text.trim(),
           rating: _rating,
           content: _contentController.text.trim(),
           imageUrls: allPhotoUrls,
         );
-        success = result;
+        success = result.isNotEmpty;
 
         if (success) {
           AppLogger.success(_tag, 'Review updated successfully');
@@ -285,15 +289,15 @@ class _WriteEditReviewScreenState extends State<WriteEditReviewScreen> {
           'photoCount': allPhotoUrls.length,
         });
 
-        final reviewId = await _reviewService.submitReview(
-          reviewerId: authProvider.user!.uid,
-          targetId: widget.destinationId,
-          targetType: 'destination',
+        final result = await _reviewService.createReview(
+          entityId: widget.destinationId,
+          entityType: 'destination',
           rating: _rating,
+          title: _titleController.text.trim(),
           content: _contentController.text.trim(),
           imageUrls: allPhotoUrls,
         );
-        success = reviewId != null;
+        success = result.isNotEmpty;
 
         if (success) {
           AppLogger.success(_tag, 'Review submitted successfully');
