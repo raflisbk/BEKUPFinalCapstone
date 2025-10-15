@@ -23,7 +23,6 @@ class ReportUserScreen extends StatefulWidget {
 class _ReportUserScreenState extends State<ReportUserScreen> {
   static const String _tag = 'ReportUserScreen';
 
-  final UserSafetyService _safetyService = UserSafetyService();
   final TextEditingController _detailsController = TextEditingController();
   
   String _selectedReason = '';
@@ -68,35 +67,27 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
         'reason': _selectedReason,
       });
 
-      final success = await _safetyService.reportUser(
-        reporterId: currentUserId,
+      await UserSafetyService.reportUser(
         reportedUserId: widget.userId,
         reason: _selectedReason,
-        details: _detailsController.text.trim(),
+        description: _detailsController.text.trim().isNotEmpty 
+            ? _detailsController.text.trim() 
+            : null,
       );
 
       if (!mounted) return;
 
-      if (success) {
-        AppLogger.success(_tag, 'Report submitted successfully');
-        Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report submitted successfully')),
-        );
-      } else {
-        AppLogger.warning(_tag, 'Failed to submit report');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to submit report. Please try again later.'),
-          ),
-        );
-      }
+      AppLogger.success(_tag, 'Report submitted successfully');
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted successfully')),
+      );
     } catch (e) {
       AppLogger.error(_tag, 'Error submitting report: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('An error occurred. Please try again later.'),
+        SnackBar(
+          content: Text('Failed to submit report: ${e.toString()}'),
         ),
       );
     } finally {
@@ -119,33 +110,21 @@ class _ReportUserScreenState extends State<ReportUserScreen> {
         'blockedUser': widget.userName,
       });
 
-      final success = await _safetyService.blockUser(
-        userId: currentUserId,
-        blockedUserId: widget.userId,
-      );
+      await UserSafetyService.blockUser(widget.userId);
 
       if (!mounted) return;
 
-      if (success) {
-        AppLogger.success(_tag, 'User blocked successfully');
-        Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User blocked successfully')),
-        );
-      } else {
-        AppLogger.warning(_tag, 'Failed to block user');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to block user. Please try again later.'),
-          ),
-        );
-      }
+      AppLogger.success(_tag, 'User blocked successfully');
+      Navigator.of(context).pop(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('User blocked successfully')),
+      );
     } catch (e) {
       AppLogger.error(_tag, 'Error blocking user: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('An error occurred. Please try again later.'),
+        SnackBar(
+          content: Text('Failed to block user: ${e.toString()}'),
         ),
       );
     }
