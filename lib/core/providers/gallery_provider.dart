@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
 import '../models/gallery_model.dart';
 import '../../services/gallery_service.dart';
+import '../utils/service_locator.dart';
 
 /// Provider for managing photo gallery functionality (simplified version)
 class GalleryProvider with ChangeNotifier {
-  final GalleryService _galleryService = GalleryService.instance;
+  // Access GalleryService through ServiceLocator for dependency injection
+  GalleryService get _galleryService => ServiceLocator.instance.get<GalleryService>();
 
   List<Photo> _photos = []; // Using existing Photo model from gallery_model.dart
   bool _isLoading = false;
@@ -32,7 +33,7 @@ class GalleryProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final photosData = await GalleryService.getGalleryPhotos(
+      final photosData = await _galleryService.getGalleryPhotos(
         galleryId: galleryId ?? '',
         limit: limit ?? 20,
       );
@@ -73,7 +74,7 @@ class GalleryProvider with ChangeNotifier {
     bool isPublic = true,
   }) async {
     try {
-      final gallery = await GalleryService.createGallery(
+      final gallery = await _galleryService.createGallery(
         title: title,
         description: description,
         isPublic: isPublic,
@@ -89,15 +90,27 @@ class GalleryProvider with ChangeNotifier {
   /// Add photo to gallery
   Future<Map<String, dynamic>?> addPhoto({
     required String galleryId,
-    required String imageUrl,
-    String? caption,
+    required String cloudinaryPublicId,
+    required String originalUrl,
+    String? albumId,
+    String? title,
+    String? description,
+    String? location,
+    DateTime? takenAt,
+    Map<String, dynamic>? metadata,
     List<String>? tags,
   }) async {
     try {
-      final photo = await GalleryService.addPhotoToGallery(
+      final photo = await _galleryService.addPhotoToGallery(
         galleryId: galleryId,
-        imageUrl: imageUrl,
-        caption: caption,
+        cloudinaryPublicId: cloudinaryPublicId,
+        originalUrl: originalUrl,
+        albumId: albumId,
+        title: title,
+        description: description,
+        location: location,
+        takenAt: takenAt,
+        metadata: metadata,
         tags: tags,
       );
       
@@ -115,7 +128,7 @@ class GalleryProvider with ChangeNotifier {
   /// Delete a photo
   Future<void> deletePhoto(String photoId) async {
     try {
-      await GalleryService.deletePhoto(photoId);
+      await _galleryService.deletePhoto(photoId);
       
       // Remove from local state
       _photos.removeWhere((photo) => photo.id == photoId);
@@ -134,7 +147,7 @@ class GalleryProvider with ChangeNotifier {
   /// Like a photo
   Future<void> likePhoto(String photoId) async {
     try {
-      await GalleryService.likePhoto(photoId);
+      await _galleryService.likePhoto(photoId);
       
       // Update local state
       final photoIndex = _photos.indexWhere((photo) => photo.id == photoId);
@@ -154,7 +167,7 @@ class GalleryProvider with ChangeNotifier {
   /// Unlike a photo
   Future<void> unlikePhoto(String photoId) async {
     try {
-      await GalleryService.unlikePhoto(photoId);
+      await _galleryService.unlikePhoto(photoId);
       
       // Update local state
       final photoIndex = _photos.indexWhere((photo) => photo.id == photoId);
@@ -177,7 +190,7 @@ class GalleryProvider with ChangeNotifier {
     required String comment,
   }) async {
     try {
-      await GalleryService.addPhotoComment(
+      await _galleryService.addPhotoComment(
         photoId: photoId,
         comment: comment,
       );
@@ -200,7 +213,7 @@ class GalleryProvider with ChangeNotifier {
   /// Get photo comments
   Future<List<Map<String, dynamic>>> getPhotoComments(String photoId) async {
     try {
-      return await GalleryService.getPhotoComments(photoId: photoId);
+      return await _galleryService.getPhotoComments(photoId: photoId);
     } catch (e) {
       _error = e.toString();
       notifyListeners();
