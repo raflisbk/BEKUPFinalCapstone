@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/moderation_service.dart';
+import '../../services/user_safety_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/haptic_helper.dart';
@@ -23,7 +23,6 @@ class ReportUserDialog extends StatefulWidget {
 class _ReportUserDialogState extends State<ReportUserDialog> {
   static const String _tag = 'ReportUserDialog';
 
-  final ModerationService _moderationService = ModerationService();
   final TextEditingController _detailsController = TextEditingController();
 
   String? _selectedReason;
@@ -60,20 +59,18 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
     setState(() => _isSubmitting = true);
     await HapticHelper.buttonTap();
 
-    final success = await _moderationService.reportUser(
-      reporterId: widget.reporterId,
-      reportedUserId: widget.reportedUserId,
-      reason: _selectedReason!,
-      additionalInfo: _detailsController.text.trim().isNotEmpty
-          ? _detailsController.text.trim()
-          : null,
-    );
+    try {
+      await UserSafetyService.reportUser(
+        reportedUserId: widget.reportedUserId,
+        reason: _selectedReason!,
+        description: _detailsController.text.trim().isNotEmpty
+            ? _detailsController.text.trim()
+            : null,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() => _isSubmitting = false);
-
-    if (success) {
+      setState(() => _isSubmitting = false);
       await HapticHelper.success();
       AppLogger.success(_tag, 'Report submitted');
 
@@ -86,12 +83,17 @@ class _ReportUserDialogState extends State<ReportUserDialog> {
           backgroundColor: AppColors.success,
         ),
       );
-    } else {
+    } catch (e) {
+      if (!mounted) return;
+      
+      setState(() => _isSubmitting = false);
       await HapticHelper.error();
+      AppLogger.error(_tag, 'Failed to submit report', e);
+
       // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to submit report'),
+        SnackBar(
+          content: Text('Failed to submit report: ${e.toString()}'),
           backgroundColor: AppColors.error,
         ),
       );
