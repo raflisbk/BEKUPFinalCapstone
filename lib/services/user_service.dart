@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
@@ -24,6 +23,25 @@ class UserService implements IUserService {
   String _generateUuid() {
     final random = Random();
     return 'user_${random.nextInt(999999999).toString().padLeft(9, '0')}';
+  }
+
+  /// Helper method for deleting records with multiple filter criteria
+  Future<void> _deleteWithFilters({
+    required String table,
+    required Map<String, dynamic> filters,
+  }) async {
+    AppLogger.debug(_tag, 'Deleting from $table with filters: $filters');
+    
+    var query = SupabaseConfig.client.from(table).delete();
+    
+    filters.forEach((key, value) {
+      if (value != null) {
+        query = query.eq(key, value);
+      }
+    });
+    
+    await query;
+    AppLogger.success(_tag, 'Successfully deleted from $table');
   }
 
   // ===============================
@@ -361,7 +379,7 @@ class UserService implements IUserService {
       AppLogger.debug(_tag, 'Removing friend: $friendUserId');
 
       // Remove both directions of friendship
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _friendsTable,
         filters: {
           'user_id': userId,
@@ -369,7 +387,7 @@ class UserService implements IUserService {
         },
       );
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _friendsTable,
         filters: {
           'user_id': friendUserId,
@@ -477,7 +495,7 @@ class UserService implements IUserService {
 
       AppLogger.debug(_tag, 'Unfollowing user: $targetUserId');
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _followersTable,
         filters: {
           'follower_id': userId,
@@ -819,27 +837,27 @@ class UserService implements IUserService {
       AppLogger.debug(_tag, 'Deleting user data: $userId');
 
       // Delete related data first
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _friendsTable,
         filters: {'user_id': userId},
       );
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _friendRequestsTable,
         filters: {'sender_id': userId},
       );
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _followersTable,
         filters: {'follower_id': userId},
       );
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _privacySettingsTable,
         filters: {'user_id': userId},
       );
 
-      await SupabaseDatabaseService.delete(
+      await _deleteWithFilters(
         table: _notificationPreferencesTable,
         filters: {'user_id': userId},
       );
