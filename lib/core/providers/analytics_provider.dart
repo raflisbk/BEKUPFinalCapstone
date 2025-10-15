@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../services/analytics_service.dart';
+import '../../services/interfaces/i_analytics_service.dart';
 import '../../services/supabase_auth_service.dart';
+import '../config/service_locator.dart';
 import '../models/analytics_model.dart';
 import '../utils/logger.dart';
 
@@ -10,6 +11,9 @@ class AnalyticsProvider extends ChangeNotifier {
   
   // ignore: unused_field
   final SupabaseClient _supabase = Supabase.instance.client;
+  
+  // Analytics Service instance
+  late final IAnalyticsService _analyticsService;
   
   // Analytics state
   AnalyticsSummary? _analyticsSummary;
@@ -31,7 +35,9 @@ class AnalyticsProvider extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       AppLogger.info(_tag, 'Initializing analytics provider');
-      await AnalyticsService.startSession();
+      
+      // Initialize analytics service and start session
+      await analyticsService.startSession();
       await loadAnalyticsData();
       AppLogger.success(_tag, 'Analytics provider initialized successfully');
     } catch (e, stackTrace) {
@@ -114,7 +120,7 @@ class AnalyticsProvider extends ChangeNotifier {
     String? category,
   }) async {
     try {
-      await AnalyticsService.trackEvent(
+      await analyticsService.trackEvent(
         eventName,
         properties,
         category: category,
@@ -128,18 +134,16 @@ class AnalyticsProvider extends ChangeNotifier {
       AppLogger.error(_tag, 'Failed to track event', e, stackTrace);
     }
   }
-  
+
   // Track screen view
   Future<void> trackScreenView(String screenName, {Map<String, dynamic>? properties}) async {
     try {
-      await AnalyticsService.trackScreenView(screenName, properties: properties);
+      await analyticsService.trackScreenView(screenName, properties: properties);
       AppLogger.debug(_tag, 'Screen view tracked: $screenName');
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to track screen view', e, stackTrace);
     }
-  }
-  
-  // Dismiss insight
+  }  // Dismiss insight
   Future<void> dismissInsight(String insightId) async {
     try {
       AppLogger.debug(_tag, 'Dismissing insight', {'insightId': insightId});
@@ -180,6 +184,17 @@ class AnalyticsProvider extends ChangeNotifier {
     return _analyticsSummary?.topCategories ?? {};
   }
   
+  // Helper method to safely get analytics service
+  IAnalyticsService get analyticsService {
+    if (!_isServiceInitialized) {
+      _analyticsService = ServiceLocator.analyticsService;
+      _isServiceInitialized = true;
+    }
+    return _analyticsService;
+  }
+  
+  bool _isServiceInitialized = false;
+  
   // Helper methods
   void _setLoading(bool value) {
     _isLoading = value;
@@ -189,7 +204,8 @@ class AnalyticsProvider extends ChangeNotifier {
   @override
   void dispose() {
     AppLogger.debug(_tag, 'Disposing analytics provider');
-    AnalyticsService.endSession();
+    // Note: We don't end session here as it should be managed at app level
+    // _analyticsService.endSession() should be called when app closes
     super.dispose();
   }
 }

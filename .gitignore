@@ -95,6 +95,13 @@ temp/
 !FEATURES_CHECKLIST.md
 !docs/**/*.md
 
+# Example and template files that are not part of production
+example_main_with_di.dart
+*_example.dart
+*_template.dart
+*.example
+*.template
+
 *.pdf
 .pdf
 nul
