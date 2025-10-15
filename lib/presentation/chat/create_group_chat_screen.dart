@@ -22,6 +22,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   static const String _tag = 'CreateGroupChatScreen';
 
   final TextEditingController _groupNameController = TextEditingController();
+  final ChatService _chatService = ChatService();
 
   List<UserModel> _followingUsers = [];
   final Set<String> _selectedUserIds = {};
@@ -150,7 +151,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
         };
       }
 
-      final conversation = await ChatService.createConversation(
+      final conversation = await _chatService.createConversation(
         participantIds: participantIds,
         title: groupName,
         type: 'group',
