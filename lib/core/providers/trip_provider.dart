@@ -1,26 +1,28 @@
 import 'package:flutter/foundation.dart';
 import '../models/trip_model.dart';
 import '../utils/logger.dart';
-import '../../services/trip_service.dart';
-import '../../services/supabase_config.dart';
+import '../interfaces/trip_service_interface.dart';
 
 /// Provider for Trip management
 class TripProvider with ChangeNotifier {
   static const String _tag = 'TripProvider';
 
-  // Service instance
-  final TripService _tripService = TripService.instance;
+  // Service instance with dependency injection
+  final ITripService _tripService;
 
-  List<TripModel> _userTrips = [];
-  List<TripModel> _publicTrips = [];
-  TripModel? _selectedTrip;
+  List<Trip> _userTrips = [];
+  List<Trip> _publicTrips = [];
+  Trip? _selectedTrip;
   bool _isLoading = false;
   String? _error;
 
+  // Constructor with dependency injection
+  TripProvider(this._tripService);
+
   // Getters
-  List<TripModel> get userTrips => _userTrips;
-  List<TripModel> get publicTrips => _publicTrips;
-  TripModel? get selectedTrip => _selectedTrip;
+  List<Trip> get userTrips => _userTrips;
+  List<Trip> get publicTrips => _publicTrips;
+  Trip? get selectedTrip => _selectedTrip;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
@@ -49,7 +51,7 @@ class TripProvider with ChangeNotifier {
       _setError(null);
 
       final tripsData = await _tripService.getUserTrips();
-      _userTrips = tripsData.map((data) => TripModel.fromMap(data)).toList();
+      _userTrips = tripsData.map((data) => Trip.fromMap(data)).toList();
 
       AppLogger.success(_tag, 'Loaded ${_userTrips.length} user trips');
     } catch (e, stackTrace) {
@@ -61,14 +63,16 @@ class TripProvider with ChangeNotifier {
   }
 
   /// Create new trip
-  Future<TripModel?> createTrip({
+  Future<Trip?> createTrip({
     required String title,
     required String description,
     required DateTime startDate,
     required DateTime endDate,
-    double? budget,
-    String? destination,
+    required String destination,
+    String? category, // Keep for UI consistency but won't be passed to service
+    int? maxParticipants, // Keep for UI consistency but won't be passed to service
     bool isPublic = false,
+    double? budget, // Change type to double to match interface
     List<String>? tags,
     Map<String, dynamic>? preferences,
   }) async {
@@ -82,14 +86,14 @@ class TripProvider with ChangeNotifier {
         description: description,
         startDate: startDate,
         endDate: endDate,
-        budget: budget,
         destination: destination,
         isPublic: isPublic,
+        budget: budget,
         tags: tags,
         preferences: preferences,
       );
 
-      final newTrip = TripModel.fromMap(tripData);
+      final newTrip = Trip.fromMap(tripData);
       _userTrips.insert(0, newTrip);
       _selectedTrip = newTrip;
 
@@ -106,7 +110,7 @@ class TripProvider with ChangeNotifier {
   }
 
   /// Select a trip
-  void selectTrip(TripModel trip) {
+  void selectTrip(Trip trip) {
     _selectedTrip = trip;
     notifyListeners();
   }
