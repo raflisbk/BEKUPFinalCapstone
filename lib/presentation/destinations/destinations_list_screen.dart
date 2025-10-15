@@ -19,7 +19,7 @@ class DestinationsListScreen extends StatefulWidget {
 }
 
 class _DestinationsListScreenState extends State<DestinationsListScreen> {
-  final DestinationService _destinationService = DestinationService();
+  final DestinationService _destinationService = DestinationService.instance;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -113,9 +113,11 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
 
               // Destinations list
               Expanded(
-                child: StreamBuilder<List<Destination>>(
-                  stream: _destinationService.getDestinationsStream(
-                    filter: listUIProvider.filter,
+                child: FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _destinationService.getDestinations(
+                    category: listUIProvider.filter.category,
+                    minRating: listUIProvider.filter.minRating,
+                    limit: 20,
                   ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -126,7 +128,39 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                       return _buildErrorState(snapshot.error.toString());
                     }
 
-                    final destinations = snapshot.data ?? [];
+                    final destinationsData = snapshot.data ?? [];
+                    
+                    // Convert to Destination objects and apply filters
+                    List<Destination> destinations = destinationsData
+                        .map((data) => _mapToDestination(data))
+                        .toList();
+
+                    // Apply search filter
+                    if (listUIProvider.filter.searchQuery != null && 
+                        listUIProvider.filter.searchQuery!.isNotEmpty) {
+                      final query = listUIProvider.filter.searchQuery!.toLowerCase();
+                      destinations = destinations.where((dest) {
+                        return dest.name.toLowerCase().contains(query) ||
+                               dest.description.toLowerCase().contains(query) ||
+                               dest.location.toLowerCase().contains(query);
+                      }).toList();
+                    }
+
+                    // Apply sorting
+                    switch (listUIProvider.filter.sortBy) {
+                      case DestinationSort.rating:
+                        destinations.sort((a, b) => b.rating.compareTo(a.rating));
+                        break;
+                      case DestinationSort.name:
+                        destinations.sort((a, b) => a.name.compareTo(b.name));
+                        break;
+                      case DestinationSort.priceRange:
+                        destinations.sort((a, b) => a.priceRange.compareTo(b.priceRange));
+                        break;
+                      case DestinationSort.newest:
+                        destinations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                        break;
+                    }
 
                     if (destinations.isEmpty) {
                       return _buildEmptyState(listUIProvider);
@@ -135,7 +169,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                     return RefreshIndicator(
                       onRefresh: () async {
                         await HapticHelper.lightImpact();
-                        // Force rebuild by returning a completed future
+                        setState(() {}); // Trigger rebuild
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),
@@ -481,5 +515,79 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
         ),
       ),
     );
+  }
+
+  /// Convert service data to Destination model
+  Destination _mapToDestination(Map<String, dynamic> data) {
+    return Destination(
+      id: data['id'] ?? '',
+      name: data['name'] ?? '',
+      description: data['description'] ?? '',
+      location: data['address'] ?? data['city'] ?? data['province'] ?? '',
+      latitude: (data['latitude'] ?? 0.0).toDouble(),
+      longitude: (data['longitude'] ?? 0.0).toDouble(),
+      category: data['category'] ?? '',
+      images: List<String>.from(data['image_urls'] ?? []),
+      priceRange: _getPriceRangeFromPricing(data['pricing']),
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      reviewCount: data['review_count'] ?? 0,
+      facilities: _getFacilitiesList(data['facilities']),
+      activities: [], // Not available in service data
+      openingHours: _getOpeningHoursText(data['opening_hours']),
+      bestTimeToVisit: '', // Not available in service data
+      isVerified: data['is_verified'] ?? false,
+      createdBy: data['created_by'] ?? '',
+      createdAt: _parseDateTime(data['created_at']),
+      updatedAt: _parseDateTime(data['updated_at']),
+    );
+  }
+
+  /// Extract price range from pricing data
+  double _getPriceRangeFromPricing(dynamic pricing) {
+    if (pricing is Map<String, dynamic>) {
+      // Try to extract a numeric value from pricing
+      final price = pricing['price'] ?? pricing['base_price'] ?? pricing['average'];
+      if (price is num) {
+        // Convert price to 1-5 scale
+        if (price < 50000) return 1.0;
+        if (price < 100000) return 2.0;
+        if (price < 200000) return 3.0;
+        if (price < 500000) return 4.0;
+        return 5.0;
+      }
+    }
+    return 2.0; // Default moderate price
+  }
+
+  /// Extract facilities list from facilities data
+  List<String> _getFacilitiesList(dynamic facilities) {
+    if (facilities is Map<String, dynamic>) {
+      return facilities.keys.toList();
+    } else if (facilities is List) {
+      return List<String>.from(facilities);
+    }
+    return [];
+  }
+
+  /// Convert opening hours to text
+  String _getOpeningHoursText(dynamic openingHours) {
+    if (openingHours is Map<String, dynamic>) {
+      return openingHours.toString();
+    } else if (openingHours is String) {
+      return openingHours;
+    }
+    return 'Not specified';
+  }
+
+  /// Parse datetime from various formats
+  DateTime _parseDateTime(dynamic dateTime) {
+    if (dateTime is String) {
+      try {
+        return DateTime.parse(dateTime);
+      } catch (e) {
+        return DateTime.now();
+      }
+    }
+    return DateTime.now();
   }
 }
