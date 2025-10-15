@@ -11,7 +11,7 @@ class TripProvider with ChangeNotifier {
   final ITripService _tripService;
 
   List<Trip> _userTrips = [];
-  List<Trip> _publicTrips = [];
+  final List<Trip> _publicTrips = [];
   Trip? _selectedTrip;
   bool _isLoading = false;
   String? _error;

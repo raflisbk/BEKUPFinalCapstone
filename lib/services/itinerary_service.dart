@@ -1,28 +1,24 @@
 import 'dart:async';
 import '../core/utils/logger.dart';
+import '../core/interfaces/i_itinerary_service.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 
 /// Itinerary Service
 /// Handles trip itinerary planning, activities, and schedule management
-class ItineraryService {
+class ItineraryService implements IItineraryService {
   static const String _tag = 'ItineraryService';
   static const String _tableName = 'trip_itinerary';
   static const String _activitiesTable = 'itinerary_activities';
   static const String _templatesTable = 'itinerary_templates';
-
-  // Singleton pattern
-  static ItineraryService? _instance;
-  static ItineraryService get instance => _instance ??= ItineraryService._internal();
-  
-  ItineraryService._internal();
 
   // ===============================
   // ITINERARY CRUD OPERATIONS
   // ===============================
 
   /// Create itinerary for trip
-  static Future<Map<String, dynamic>> createItinerary({
+  @override
+  Future<Map<String, dynamic>> createItinerary({
     required String tripId,
     required String title,
     String? description,
@@ -66,7 +62,8 @@ class ItineraryService {
   }
 
   /// Get itinerary by ID
-  static Future<Map<String, dynamic>?> getItinerary(String itineraryId) async {
+  @override
+  Future<Map<String, dynamic>?> getItinerary(String itineraryId) async {
     try {
       AppLogger.debug(_tag, 'Getting itinerary: $itineraryId');
 
@@ -94,7 +91,8 @@ class ItineraryService {
   }
 
   /// Get trip itineraries
-  static Future<List<Map<String, dynamic>>> getTripItineraries(String tripId) async {
+  @override
+  Future<List<Map<String, dynamic>>> getTripItineraries(String tripId) async {
     try {
       AppLogger.debug(_tag, 'Getting itineraries for trip: $tripId');
 
@@ -118,7 +116,8 @@ class ItineraryService {
   }
 
   /// Update itinerary
-  static Future<Map<String, dynamic>> updateItinerary({
+  @override
+  Future<Map<String, dynamic>> updateItinerary({
     required String itineraryId,
     String? title,
     String? description,
@@ -158,7 +157,8 @@ class ItineraryService {
   }
 
   /// Delete itinerary
-  static Future<void> deleteItinerary(String itineraryId) async {
+  @override
+  Future<void> deleteItinerary(String itineraryId) async {
     try {
       AppLogger.warning(_tag, 'Deleting itinerary: $itineraryId');
 
@@ -179,7 +179,8 @@ class ItineraryService {
   // ===============================
 
   /// Add activity to itinerary
-  static Future<Map<String, dynamic>> addActivity({
+  @override
+  Future<Map<String, dynamic>> addActivity({
     required String itineraryId,
     required String title,
     required String type, // attraction, restaurant, transport, accommodation, etc.
@@ -231,7 +232,8 @@ class ItineraryService {
   }
 
   /// Update activity
-  static Future<Map<String, dynamic>> updateActivity({
+  @override
+  Future<Map<String, dynamic>> updateActivity({
     required String activityId,
     String? title,
     String? type,
@@ -293,7 +295,8 @@ class ItineraryService {
   }
 
   /// Delete activity
-  static Future<void> deleteActivity(String activityId) async {
+  @override
+  Future<void> deleteActivity(String activityId) async {
     try {
       AppLogger.warning(_tag, 'Deleting activity: $activityId');
 
@@ -318,7 +321,8 @@ class ItineraryService {
   }
 
   /// Get itinerary activities
-  static Future<List<Map<String, dynamic>>> getItineraryActivities(String itineraryId) async {
+  @override
+  Future<List<Map<String, dynamic>>> getItineraryActivities(String itineraryId) async {
     try {
       AppLogger.debug(_tag, 'Getting activities for itinerary: $itineraryId');
 
@@ -337,7 +341,8 @@ class ItineraryService {
   }
 
   /// Reorder activities
-  static Future<void> reorderActivities({
+  @override
+  Future<void> reorderActivities({
     required String itineraryId,
     required List<String> activityIds,
   }) async {
@@ -364,7 +369,8 @@ class ItineraryService {
   // ===============================
 
   /// Create itinerary template
-  static Future<Map<String, dynamic>> createTemplate({
+  @override
+  Future<Map<String, dynamic>> createTemplate({
     required String name,
     required String description,
     required String category,
@@ -406,7 +412,8 @@ class ItineraryService {
   }
 
   /// Get itinerary templates
-  static Future<List<Map<String, dynamic>>> getTemplates({
+  @override
+  Future<List<Map<String, dynamic>>> getTemplates({
     String? category,
     int? durationDays,
     bool? isPublic,
@@ -437,7 +444,8 @@ class ItineraryService {
   }
 
   /// Apply template to trip
-  static Future<List<Map<String, dynamic>>> applyTemplateToTrip({
+  @override
+  Future<List<Map<String, dynamic>>> applyTemplateToTrip({
     required String tripId,
     required String templateId,
     DateTime? startDate,
@@ -513,7 +521,8 @@ class ItineraryService {
   // ===============================
 
   /// Optimize itinerary by location (minimize travel time)
-  static Future<List<Map<String, dynamic>>> optimizeItineraryByLocation(String itineraryId) async {
+  @override
+  Future<List<Map<String, dynamic>>> optimizeItineraryByLocation(String itineraryId) async {
     try {
       AppLogger.debug(_tag, 'Optimizing itinerary by location: $itineraryId');
 
@@ -588,7 +597,8 @@ class ItineraryService {
   // ===============================
 
   /// Get itinerary statistics
-  static Future<Map<String, dynamic>> getItineraryStatistics(String itineraryId) async {
+  @override
+  Future<Map<String, dynamic>> getItineraryStatistics(String itineraryId) async {
     try {
       AppLogger.debug(_tag, 'Getting itinerary statistics: $itineraryId');
 
@@ -627,7 +637,7 @@ class ItineraryService {
   // ===============================
 
   /// Get single activity
-  static Future<Map<String, dynamic>?> _getActivity(String activityId) async {
+  Future<Map<String, dynamic>?> _getActivity(String activityId) async {
     try {
       final activities = await SupabaseDatabaseService.select(
         table: _activitiesTable,
@@ -640,7 +650,7 @@ class ItineraryService {
   }
 
   /// Update itinerary statistics
-  static Future<void> _updateItineraryStats(String itineraryId) async {
+  Future<void> _updateItineraryStats(String itineraryId) async {
     try {
       final activities = await getItineraryActivities(itineraryId);
       
@@ -674,7 +684,7 @@ class ItineraryService {
   }
 
   /// Calculate distance between two points
-  static double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
+  double _calculateDistance(double lat1, double lng1, double lat2, double lng2) {
     const double earthRadius = 6371; // Earth radius in kilometers
     final double dLat = (lat2 - lat1) * (3.14159 / 180);
     final double dLng = (lng2 - lng1) * (3.14159 / 180);
@@ -687,7 +697,7 @@ class ItineraryService {
   }
 
   /// Get activity type breakdown
-  static Map<String, int> _getActivityTypeBreakdown(List<Map<String, dynamic>> activities) {
+  Map<String, int> _getActivityTypeBreakdown(List<Map<String, dynamic>> activities) {
     final breakdown = <String, int>{};
     
     for (final activity in activities) {

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'core/config/env_config.dart';
 import 'core/config/supabase_config.dart';
+import 'core/config/service_locator.dart';
 import 'core/utils/logger.dart';
 import 'core/database/hive_service.dart';
 import 'core/utils/connectivity_service.dart';
@@ -25,6 +26,9 @@ import 'core/providers/add_edit_itinerary_item_ui_provider.dart';
 import 'core/providers/set_budget_ui_provider.dart';
 import 'core/providers/ai_itinerary_generator_ui_provider.dart';
 import 'core/providers/user_provider.dart';
+import 'core/providers/trip_provider.dart';
+import 'core/providers/budget_provider.dart';
+import 'core/providers/destination_provider.dart';
 import 'core/providers/location_provider.dart';
 import 'core/providers/chat_provider.dart';
 import 'core/providers/theme_provider.dart';
@@ -79,6 +83,17 @@ void main() async {
     AppLogger.debug(tag, 'Initializing image cache service');
     await ImageCacheService.instance.initialize();
     AppLogger.success(tag, 'Image cache service initialized successfully');
+
+    // Initialize ServiceLocator and Dependency Injection
+    AppLogger.debug(tag, 'Initializing ServiceLocator and Dependency Injection');
+    try {
+      await ServiceLocator.setup();
+      AppLogger.success(tag, 'ServiceLocator and DI initialized successfully');
+    } catch (e, stackTrace) {
+      AppLogger.error(tag, 'ServiceLocator initialization failed', e, stackTrace);
+      // Continue with app initialization even if ServiceLocator fails
+      // This ensures the app can still run with fallback providers
+    }
 
     // Initialize Gemini AI service (if available)
     AppLogger.debug(tag, 'Initializing AI services');
@@ -160,8 +175,58 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SetBudgetUIProvider()),
         // AI Itinerary Generator UI Provider
         ChangeNotifierProvider(create: (_) => AIItineraryGeneratorUIProvider()),
-        // User Provider
-        ChangeNotifierProvider(create: (_) => UserProvider()),
+        
+        // ========== CORE SERVICE PROVIDERS WITH DEPENDENCY INJECTION ==========
+        // User Provider with DI
+        ChangeNotifierProvider(
+          create: (_) {
+            try {
+              return UserProvider(ServiceLocator.userService);
+            } catch (e) {
+              AppLogger.warning('Main', 'UserProvider DI failed, using fallback: $e');
+              // TODO: Implement fallback UserProvider without DI
+              throw Exception('UserProvider requires ServiceLocator to be initialized');
+            }
+          },
+        ),
+        // Trip Provider with DI
+        ChangeNotifierProvider(
+          create: (_) {
+            try {
+              return TripProvider(ServiceLocator.tripService);
+            } catch (e) {
+              AppLogger.warning('Main', 'TripProvider DI failed, using fallback: $e');
+              // TODO: Implement fallback TripProvider without DI
+              throw Exception('TripProvider requires ServiceLocator to be initialized');
+            }
+          },
+        ),
+        // Budget Provider with DI
+        ChangeNotifierProvider(
+          create: (_) {
+            try {
+              return BudgetProvider(budgetService: ServiceLocator.budgetService);
+            } catch (e) {
+              AppLogger.warning('Main', 'BudgetProvider DI failed, using fallback: $e');
+              // TODO: Implement fallback BudgetProvider without DI
+              throw Exception('BudgetProvider requires ServiceLocator to be initialized');
+            }
+          },
+        ),
+        // Destination Provider with DI
+        ChangeNotifierProvider(
+          create: (_) {
+            try {
+              return DestinationProvider(destinationService: ServiceLocator.destinationService);
+            } catch (e) {
+              AppLogger.warning('Main', 'DestinationProvider DI failed, using fallback: $e');
+              // TODO: Implement fallback DestinationProvider without DI
+              throw Exception('DestinationProvider requires ServiceLocator to be initialized');
+            }
+          },
+        ),
+        
+        // ========== OTHER PROVIDERS (TO BE UPDATED WITH DI) ==========
         // Location Provider
         ChangeNotifierProvider(create: (_) => LocationProvider()),
         // Chat Provider

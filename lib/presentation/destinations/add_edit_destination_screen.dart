@@ -197,7 +197,7 @@ class _AddEditDestinationScreenState extends State<AddEditDestinationScreen> {
           address: _locationController.text,
           imageUrls: imageUrls,
           pricing: {'range': uiProvider.priceRange},
-          facilities: {'list': uiProvider.facilities},
+          facilities: uiProvider.facilities,
           openingHours: {'hours': _openingHoursController.text},
         );
 

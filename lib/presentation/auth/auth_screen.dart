@@ -92,7 +92,7 @@ class _AuthScreenState extends State<AuthScreen> {
       success = await authProvider.registerWithEmail(
         email: _emailController.text.trim(),
         password: _passwordController.text,
-        name: _nameController.text.trim(),
+        fullName: _nameController.text.trim(),
       );
     }
 
@@ -155,13 +155,13 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final success = await authProvider.resetPassword(
-      _emailController.text.trim(),
-    );
+    try {
+      await authProvider.resetPassword(
+        _emailController.text.trim(),
+      );
+      
+      if (!mounted) return;
 
-    if (!mounted) return;
-
-    if (success) {
       messenger.showSnackBar(
         const SnackBar(
           content: Text('Password reset email sent. Check your inbox.'),
@@ -169,10 +169,12 @@ class _AuthScreenState extends State<AuthScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } else if (authProvider.errorMessage != null) {
+    } catch (e) {
+      if (!mounted) return;
+      
       messenger.showSnackBar(
         SnackBar(
-          content: Text(authProvider.errorMessage!),
+          content: Text(authProvider.errorMessage ?? 'Failed to send reset email'),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),

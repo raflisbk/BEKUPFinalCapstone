@@ -4,7 +4,7 @@ import '../../core/utils/logger.dart';
 import '../../core/widgets/offline_indicator.dart';
 import '../home/home_screen.dart';
 import '../explore/explore_screen.dart';
-import '../ai/ai_features_screen.dart';
+import '../social/community_list_screen.dart';
 import '../chat/chat_list_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -19,12 +19,12 @@ class _MainScreenState extends State<MainScreen> {
   static const String _tag = 'MainScreen';
   int _currentIndex = 0;
 
-  final List<String> _tabNames = ['Home', 'Explore', 'AI Hub', 'Messages', 'Profile'];
+  final List<String> _tabNames = ['Home', 'Explore', 'Community', 'Messages', 'Profile'];
 
   final List<Widget> _screens = [
     const HomeScreen(),
     const ExploreScreen(),
-    const AIFeaturesScreen(),
+    const CommunityListScreen(),
     const ChatListScreen(),
     const ProfileScreen(),
   ];
@@ -96,9 +96,9 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Explore',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.auto_awesome_outlined),
-              activeIcon: Icon(Icons.auto_awesome),
-              label: 'AI Hub',
+              icon: Icon(Icons.groups_outlined),
+              activeIcon: Icon(Icons.groups),
+              label: 'Community',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.chat_bubble_outline),

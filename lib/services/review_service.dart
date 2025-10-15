@@ -1,47 +1,28 @@
 import 'dart:async';
 import '../core/utils/logger.dart';
+import '../core/interfaces/i_review_service.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 import 'content_moderation_service.dart';
 
 /// Review Service
 /// Handles user reviews, ratings, and feedback for destinations, accommodations, and activities
-class ReviewService {
+class ReviewService implements IReviewService {
   static const String _tag = 'ReviewService';
   static const String _reviewsTable = 'reviews';
   static const String _reviewLikesTable = 'review_likes';
   static const String _reviewReportsTable = 'review_reports';
   static const String _reviewStatisticsTable = 'review_statistics';
 
-  // Singleton pattern
-  static ReviewService? _instance;
-  static ReviewService get instance => _instance ??= ReviewService._internal();
-  
-  ReviewService._internal();
-
   // Content moderation service instance
   late final ContentModerationService _moderationService = ContentModerationService.instance;
-
-  // Review types
-  static const String typeDestination = 'destination';
-  static const String typeAccommodation = 'accommodation';
-  static const String typeActivity = 'activity';
-  static const String typeRestaurant = 'restaurant';
-  static const String typeTransport = 'transport';
-  static const String typeGuide = 'guide';
-  static const String typeTrip = 'trip';
-
-  // Review status
-  static const String statusPending = 'pending';
-  static const String statusApproved = 'approved';
-  static const String statusRejected = 'rejected';
-  static const String statusFlagged = 'flagged';
 
   // ===============================
   // REVIEW MANAGEMENT
   // ===============================
 
   /// Create new review
+  @override
   Future<Map<String, dynamic>> createReview({
     required String entityId,
     required String entityType,
@@ -84,44 +65,44 @@ class ReviewService {
       }
 
       // Moderate content if not skipped
-      String status = statusApproved;
+      String status = IReviewService.statusApproved;
       if (!skipModeration) {
         final moderationResult = await _moderationService.moderateTextContent(
           content: '$title\n$content',
           contentType: 'review',
           userId: userId,
-          metadata: {'entity_id': entityId, 'entity_type': entityType},
         );
 
-        if (moderationResult['action'] == 'block') {
-          status = statusRejected;
-        } else if (moderationResult['action'] == 'flag') {
-          status = statusFlagged;
+        if (!moderationResult['isClean']) {
+          status = IReviewService.statusPending;
+          AppLogger.warning(_tag, 'Review content flagged for moderation');
         }
       }
 
-      // Create review
+      // Create review data
       final reviewData = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'entity_id': entityId,
         'entity_type': entityType,
         'user_id': userId,
         'rating': rating,
         'title': title,
         'content': content,
-        'pros': pros ?? [],
-        'cons': cons ?? [],
-        'tags': tags ?? [],
-        'image_urls': imageUrls ?? [],
-        'metadata': metadata ?? {},
+        'pros': pros,
+        'cons': cons,
+        'tags': tags,
+        'image_urls': imageUrls,
+        'metadata': metadata,
         'status': status,
         'like_count': 0,
-        'dislike_count': 0,
         'helpful_count': 0,
-        'is_verified': false,
         'is_active': true,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
       };
 
-      final review = await SupabaseDatabaseService.insert(
+      // Insert review
+      final result = await SupabaseDatabaseService.insert(
         table: _reviewsTable,
         data: reviewData,
       );
@@ -129,99 +110,98 @@ class ReviewService {
       // Update entity statistics
       await _updateEntityStatistics(entityId, entityType);
 
-      AppLogger.success(_tag, 'Review created successfully: ${review['id']}');
-      return review;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to create review', e, stackTrace);
+      AppLogger.info(_tag, 'Review created successfully: ${result['id']}');
+      return result;
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error creating review: $e');
       rethrow;
     }
   }
 
-  /// Get reviews for entity
-  static Future<List<Map<String, dynamic>>> getEntityReviews({
+  /// Get reviews for a specific entity (destination, accommodation, etc.)
+  @override
+  Future<List<Map<String, dynamic>>> getEntityReviews({
     required String entityId,
     required String entityType,
-    String? sortBy, // 'newest', 'oldest', 'rating_high', 'rating_low', 'helpful'
-    int? minRating,
-    int? maxRating,
-    List<String>? tags,
-    int limit = 20,
-    int offset = 0,
+    String? sortBy,
+    String? filterBy,
+    int? limit,
+    int? offset,
   }) async {
     try {
       AppLogger.debug(_tag, 'Getting reviews for $entityType: $entityId');
 
-      // Build filters
-      final filters = {
+      Map<String, dynamic> filters = {
         'entity_id': entityId,
         'entity_type': entityType,
-        'status': statusApproved,
         'is_active': true,
       };
 
-      var reviews = await SupabaseDatabaseService.select(
+      // Add status filter for approved reviews by default
+      if (filterBy == null || filterBy.isEmpty) {
+        filters['status'] = IReviewService.statusApproved;
+      } else {
+        filters['status'] = filterBy;
+      }
+
+      final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
         filters: filters,
-        orderBy: _getSortField(sortBy),
-        ascending: _getSortOrder(sortBy),
-        limit: limit + offset,
+        orderBy: sortBy ?? 'created_at',
+        ascending: false,
+        limit: limit,
+        offset: offset,
       );
 
-      // Apply additional filters
-      if (minRating != null) {
-        reviews = reviews.where((r) => (r['rating'] as double) >= minRating).toList();
-      }
-
-      if (maxRating != null) {
-        reviews = reviews.where((r) => (r['rating'] as double) <= maxRating).toList();
-      }
-
-      if (tags != null && tags.isNotEmpty) {
-        reviews = reviews.where((review) {
-          final reviewTags = List<String>.from(review['tags'] ?? []);
-          return tags.any((tag) => reviewTags.contains(tag));
-        }).toList();
-      }
-
-      // Apply offset and limit
-      reviews = reviews.skip(offset).take(limit).toList();
-
-      // Enrich reviews with user data and like status
+      // Enrich reviews with user and like information
+      final enrichedReviews = <Map<String, dynamic>>[];
       for (final review in reviews) {
-        review['user_data'] = await _getUserData(review['user_id']);
-        review['liked_by_current_user'] = await _isLikedByUser(review['id']);
+        final enrichedReview = Map<String, dynamic>.from(review);
+        
+        // Get user data
+        final userData = await _getUserData(review['user_id']);
+        enrichedReview['user'] = userData;
+        
+        // Check if current user liked this review
+        enrichedReview['is_liked'] = await _isLikedByUser(review['id']);
+        
+        enrichedReviews.add(enrichedReview);
       }
 
-      AppLogger.success(_tag, 'Retrieved ${reviews.length} reviews');
-      return reviews;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get entity reviews', e, stackTrace);
+      AppLogger.info(_tag, 'Found ${enrichedReviews.length} reviews');
+      return enrichedReviews;
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error getting entity reviews: $e');
       rethrow;
     }
   }
 
-  /// Get user reviews
-  static Future<List<Map<String, dynamic>>> getUserReviews({
-    String? userId,
+  /// Get reviews written by a specific user
+  @override
+  Future<List<Map<String, dynamic>>> getUserReviews({
+    required String userId,
     String? entityType,
     String? status,
-    int limit = 20,
+    int? limit,
+    int? offset,
   }) async {
     try {
-      final currentUserId = userId ?? SupabaseConfig.userId;
-      if (currentUserId == null) {
-        throw Exception('No user ID provided');
-      }
+      AppLogger.debug(_tag, 'Getting reviews for user: $userId');
 
-      AppLogger.debug(_tag, 'Getting reviews for user: $currentUserId');
-
-      final filters = <String, dynamic>{
-        'user_id': currentUserId,
+      Map<String, dynamic> filters = {
+        'user_id': userId,
         'is_active': true,
       };
 
-      if (entityType != null) filters['entity_type'] = entityType;
-      if (status != null) filters['status'] = status;
+      if (entityType != null) {
+        filters['entity_type'] = entityType;
+      }
+
+      if (status != null) {
+        filters['status'] = status;
+      }
 
       final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
@@ -229,34 +209,42 @@ class ReviewService {
         orderBy: 'created_at',
         ascending: false,
         limit: limit,
+        offset: offset,
       );
 
-      // Enrich with entity data
+      // Enrich reviews with entity information
+      final enrichedReviews = <Map<String, dynamic>>[];
       for (final review in reviews) {
-        review['entity_data'] = await _getEntityData(
-          review['entity_id'],
-          review['entity_type'],
-        );
+        final enrichedReview = Map<String, dynamic>.from(review);
+        
+        // Get entity data
+        final entityData = await _getEntityData(review['entity_id'], review['entity_type']);
+        enrichedReview['entity'] = entityData;
+        
+        enrichedReviews.add(enrichedReview);
       }
 
-      AppLogger.success(_tag, 'Retrieved ${reviews.length} user reviews');
-      return reviews;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get user reviews', e, stackTrace);
+      AppLogger.info(_tag, 'Found ${enrichedReviews.length} user reviews');
+      return enrichedReviews;
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error getting user reviews: $e');
       rethrow;
     }
   }
 
-  /// Update review
-  static Future<Map<String, dynamic>> updateReview({
+  /// Update an existing review
+  @override
+  Future<Map<String, dynamic>> updateReview({
     required String reviewId,
-    double? rating,
     String? title,
     String? content,
+    double? rating,
     List<String>? pros,
     List<String>? cons,
     List<String>? tags,
     List<String>? imageUrls,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       final userId = SupabaseConfig.userId;
@@ -266,62 +254,56 @@ class ReviewService {
 
       AppLogger.debug(_tag, 'Updating review: $reviewId');
 
-      // Get review to verify ownership
-      final reviews = await SupabaseDatabaseService.select(
+      // Check if review exists and belongs to user
+      final existingReviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
         filters: {'id': reviewId},
       );
 
-      if (reviews.isEmpty) {
+      if (existingReviews.isEmpty) {
         throw Exception('Review not found');
       }
 
-      final review = reviews.first;
-      if (review['user_id'] != userId) {
-        throw Exception('Not authorized to update this review');
+      final existingReview = existingReviews.first;
+
+      if (existingReview['user_id'] != userId) {
+        throw Exception('You can only update your own reviews');
       }
 
-      // Build update data
-      final updateData = <String, dynamic>{};
-      
-      if (rating != null) {
-        if (rating < 1.0 || rating > 5.0) {
-          throw Exception('Rating must be between 1.0 and 5.0');
-        }
-        updateData['rating'] = rating;
+      // Validate rating if provided
+      if (rating != null && (rating < 1.0 || rating > 5.0)) {
+        throw Exception('Rating must be between 1.0 and 5.0');
       }
-      
+
+      // Prepare update data
+      final updateData = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
       if (title != null) updateData['title'] = title;
       if (content != null) updateData['content'] = content;
+      if (rating != null) updateData['rating'] = rating;
       if (pros != null) updateData['pros'] = pros;
       if (cons != null) updateData['cons'] = cons;
       if (tags != null) updateData['tags'] = tags;
       if (imageUrls != null) updateData['image_urls'] = imageUrls;
+      if (metadata != null) updateData['metadata'] = metadata;
 
-      if (updateData.isEmpty) {
-        throw Exception('No data provided for update');
-      }
-
-      // Re-moderate if content changed
+      // Moderate content if title or content changed
       if (title != null || content != null) {
-        final moderationResult = await ContentModerationService.moderateTextContent(
-          content: '${title ?? review['title']}\n${content ?? review['content']}',
-          contentType: 'review',
-          contentId: reviewId,
+        final moderationContent = '${title ?? existingReview['title']}\n${content ?? existingReview['content']}';
+        final moderationResult = await _moderationService.moderateTextContent(
+          content: moderationContent,
           userId: userId,
         );
 
-        if (moderationResult['action'] == 'block') {
-          updateData['status'] = statusRejected;
-        } else if (moderationResult['action'] == 'flag') {
-          updateData['status'] = statusFlagged;
-        } else {
-          updateData['status'] = statusApproved;
+        if (!moderationResult['isClean']) {
+          updateData['status'] = IReviewService.statusPending;
+          AppLogger.warning(_tag, 'Updated review content flagged for moderation');
         }
       }
 
-      updateData['updated_at'] = DateTime.now().toIso8601String();
-
+      // Update review
       final result = await SupabaseDatabaseService.update(
         table: _reviewsTable,
         id: reviewId,
@@ -330,58 +312,68 @@ class ReviewService {
 
       // Update entity statistics if rating changed
       if (rating != null) {
-        await _updateEntityStatistics(review['entity_id'], review['entity_type']);
+        await _updateEntityStatistics(existingReview['entity_id'], existingReview['entity_type']);
       }
 
-      AppLogger.success(_tag, 'Review updated successfully');
+      AppLogger.info(_tag, 'Review updated successfully: $reviewId');
       return result;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to update review', e, stackTrace);
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error updating review: $e');
       rethrow;
     }
   }
 
-  /// Delete review
-  static Future<void> deleteReview(String reviewId) async {
+  /// Delete a review
+  @override
+  Future<void> deleteReview(String reviewId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
         throw Exception('No authenticated user found');
       }
 
-      AppLogger.warning(_tag, 'Deleting review: $reviewId');
+      AppLogger.debug(_tag, 'Deleting review: $reviewId');
 
-      // Get review to verify ownership
-      final reviews = await SupabaseDatabaseService.select(
+      // Check if review exists and belongs to user
+      final existingReviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
         filters: {'id': reviewId},
       );
 
-      if (reviews.isEmpty) {
+      if (existingReviews.isEmpty) {
         throw Exception('Review not found');
       }
 
-      final review = reviews.first;
-      if (review['user_id'] != userId) {
-        throw Exception('Not authorized to delete this review');
+      final existingReview = existingReviews.first;
+
+      if (existingReview['user_id'] != userId) {
+        throw Exception('You can only delete your own reviews');
       }
 
-      // Soft delete
+      // Soft delete - mark as inactive
       await SupabaseDatabaseService.update(
         table: _reviewsTable,
         id: reviewId,
         data: {
           'is_active': false,
-          'deleted_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
         },
       );
 
-      // Update entity statistics
-      await _updateEntityStatistics(review['entity_id'], review['entity_type']);
+      // Delete associated likes
+      await SupabaseDatabaseService.delete(
+        table: _reviewLikesTable,
+        filters: {'review_id': reviewId},
+      );
 
-      AppLogger.success(_tag, 'Review deleted successfully');
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to delete review', e, stackTrace);
+      // Update entity statistics
+      await _updateEntityStatistics(existingReview['entity_id'], existingReview['entity_type']);
+
+      AppLogger.info(_tag, 'Review deleted successfully: $reviewId');
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error deleting review: $e');
       rethrow;
     }
   }
@@ -390,8 +382,9 @@ class ReviewService {
   // REVIEW INTERACTIONS
   // ===============================
 
-  /// Like/unlike review
-  static Future<Map<String, dynamic>> toggleReviewLike(String reviewId) async {
+  /// Toggle like/unlike on a review
+  @override
+  Future<Map<String, dynamic>> toggleReviewLike(String reviewId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -400,27 +393,34 @@ class ReviewService {
 
       AppLogger.debug(_tag, 'Toggling like for review: $reviewId');
 
-      // Check if already liked
-      final existingLikes = await SupabaseDatabaseService.select(
+      // Check if user already liked this review
+      final existingLike = await SupabaseDatabaseService.select(
         table: _reviewLikesTable,
-        filters: {'review_id': reviewId, 'user_id': userId},
+        filters: {
+          'review_id': reviewId,
+          'user_id': userId,
+        },
       );
 
       bool isLiked;
-      if (existingLikes.isNotEmpty) {
-        // Unlike
+      if (existingLike.isNotEmpty) {
+        // Remove like
         await SupabaseDatabaseService.delete(
           table: _reviewLikesTable,
-          id: existingLikes.first['id'],
+          filters: {
+            'review_id': reviewId,
+            'user_id': userId,
+          },
         );
         isLiked = false;
       } else {
-        // Like
+        // Add like
         await SupabaseDatabaseService.insert(
           table: _reviewLikesTable,
           data: {
             'review_id': reviewId,
             'user_id': userId,
+            'created_at': DateTime.now().toIso8601String(),
           },
         );
         isLiked = true;
@@ -429,20 +429,23 @@ class ReviewService {
       // Update like count
       await _updateReviewLikeCount(reviewId);
 
-      AppLogger.success(_tag, 'Review like toggled: $isLiked');
+      final likeCount = await _getReviewLikeCount(reviewId);
+
+      AppLogger.info(_tag, 'Review like toggled: $reviewId (liked: $isLiked)');
       return {
-        'review_id': reviewId,
         'is_liked': isLiked,
-        'like_count': await _getReviewLikeCount(reviewId),
+        'like_count': likeCount,
       };
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to toggle review like', e, stackTrace);
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error toggling review like: $e');
       rethrow;
     }
   }
 
-  /// Mark review as helpful
-  static Future<void> markReviewHelpful(String reviewId) async {
+  /// Mark a review as helpful
+  @override
+  Future<void> markReviewHelpful(String reviewId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -451,35 +454,37 @@ class ReviewService {
 
       AppLogger.debug(_tag, 'Marking review as helpful: $reviewId');
 
-      // Get current review
-      final reviews = await SupabaseDatabaseService.select(
+      // Increment helpful count
+      final review = await SupabaseDatabaseService.selectById(
         table: _reviewsTable,
-        filters: {'id': reviewId},
+        id: reviewId,
       );
 
-      if (reviews.isEmpty) {
+      if (review == null) {
         throw Exception('Review not found');
       }
 
-      final review = reviews.first;
-      final currentCount = review['helpful_count'] as int? ?? 0;
-
-      // Update helpful count
+      final currentCount = review['helpful_count'] ?? 0;
       await SupabaseDatabaseService.update(
         table: _reviewsTable,
         id: reviewId,
-        data: {'helpful_count': currentCount + 1},
+        data: {
+          'helpful_count': currentCount + 1,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
       );
 
-      AppLogger.success(_tag, 'Review marked as helpful');
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to mark review as helpful', e, stackTrace);
+      AppLogger.info(_tag, 'Review marked as helpful: $reviewId');
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error marking review as helpful: $e');
       rethrow;
     }
   }
 
-  /// Report review
-  static Future<Map<String, dynamic>> reportReview({
+  /// Report a review for inappropriate content
+  @override
+  Future<Map<String, dynamic>> reportReview({
     required String reviewId,
     required String reason,
     String? description,
@@ -490,33 +495,56 @@ class ReviewService {
         throw Exception('No authenticated user found');
       }
 
-      AppLogger.warning(_tag, 'Reporting review: $reviewId');
+      AppLogger.debug(_tag, 'Reporting review: $reviewId');
 
+      // Check if review exists
+      final review = await SupabaseDatabaseService.selectById(
+        table: _reviewsTable,
+        id: reviewId,
+      );
+
+      if (review == null) {
+        throw Exception('Review not found');
+      }
+
+      // Create report
       final reportData = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
         'review_id': reviewId,
-        'reported_by': userId,
+        'reporter_id': userId,
         'reason': reason,
         'description': description,
         'status': 'pending',
+        'created_at': DateTime.now().toIso8601String(),
       };
 
-      final report = await SupabaseDatabaseService.insert(
+      final result = await SupabaseDatabaseService.insert(
         table: _reviewReportsTable,
         data: reportData,
       );
 
-      // Also report to content moderation service
-      await ContentModerationService.reportContent(
-        contentId: reviewId,
-        contentType: 'review',
-        reason: reason,
-        description: description,
+      // Update review status to flagged if multiple reports
+      final reports = await SupabaseDatabaseService.select(
+        table: _reviewReportsTable,
+        filters: {'review_id': reviewId},
       );
 
-      AppLogger.success(_tag, 'Review reported successfully');
-      return report;
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to report review', e, stackTrace);
+      if (reports.length >= 3) {
+        await SupabaseDatabaseService.update(
+          table: _reviewsTable,
+          id: reviewId,
+          data: {
+            'status': IReviewService.statusFlagged,
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+        );
+      }
+
+      AppLogger.info(_tag, 'Review reported: $reviewId');
+      return result;
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error reporting review: $e');
       rethrow;
     }
   }
@@ -525,110 +553,133 @@ class ReviewService {
   // STATISTICS & ANALYTICS
   // ===============================
 
-  /// Get entity review statistics
-  static Future<Map<String, dynamic>> getEntityStatistics({
+  /// Get statistics for a specific entity
+  @override
+  Future<Map<String, dynamic>> getEntityStatistics({
     required String entityId,
     required String entityType,
   }) async {
     try {
-      AppLogger.debug(_tag, 'Getting review statistics for $entityType: $entityId');
+      AppLogger.debug(_tag, 'Getting statistics for $entityType: $entityId');
 
-      // Check if statistics exist
-      final existingStats = await SupabaseDatabaseService.select(
+      // Try to get cached statistics first
+      final cachedStats = await SupabaseDatabaseService.select(
         table: _reviewStatisticsTable,
-        filters: {'entity_id': entityId, 'entity_type': entityType},
+        filters: {
+          'entity_id': entityId,
+          'entity_type': entityType,
+        },
       );
 
-      if (existingStats.isNotEmpty) {
-        final stats = existingStats.first;
-        
-        // Check if stats are recent (less than 1 hour old)
-        final lastUpdated = DateTime.parse(stats['updated_at']);
-        if (DateTime.now().difference(lastUpdated).inHours < 1) {
+      if (cachedStats.isNotEmpty) {
+        final stats = cachedStats.first;
+        // Check if statistics are recent (within last hour)
+        final updatedAt = DateTime.parse(stats['updated_at']);
+        final now = DateTime.now();
+        if (now.difference(updatedAt).inHours < 1) {
           return stats;
         }
       }
 
       // Calculate fresh statistics
-      return await _calculateEntityStatistics(entityId, entityType);
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get entity statistics', e, stackTrace);
+      final stats = await _calculateEntityStatistics(entityId, entityType);
+      
+      AppLogger.info(_tag, 'Entity statistics retrieved');
+      return stats;
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error getting entity statistics: $e');
       rethrow;
     }
   }
 
-  /// Get review trends
-  static Future<Map<String, dynamic>> getReviewTrends({
-    String? entityId,
+  /// Get review trends and analytics
+  @override
+  Future<Map<String, dynamic>> getReviewTrends({
     String? entityType,
-    DateTime? startDate,
-    DateTime? endDate,
+    String? timeframe,
+    List<String>? entityIds,
   }) async {
     try {
       AppLogger.debug(_tag, 'Getting review trends');
 
-      final filters = <String, dynamic>{
-        'status': statusApproved,
+      // Calculate timeframe
+      final endDate = DateTime.now();
+      DateTime startDate;
+      
+      switch (timeframe) {
+        case 'week':
+          startDate = endDate.subtract(const Duration(days: 7));
+          break;
+        case 'month':
+          startDate = endDate.subtract(const Duration(days: 30));
+          break;
+        case 'year':
+          startDate = endDate.subtract(const Duration(days: 365));
+          break;
+        default:
+          startDate = endDate.subtract(const Duration(days: 30));
+      }
+
+      // Build filters
+      Map<String, dynamic> filters = {
         'is_active': true,
+        'status': IReviewService.statusApproved,
       };
 
-      if (entityId != null) filters['entity_id'] = entityId;
-      if (entityType != null) filters['entity_type'] = entityType;
+      if (entityType != null) {
+        filters['entity_type'] = entityType;
+      }
 
-      var reviews = await SupabaseDatabaseService.select(
+      // Get reviews in timeframe
+      final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
         filters: filters,
       );
 
-      // Filter by date range
-      if (startDate != null || endDate != null) {
-        reviews = reviews.where((review) {
-          final createdAt = DateTime.parse(review['created_at']);
-          if (startDate != null && createdAt.isBefore(startDate)) return false;
-          if (endDate != null && createdAt.isAfter(endDate)) return false;
-          return true;
-        }).toList();
-      }
+      // Filter by date and entity IDs
+      final filteredReviews = reviews.where((review) {
+        final createdAt = DateTime.parse(review['created_at']);
+        final isInTimeframe = createdAt.isAfter(startDate) && createdAt.isBefore(endDate);
+        
+        if (entityIds != null) {
+          return isInTimeframe && entityIds.contains(review['entity_id']);
+        }
+        
+        return isInTimeframe;
+      }).toList();
 
       // Calculate trends
-      final ratingDistribution = <int, int>{};
-      final monthlyTrends = <String, int>{};
-      final tagFrequency = <String, int>{};
-
-      for (final review in reviews) {
-        // Rating distribution
-        final rating = (review['rating'] as double).round();
-        ratingDistribution[rating] = (ratingDistribution[rating] ?? 0) + 1;
-
-        // Monthly trends
-        final createdAt = DateTime.parse(review['created_at']);
-        final monthKey = '${createdAt.year}-${createdAt.month.toString().padLeft(2, '0')}';
-        monthlyTrends[monthKey] = (monthlyTrends[monthKey] ?? 0) + 1;
-
-        // Tag frequency
-        final tags = List<String>.from(review['tags'] ?? []);
-        for (final tag in tags) {
-          tagFrequency[tag] = (tagFrequency[tag] ?? 0) + 1;
-        }
-      }
-
-      final averageRating = reviews.isNotEmpty
-          ? reviews.map((r) => r['rating'] as double).reduce((a, b) => a + b) / reviews.length
+      final totalReviews = filteredReviews.length;
+      final averageRating = totalReviews > 0 
+          ? filteredReviews.map((r) => r['rating'] as double).reduce((a, b) => a + b) / totalReviews
           : 0.0;
 
+      // Group by time periods
+      final reviewsByDay = <String, int>{};
+      final ratingsByDay = <String, double>{};
+      
+      for (final review in filteredReviews) {
+        final date = DateTime.parse(review['created_at']);
+        final dayKey = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+        
+        reviewsByDay[dayKey] = (reviewsByDay[dayKey] ?? 0) + 1;
+        ratingsByDay[dayKey] = ((ratingsByDay[dayKey] ?? 0) + review['rating']) / (reviewsByDay[dayKey]!);
+      }
+
+      AppLogger.info(_tag, 'Review trends calculated');
       return {
-        'total_reviews': reviews.length,
+        'total_reviews': totalReviews,
         'average_rating': averageRating,
-        'rating_distribution': ratingDistribution,
-        'monthly_trends': monthlyTrends,
-        'tag_frequency': tagFrequency,
-        'period': {
-          'start_date': startDate?.toIso8601String(),
-          'end_date': endDate?.toIso8601String(),
-        },
+        'reviews_by_day': reviewsByDay,
+        'ratings_by_day': ratingsByDay,
+        'timeframe': timeframe ?? 'month',
+        'start_date': startDate.toIso8601String(),
+        'end_date': endDate.toIso8601String(),
       };
-    } catch (e, stackTrace) {
-      AppLogger.error(_tag, 'Failed to get review trends', e, stackTrace);
+
+    } catch (e) {
+      AppLogger.error(_tag, 'Error getting review trends: $e');
       rethrow;
     }
   }
@@ -637,87 +688,77 @@ class ReviewService {
   // PRIVATE HELPER METHODS
   // ===============================
 
-  /// Get sort field for reviews
-  static String _getSortField(String? sortBy) {
-    switch (sortBy) {
-      case 'newest':
-        return 'created_at';
-      case 'oldest':
-        return 'created_at';
-      case 'rating_high':
-      case 'rating_low':
-        return 'rating';
-      case 'helpful':
-        return 'helpful_count';
-      default:
-        return 'created_at';
-    }
-  }
-
-  /// Get sort order for reviews
-  static bool _getSortOrder(String? sortBy) {
-    switch (sortBy) {
-      case 'oldest':
-      case 'rating_low':
-        return true; // ascending
-      default:
-        return false; // descending
-    }
-  }
-
-  /// Get user data for review
-  static Future<Map<String, dynamic>> _getUserData(String userId) async {
+  Future<Map<String, dynamic>> _getUserData(String userId) async {
     try {
-      // This would normally fetch from user service
-      // For now, returning placeholder data
+      final userData = await SupabaseDatabaseService.selectById(
+        table: 'users',
+        id: userId,
+      );
+
+      if (userData == null) {
+        return {
+          'id': userId,
+          'name': 'Unknown User',
+          'avatar_url': null,
+        };
+      }
+
       return {
-        'id': userId,
-        'name': 'User Name',
-        'avatar_url': null,
-        'is_verified': false,
-        'review_count': 0,
+        'id': userData['id'],
+        'name': userData['name'] ?? 'Unknown User',
+        'avatar_url': userData['avatar_url'],
       };
     } catch (e) {
       return {
         'id': userId,
-        'name': 'Anonymous User',
+        'name': 'Unknown User',
         'avatar_url': null,
-        'is_verified': false,
-        'review_count': 0,
       };
     }
   }
 
-  /// Get entity data for review
-  static Future<Map<String, dynamic>> _getEntityData(String entityId, String entityType) async {
+  Future<Map<String, dynamic>> _getEntityData(String entityId, String entityType) async {
     try {
-      // This would normally fetch from appropriate service
-      // For now, returning placeholder data
-      return {
-        'id': entityId,
-        'type': entityType,
-        'name': 'Entity Name',
-        'image_url': null,
-      };
+      String table;
+      switch (entityType) {
+        case IReviewService.typeDestination:
+          table = 'destinations';
+          break;
+        case IReviewService.typeAccommodation:
+          table = 'accommodations';
+          break;
+        case IReviewService.typeActivity:
+          table = 'activities';
+          break;
+        case IReviewService.typeRestaurant:
+          table = 'restaurants';
+          break;
+        default:
+          table = 'destinations';
+      }
+
+      final entityData = await SupabaseDatabaseService.selectById(
+        table: table,
+        id: entityId,
+      );
+
+      return entityData ?? {'id': entityId, 'name': 'Unknown Entity'};
     } catch (e) {
-      return {
-        'id': entityId,
-        'type': entityType,
-        'name': 'Unknown Entity',
-        'image_url': null,
-      };
+      return {'id': entityId, 'name': 'Unknown Entity'};
     }
   }
 
-  /// Check if review is liked by current user
-  static Future<bool> _isLikedByUser(String reviewId) async {
+  Future<bool> _isLikedByUser(String reviewId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) return false;
 
       final likes = await SupabaseDatabaseService.select(
         table: _reviewLikesTable,
-        filters: {'review_id': reviewId, 'user_id': userId},
+        filters: {
+          'review_id': reviewId,
+          'user_id': userId,
+        },
       );
 
       return likes.isNotEmpty;
@@ -726,23 +767,24 @@ class ReviewService {
     }
   }
 
-  /// Update review like count
-  static Future<void> _updateReviewLikeCount(String reviewId) async {
+  Future<void> _updateReviewLikeCount(String reviewId) async {
     try {
       final likeCount = await _getReviewLikeCount(reviewId);
       
       await SupabaseDatabaseService.update(
         table: _reviewsTable,
         id: reviewId,
-        data: {'like_count': likeCount},
+        data: {
+          'like_count': likeCount,
+          'updated_at': DateTime.now().toIso8601String(),
+        },
       );
     } catch (e) {
-      AppLogger.warning(_tag, 'Failed to update like count', e);
+      AppLogger.error(_tag, 'Error updating review like count: $e');
     }
   }
 
-  /// Get review like count
-  static Future<int> _getReviewLikeCount(String reviewId) async {
+  Future<int> _getReviewLikeCount(String reviewId) async {
     try {
       final likes = await SupabaseDatabaseService.select(
         table: _reviewLikesTable,
@@ -755,17 +797,17 @@ class ReviewService {
     }
   }
 
-  /// Update entity statistics
-  static Future<void> _updateEntityStatistics(String entityId, String entityType) async {
+  Future<void> _updateEntityStatistics(String entityId, String entityType) async {
     try {
-      AppLogger.debug(_tag, 'Updating statistics for $entityType: $entityId');
-      
       final stats = await _calculateEntityStatistics(entityId, entityType);
       
-      // Save or update statistics
+      // Update or insert statistics
       final existingStats = await SupabaseDatabaseService.select(
         table: _reviewStatisticsTable,
-        filters: {'entity_id': entityId, 'entity_type': entityType},
+        filters: {
+          'entity_id': entityId,
+          'entity_type': entityType,
+        },
       );
 
       if (existingStats.isNotEmpty) {
@@ -777,71 +819,63 @@ class ReviewService {
       } else {
         await SupabaseDatabaseService.insert(
           table: _reviewStatisticsTable,
-          data: stats,
+          data: {
+            'id': DateTime.now().millisecondsSinceEpoch.toString(),
+            'entity_id': entityId,
+            'entity_type': entityType,
+            ...stats,
+          },
         );
       }
     } catch (e) {
-      AppLogger.warning(_tag, 'Failed to update entity statistics', e);
+      AppLogger.error(_tag, 'Error updating entity statistics: $e');
     }
   }
 
-  /// Calculate entity statistics
-  static Future<Map<String, dynamic>> _calculateEntityStatistics(String entityId, String entityType) async {
+  Future<Map<String, dynamic>> _calculateEntityStatistics(String entityId, String entityType) async {
     try {
       final reviews = await SupabaseDatabaseService.select(
         table: _reviewsTable,
         filters: {
           'entity_id': entityId,
           'entity_type': entityType,
-          'status': statusApproved,
+          'status': IReviewService.statusApproved,
           'is_active': true,
         },
       );
 
       if (reviews.isEmpty) {
         return {
-          'entity_id': entityId,
-          'entity_type': entityType,
           'total_reviews': 0,
           'average_rating': 0.0,
           'rating_distribution': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0},
-          'total_likes': 0,
           'updated_at': DateTime.now().toIso8601String(),
         };
       }
 
-      // Calculate statistics
-      final ratings = reviews.map((r) => r['rating'] as double).toList();
-      final averageRating = ratings.reduce((a, b) => a + b) / ratings.length;
+      final totalReviews = reviews.length;
+      final totalRating = reviews.fold<double>(0, (sum, review) => sum + review['rating']);
+      final averageRating = totalRating / totalReviews;
 
-      final ratingDistribution = <String, int>{'1': 0, '2': 0, '3': 0, '4': 0, '5': 0};
-      for (final rating in ratings) {
-        final key = rating.round().toString();
-        if (ratingDistribution.containsKey(key)) {
-          ratingDistribution[key] = ratingDistribution[key]! + 1;
-        }
+      // Calculate rating distribution
+      final distribution = {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0};
+      for (final review in reviews) {
+        final rating = review['rating'].round().toString();
+        distribution[rating] = (distribution[rating] ?? 0) + 1;
       }
 
-      final totalLikes = reviews.map((r) => r['like_count'] as int? ?? 0).reduce((a, b) => a + b);
-
       return {
-        'entity_id': entityId,
-        'entity_type': entityType,
-        'total_reviews': reviews.length,
+        'total_reviews': totalReviews,
         'average_rating': averageRating,
-        'rating_distribution': ratingDistribution,
-        'total_likes': totalLikes,
+        'rating_distribution': distribution,
         'updated_at': DateTime.now().toIso8601String(),
       };
     } catch (e) {
-      AppLogger.warning(_tag, 'Failed to calculate entity statistics', e);
+      AppLogger.error(_tag, 'Error calculating entity statistics: $e');
       return {
-        'entity_id': entityId,
-        'entity_type': entityType,
         'total_reviews': 0,
         'average_rating': 0.0,
         'rating_distribution': {'1': 0, '2': 0, '3': 0, '4': 0, '5': 0},
-        'total_likes': 0,
         'updated_at': DateTime.now().toIso8601String(),
       };
     }

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
-import '../core/utils/logger.dart';
+import '../../core/utils/logger.dart';
 
 /// Image Cache Service
 /// Manages local image caching for offline access

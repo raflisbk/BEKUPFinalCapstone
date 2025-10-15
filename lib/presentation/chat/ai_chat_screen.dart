@@ -28,6 +28,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   String? _session;
+  List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
   List<String> _suggestions = [];
@@ -190,7 +191,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
           : Column(
               children: [
                 Expanded(
-                  child: _session == null || _session!.messages.isEmpty
+                  child: _session == null || _messages.isEmpty
                       ? _buildWelcomeScreen()
                       : _buildChatView(),
                 ),
@@ -378,14 +379,14 @@ class _AIChatScreenState extends State<AIChatScreen> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16),
-      itemCount: _session!.messages.length + (_isSending ? 1 : 0),
+      itemCount: _messages.length + (_isSending ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _session!.messages.length) {
+        if (index == _messages.length) {
           return _buildTypingIndicator();
         }
 
-        final message = _session!.messages[index];
-        return _buildMessageBubble(message);
+        final message = _messages[index];
+        return _buildMessageBubble(ChatMessage.fromMap(message));
       },
     );
   }

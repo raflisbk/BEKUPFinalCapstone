@@ -68,7 +68,8 @@ class SocialService {
       // Moderate content if not skipped
       String status = statusActive;
       if (!skipModeration && content.isNotEmpty) {
-        final moderationResult = await ContentModerationService.moderateTextContent(
+        final moderationService = ContentModerationService.instance;
+        final moderationResult = await moderationService.moderateTextContent(
           content: content,
           contentType: 'social_post',
           userId: userId,
@@ -261,7 +262,8 @@ class SocialService {
 
       // Re-moderate if content changed
       if (content != null) {
-        final moderationResult = await ContentModerationService.moderateTextContent(
+        final moderationService = ContentModerationService.instance;
+        final moderationResult = await moderationService.moderateTextContent(
           content: content,
           contentType: 'social_post',
           contentId: postId,
@@ -409,7 +411,8 @@ class SocialService {
       AppLogger.debug(_tag, 'Adding comment to post: $postId');
 
       // Moderate comment content
-      final moderationResult = await ContentModerationService.moderateTextContent(
+      final moderationService = ContentModerationService.instance;
+      final moderationResult = await moderationService.moderateTextContent(
         content: content,
         contentType: 'comment',
         userId: userId,

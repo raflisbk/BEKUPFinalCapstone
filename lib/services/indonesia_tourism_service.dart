@@ -1,17 +1,12 @@
 import 'dart:async';
+import '../core/interfaces/i_tourism_service.dart';
 import '../core/utils/logger.dart';
 import 'destination_service.dart';
 
 /// Indonesia Tourism Service
 /// Handles tourism data specific to Indonesia with provinces, cities, and popular destinations
-class IndonesiaTourismService {
+class IndonesiaTourismService implements ITourismService {
   static const String _tag = 'IndonesiaTourismService';
-  
-  // Singleton pattern
-  static IndonesiaTourismService? _instance;
-  static IndonesiaTourismService get instance => _instance ??= IndonesiaTourismService._internal();
-  
-  IndonesiaTourismService._internal();
 
   // Popular provinces in Indonesia
   static const List<Map<String, dynamic>> _provinces = [
@@ -170,7 +165,8 @@ class IndonesiaTourismService {
   // ===============================
 
   /// Get all provinces
-  static Future<List<Map<String, dynamic>>> getProvinces() async {
+  @override
+  Future<List<Map<String, dynamic>>> getProvinces() async {
     try {
       AppLogger.debug(_tag, 'Getting all provinces');
       
@@ -185,7 +181,8 @@ class IndonesiaTourismService {
   }
 
   /// Get province by ID
-  static Future<Map<String, dynamic>?> getProvince(String provinceId) async {
+  @override
+  Future<Map<String, dynamic>?> getProvince(String provinceId) async {
     try {
       AppLogger.debug(_tag, 'Getting province: $provinceId');
       
@@ -208,7 +205,8 @@ class IndonesiaTourismService {
   }
 
   /// Get cities by province
-  static Future<List<String>> getCitiesByProvince(String provinceId) async {
+  @override
+  Future<List<String>> getCitiesByProvince(String provinceId) async {
     try {
       AppLogger.debug(_tag, 'Getting cities for province: $provinceId');
       
@@ -227,7 +225,8 @@ class IndonesiaTourismService {
   }
 
   /// Search provinces by name
-  static Future<List<Map<String, dynamic>>> searchProvinces(String query) async {
+  @override
+  Future<List<Map<String, dynamic>>> searchProvinces(String query) async {
     try {
       AppLogger.debug(_tag, 'Searching provinces: $query');
       
@@ -250,6 +249,7 @@ class IndonesiaTourismService {
   // ===============================
 
   /// Get all tourism categories
+  @override
   Future<List<Map<String, dynamic>>> getTourismCategories() async {
     try {
       AppLogger.debug(_tag, 'Getting tourism categories');
@@ -263,6 +263,7 @@ class IndonesiaTourismService {
   }
 
   /// Get category by ID
+  @override
   Future<Map<String, dynamic>?> getTourismCategory(String categoryId) async {
     try {
       AppLogger.debug(_tag, 'Getting tourism category: $categoryId');
@@ -290,6 +291,7 @@ class IndonesiaTourismService {
   // ===============================
 
   /// Get popular destinations by province
+  @override
   Future<List<Map<String, dynamic>>> getPopularDestinationsByProvince(
     String provinceId, {
     int limit = 10,
@@ -303,7 +305,8 @@ class IndonesiaTourismService {
       }
 
       // Get destinations from DestinationService filtered by province
-      final destinations = await DestinationService.getDestinations(
+      final destinationService = DestinationService.instance;
+      final destinations = await destinationService.getDestinations(
         province: province['name'],
         limit: limit,
       );
@@ -317,7 +320,10 @@ class IndonesiaTourismService {
   }
 
   /// Get featured destinations across Indonesia
+  @override
   Future<List<Map<String, dynamic>>> getFeaturedDestinations({
+    String? category,
+    String? province,
     int limit = 20,
   }) async {
     try {
@@ -326,7 +332,13 @@ class IndonesiaTourismService {
       // Get top-rated destinations from multiple provinces
       final allDestinations = <Map<String, dynamic>>[];
 
-      for (final province in _provinces.take(5)) { // Top 5 provinces
+      // Filter provinces if specified
+      var provincesToFetch = _provinces;
+      if (province != null) {
+        provincesToFetch = _provinces.where((p) => p['id'] == province).toList();
+      }
+
+      for (final prov in provincesToFetch.take(5)) { // Top 5 provinces
         try {
           final destinations = await DestinationService.getTopRatedDestinations(
             limit: 4, // 4 per province
@@ -335,15 +347,15 @@ class IndonesiaTourismService {
           // Add province info to destinations
           for (final dest in destinations) {
             dest['province_info'] = {
-              'id': province['id'],
-              'name': province['name'],
-              'code': province['code'],
+              'id': prov['id'],
+              'name': prov['name'],
+              'code': prov['code'],
             };
           }
           
           allDestinations.addAll(destinations);
         } catch (e) {
-          AppLogger.warning(_tag, 'Failed to get destinations for ${province['name']}', e);
+          AppLogger.warning(_tag, 'Failed to get destinations for ${prov['name']}', e);
           continue;
         }
       }
@@ -366,9 +378,10 @@ class IndonesiaTourismService {
   }
 
   /// Get destinations by tourism category
+  @override
   Future<List<Map<String, dynamic>>> getDestinationsByTourismCategory(
     String categoryId, {
-    String? provinceId,
+    String? province,
     int limit = 20,
   }) async {
     try {
@@ -380,9 +393,9 @@ class IndonesiaTourismService {
       }
 
       String? provinceName;
-      if (provinceId != null) {
-        final province = await getProvince(provinceId);
-        provinceName = province?['name'];
+      if (province != null) {
+        final prov = await getProvince(province);
+        provinceName = prov?['name'];
       }
 
       final destinations = await DestinationService.getDestinationsByCategory(
@@ -408,12 +421,12 @@ class IndonesiaTourismService {
   // ===============================
 
   /// Get travel recommendations based on user preferences
+  @override
   Future<List<Map<String, dynamic>>> getTravelRecommendations({
-    List<String>? preferredCategories,
-    List<String>? preferredProvinces,
-    double? maxDistance,
-    double? userLat,
-    double? userLng,
+    required List<String> interests,
+    String? budget,
+    int? days,
+    String? startLocation,
     int limit = 15,
   }) async {
     try {
@@ -421,8 +434,11 @@ class IndonesiaTourismService {
       
       final recommendations = <Map<String, dynamic>>[];
 
-      // Get destinations based on preferred categories
-      if (preferredCategories != null && preferredCategories.isNotEmpty) {
+      // Map interests to preferred categories
+      final preferredCategories = interests;
+
+      // Get destinations based on preferred categories (interests)
+      if (preferredCategories.isNotEmpty) {
         for (final categoryId in preferredCategories) {
           try {
             final categoryDestinations = await getDestinationsByTourismCategory(
@@ -436,33 +452,16 @@ class IndonesiaTourismService {
         }
       }
 
-      // Get destinations from preferred provinces
-      if (preferredProvinces != null && preferredProvinces.isNotEmpty) {
-        for (final provinceId in preferredProvinces) {
-          try {
-            final provinceDestinations = await getPopularDestinationsByProvince(
-              provinceId,
-              limit: 5,
-            );
-            recommendations.addAll(provinceDestinations);
-          } catch (e) {
-            AppLogger.warning(_tag, 'Failed to get destinations for province: $provinceId', e);
-          }
-        }
-      }
-
-      // Get nearby destinations if location is provided
-      if (userLat != null && userLng != null) {
+      // If start location specified, try to get province and its destinations
+      if (startLocation != null) {
         try {
-          final nearbyDestinations = await DestinationService.getNearbyDestinations(
-            latitude: userLat,
-            longitude: userLng,
-            radiusKm: maxDistance ?? 100.0,
-            limit: 10,
+          final provinceDestinations = await getPopularDestinationsByProvince(
+            startLocation,
+            limit: 5,
           );
-          recommendations.addAll(nearbyDestinations);
+          recommendations.addAll(provinceDestinations);
         } catch (e) {
-          AppLogger.warning(_tag, 'Failed to get nearby destinations', e);
+          AppLogger.warning(_tag, 'Failed to get destinations for location: $startLocation', e);
         }
       }
 
@@ -504,7 +503,8 @@ class IndonesiaTourismService {
   // ===============================
 
   /// Get tourism statistics for Indonesia
-  static Future<Map<String, dynamic>> getTourismStatistics() async {
+  @override
+  Future<Map<String, dynamic>> getTourismStatistics() async {
     try {
       AppLogger.debug(_tag, 'Getting tourism statistics');
       
@@ -526,7 +526,8 @@ class IndonesiaTourismService {
   }
 
   /// Validate province and city combination
-  static Future<bool> validateProvinceCity(String provinceId, String cityName) async {
+  @override
+  Future<bool> validateProvinceCity(String provinceId, String cityName) async {
     try {
       final cities = await getCitiesByProvince(provinceId);
       return cities.contains(cityName);
@@ -537,7 +538,8 @@ class IndonesiaTourismService {
   }
 
   /// Get province by city name
-  static Future<Map<String, dynamic>?> getProvinceByCity(String cityName) async {
+  @override
+  Future<Map<String, dynamic>?> getProvinceByCity(String cityName) async {
     try {
       AppLogger.debug(_tag, 'Getting province for city: $cityName');
       

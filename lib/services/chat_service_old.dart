@@ -3,11 +3,10 @@ import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 import 'notification_service.dart';
-import 'interfaces/i_chat_service.dart';
 
 /// Chat Service
 /// Handles real-time chat functionality, conversations, and message management
-class ChatService implements IChatService {
+class ChatService {
   static const String _tag = 'ChatService';
   static const String _conversationsTable = 'conversations';
   static const String _messagesTable = 'messages';
@@ -15,16 +14,15 @@ class ChatService implements IChatService {
   static const String _readReceiptsTable = 'message_read_receipts';
 
   // Real-time subscriptions
-  final Map<String, StreamController<Map<String, dynamic>>> _conversationStreams = {};
-  final Map<String, StreamController<Map<String, dynamic>>> _userConversationStreams = {};
+  static final Map<String, StreamController<Map<String, dynamic>>> _conversationStreams = {};
+  static final Map<String, StreamController<Map<String, dynamic>>> _userConversationStreams = {};
 
   // ===============================
   // CONVERSATION MANAGEMENT
   // ===============================
 
   /// Create new conversation
-  @override
-  Future<Map<String, dynamic>> createConversation({
+  static Future<Map<String, dynamic>> createConversation({
     required List<String> participantIds,
     String? title,
     String? description,
@@ -91,8 +89,7 @@ class ChatService implements IChatService {
   }
 
   /// Get user conversations
-  @override
-  Future<List<Map<String, dynamic>>> getUserConversations({
+  static Future<List<Map<String, dynamic>>> getUserConversations({
     String? userId,
     String? type,
     bool includeArchived = false,
@@ -165,8 +162,7 @@ class ChatService implements IChatService {
   }
 
   /// Get conversation by ID
-  @override
-  Future<Map<String, dynamic>?> getConversation(String conversationId) async {
+  static Future<Map<String, dynamic>?> getConversation(String conversationId) async {
     try {
       AppLogger.debug(_tag, 'Getting conversation: $conversationId');
 
@@ -200,8 +196,7 @@ class ChatService implements IChatService {
   }
 
   /// Update conversation
-  @override
-  Future<Map<String, dynamic>> updateConversation({
+  static Future<Map<String, dynamic>> updateConversation({
     required String conversationId,
     String? title,
     String? description,
@@ -239,8 +234,7 @@ class ChatService implements IChatService {
   // ===============================
 
   /// Add participant to conversation
-  @override
-  Future<Map<String, dynamic>> addParticipantToConversation({
+  static Future<Map<String, dynamic>> addParticipantToConversation({
     required String conversationId,
     required String userId,
     String? role,
@@ -289,8 +283,7 @@ class ChatService implements IChatService {
   }
 
   /// Remove participant from conversation
-  @override
-  Future<void> removeParticipantFromConversation({
+  static Future<void> removeParticipantFromConversation({
     required String conversationId,
     required String userId,
   }) async {
@@ -336,8 +329,7 @@ class ChatService implements IChatService {
   }
 
   /// Get conversation participants
-  @override
-  Future<List<Map<String, dynamic>>> getConversationParticipants(String conversationId) async {
+  static Future<List<Map<String, dynamic>>> getConversationParticipants(String conversationId) async {
     try {
       AppLogger.debug(_tag, 'Getting participants for conversation: $conversationId');
 
@@ -360,8 +352,7 @@ class ChatService implements IChatService {
   // ===============================
 
   /// Send message
-  @override
-  Future<Map<String, dynamic>> sendMessage({
+  static Future<Map<String, dynamic>> sendMessage({
     required String conversationId,
     required String content,
     String? messageType, // 'text', 'image', 'file', 'system', 'location'
@@ -429,8 +420,7 @@ class ChatService implements IChatService {
   }
 
   /// Get messages for conversation
-  @override
-  Future<List<Map<String, dynamic>>> getMessages({
+  static Future<List<Map<String, dynamic>>> getMessages({
     required String conversationId,
     String? beforeMessageId,
     int limit = 50,
@@ -481,8 +471,7 @@ class ChatService implements IChatService {
   }
 
   /// Update message
-  @override
-  Future<Map<String, dynamic>> updateMessage({
+  static Future<Map<String, dynamic>> updateMessage({
     required String messageId,
     required String newContent,
   }) async {
@@ -529,8 +518,7 @@ class ChatService implements IChatService {
   }
 
   /// Delete message
-  @override
-  Future<void> deleteMessage(String messageId) async {
+  static Future<void> deleteMessage(String messageId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -577,8 +565,7 @@ class ChatService implements IChatService {
   // ===============================
 
   /// Mark message as read
-  @override
-  Future<void> markMessageAsRead({
+  static Future<void> markMessageAsRead({
     required String messageId,
     String? userId,
   }) async {
@@ -609,8 +596,7 @@ class ChatService implements IChatService {
   }
 
   /// Mark all messages in conversation as read
-  @override
-  Future<void> markConversationAsRead({
+  static Future<void> markConversationAsRead({
     required String conversationId,
     String? userId,
   }) async {
@@ -649,8 +635,7 @@ class ChatService implements IChatService {
   }
 
   /// Get unread message count for conversation
-  @override
-  Future<int> getUnreadMessageCount(String conversationId, String userId) async {
+  static Future<int> getUnreadMessageCount(String conversationId, String userId) async {
     try {
       AppLogger.debug(_tag, 'Getting unread message count: $conversationId');
 
@@ -693,8 +678,7 @@ class ChatService implements IChatService {
   // ===============================
 
   /// Subscribe to conversation updates
-  @override
-  Stream<Map<String, dynamic>> subscribeToConversation(String conversationId) {
+  static Stream<Map<String, dynamic>> subscribeToConversation(String conversationId) {
     AppLogger.debug(_tag, 'Subscribing to conversation: $conversationId');
     
     // Check if stream already exists
@@ -748,8 +732,7 @@ class ChatService implements IChatService {
   }
 
   /// Subscribe to user conversations
-  @override
-  Stream<Map<String, dynamic>> subscribeToUserConversations(String userId) {
+  static Stream<Map<String, dynamic>> subscribeToUserConversations(String userId) {
     AppLogger.debug(_tag, 'Subscribing to user conversations: $userId');
     
     // Check if stream already exists
@@ -834,7 +817,7 @@ class ChatService implements IChatService {
   // ===============================
 
   /// Find existing direct conversation between two users
-  Future<Map<String, dynamic>?> _findDirectConversation(String user1Id, String user2Id) async {
+  static Future<Map<String, dynamic>?> _findDirectConversation(String user1Id, String user2Id) async {
     try {
       // Get conversations where both users are participants
       final user1Participants = await SupabaseDatabaseService.select(
@@ -871,7 +854,7 @@ class ChatService implements IChatService {
   }
 
   /// Add participant to conversation
-  Future<Map<String, dynamic>> _addParticipant(
+  static Future<Map<String, dynamic>> _addParticipant(
     String conversationId,
     String userId,
     String addedBy, [
@@ -893,7 +876,7 @@ class ChatService implements IChatService {
   }
 
   /// Check if user is participant in conversation
-  Future<bool> _isUserParticipant(String conversationId, String userId) async {
+  static Future<bool> _isUserParticipant(String conversationId, String userId) async {
     try {
       final participants = await SupabaseDatabaseService.select(
         table: _participantsTable,
@@ -911,7 +894,7 @@ class ChatService implements IChatService {
   }
 
   /// Get last message in conversation
-  Future<Map<String, dynamic>?> _getLastMessage(String conversationId) async {
+  static Future<Map<String, dynamic>?> _getLastMessage(String conversationId) async {
     try {
       final messages = await SupabaseDatabaseService.select(
         table: _messagesTable,
@@ -928,7 +911,7 @@ class ChatService implements IChatService {
   }
 
   /// Get message count for conversation
-  Future<int> _getMessageCount(String conversationId) async {
+  static Future<int> _getMessageCount(String conversationId) async {
     try {
       final messages = await SupabaseDatabaseService.select(
         table: _messagesTable,
@@ -942,7 +925,7 @@ class ChatService implements IChatService {
   }
 
   /// Update participant count
-  Future<void> _updateParticipantCount(String conversationId) async {
+  static Future<void> _updateParticipantCount(String conversationId) async {
     try {
       final participants = await SupabaseDatabaseService.select(
         table: _participantsTable,
@@ -960,7 +943,7 @@ class ChatService implements IChatService {
   }
 
   /// Create read receipt
-  Future<void> _createReadReceipt(String messageId, String userId) async {
+  static Future<void> _createReadReceipt(String messageId, String userId) async {
     try {
       await SupabaseDatabaseService.insert(
         table: _readReceiptsTable,
@@ -976,7 +959,7 @@ class ChatService implements IChatService {
   }
 
   /// Get message read receipts
-  Future<List<Map<String, dynamic>>> _getMessageReadReceipts(String messageId) async {
+  static Future<List<Map<String, dynamic>>> _getMessageReadReceipts(String messageId) async {
     try {
       return await SupabaseDatabaseService.select(
         table: _readReceiptsTable,
@@ -989,7 +972,7 @@ class ChatService implements IChatService {
   }
 
   /// Update message read count
-  Future<void> _updateMessageReadCount(String messageId) async {
+  static Future<void> _updateMessageReadCount(String messageId) async {
     try {
       final readReceipts = await _getMessageReadReceipts(messageId);
       
@@ -1004,7 +987,7 @@ class ChatService implements IChatService {
   }
 
   /// Send message notifications to participants
-  Future<void> _sendMessageNotifications(
+  static Future<void> _sendMessageNotifications(
     String conversationId,
     String senderId,
     String content,

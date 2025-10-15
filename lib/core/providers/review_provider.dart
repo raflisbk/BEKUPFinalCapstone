@@ -6,14 +6,18 @@ import '../../services/review_service.dart';
 class ReviewProvider with ChangeNotifier {
   static const String _tag = 'ReviewProvider';
 
-  // Service instance
-  final ReviewService _reviewService = ReviewService.instance;
+  // Service instance with dependency injection
+  final ReviewService _reviewService;
 
   List<Map<String, dynamic>> _reviews = [];
   List<Map<String, dynamic>> _userReviews = [];
   Map<String, dynamic>? _selectedReview;
   bool _isLoading = false;
   String? _error;
+
+  // Constructor with dependency injection
+  ReviewProvider({ReviewService? reviewService})
+      : _reviewService = reviewService ?? ReviewService();
   double _averageRating = 0.0;
   int _totalReviews = 0;
 

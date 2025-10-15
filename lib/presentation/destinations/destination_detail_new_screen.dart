@@ -5,8 +5,7 @@ import '../../core/widgets/mock_google_maps.dart'; // Mock implementation while 
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/destination_detail_ui_provider.dart';
-import '../../core/config/service_locator.dart';
-import '../../services/interfaces/i_destination_service.dart';
+import '../../services/destination_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
 import '../reviews/reviews_screen.dart';
@@ -25,12 +24,11 @@ class DestinationDetailNewScreen extends StatefulWidget {
 }
 
 class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen> {
-  late final IDestinationService _destinationService;
+  final DestinationService _destinationService = DestinationService();
 
   @override
   void initState() {
     super.initState();
-    _destinationService = ServiceLocator.destinationService;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkBookmarkStatus();
     });
@@ -42,9 +40,9 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     final userId = authProvider.user?.uid;
 
     if (userId != null) {
-      final isBookmarked = await _destinationService.isDestinationBookmarked(widget.destinationId);
+      final bookmark = await _destinationService.getUserBookmarks(userId);
       if (mounted) {
-        detailUIProvider.setBookmarkStatus(isBookmarked);
+        detailUIProvider.setBookmarkStatus(bookmark?.isBookmarked(widget.destinationId) ?? false);
       }
     }
   }
@@ -64,17 +62,13 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     detailUIProvider.setLoadingBookmark(true);
     await HapticHelper.buttonTap();
 
-    try {
-      if (detailUIProvider.isBookmarked) {
-        await _destinationService.removeBookmark(widget.destinationId);
-      } else {
-        await _destinationService.bookmarkDestination(widget.destinationId);
-      }
-      
+    final success = await _destinationService.toggleBookmark(userId, widget.destinationId);
+
+    if (success) {
       await HapticHelper.success();
       detailUIProvider.toggleBookmark();
       detailUIProvider.setLoadingBookmark(false);
-    } catch (e) {
+    } else {
       await HapticHelper.error();
       detailUIProvider.setLoadingBookmark(false);
       if (mounted) {
@@ -90,8 +84,8 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
     return Consumer<DestinationDetailUIProvider>(
       builder: (context, detailUIProvider, child) {
         return Scaffold(
-          body: FutureBuilder<Map<String, dynamic>?>(
-            future: _destinationService.getDestination(widget.destinationId),
+          body: StreamBuilder<Destination?>(
+            stream: _destinationService.getDestinationStream(widget.destinationId),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return _buildLoadingState();
@@ -101,9 +95,7 @@ class _DestinationDetailNewScreenState extends State<DestinationDetailNewScreen>
                 return _buildErrorState();
               }
 
-              // Convert Map to Destination model
-              final destinationData = snapshot.data!;
-              final destination = Destination.fromMap(destinationData);
+              final destination = snapshot.data!;
 
               return CustomScrollView(
                 slivers: [

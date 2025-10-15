@@ -1,19 +1,24 @@
 import 'package:flutter/foundation.dart';
 import '../utils/logger.dart';
 import '../../services/notification_service.dart';
+import '../config/service_locator.dart';
 
 /// Provider for Notification management
 class NotificationProvider with ChangeNotifier {
   static const String _tag = 'NotificationProvider';
 
-  // Service instance
-  final NotificationService _notificationService = NotificationService.instance;
+  // Service instance with dependency injection
+  final NotificationService _notificationService;
 
   List<Map<String, dynamic>> _notifications = [];
   int _unreadCount = 0;
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic> _preferences = {};
+
+  // Constructor with dependency injection
+  NotificationProvider({NotificationService? notificationService})
+      : _notificationService = notificationService ?? ServiceLocator.notificationService;
 
   // Getters
   List<Map<String, dynamic>> get notifications => _notifications;

@@ -550,9 +550,10 @@ class DestinationService {
       );
 
       // Get destination details for each bookmark
+      final destinationService = DestinationService.instance;
       final destinations = <Map<String, dynamic>>[];
       for (final bookmark in bookmarks) {
-        final destination = await getDestination(bookmark['destination_id']);
+        final destination = await destinationService.getDestination(bookmark['destination_id']);
         if (destination != null) {
           destination['bookmarked_at'] = bookmark['created_at'];
           destinations.add(destination);
@@ -598,7 +599,8 @@ class DestinationService {
       AppLogger.debug(_tag, 'Incrementing visit count for: $destinationId');
 
       // Get current destination
-      final destination = await getDestination(destinationId);
+      final destinationService = DestinationService.instance;
+      final destination = await destinationService.getDestination(destinationId);
       if (destination == null) {
         throw Exception('Destination not found');
       }

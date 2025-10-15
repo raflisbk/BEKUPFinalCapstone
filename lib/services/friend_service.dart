@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../core/utils/logger.dart';
+import '../core/interfaces/i_friend_service.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 import 'notification_service.dart';
@@ -7,20 +8,11 @@ import 'notification_service.dart';
 /// Friend Service
 /// Handles friendship features like friend requests, connections, mutual friends,
 /// friend recommendations, and social networking
-class FriendService {
+class FriendService implements IFriendService {
   static const String _tag = 'FriendService';
   static const String _friendshipsTable = 'friendships';
   static const String _friendRequestsTable = 'friend_requests';
   static const String _blockedUsersTable = 'blocked_users';
-
-  // Singleton pattern
-  static FriendService? _instance;
-  static FriendService get instance => _instance ??= FriendService._internal();
-  
-  FriendService._internal();
-
-  // Notification service instance
-  late final NotificationService _notificationService = NotificationService.instance;
 
   // Friendship status
   static const String statusPending = 'pending';
@@ -42,7 +34,8 @@ class FriendService {
   // ===============================
 
   /// Send friend request
-  static Future<Map<String, dynamic>> sendFriendRequest({
+  @override
+  Future<Map<String, dynamic>> sendFriendRequest({
     required String targetUserId,
     String? message,
     String requestType = requestTypeFriend,
@@ -118,7 +111,8 @@ class FriendService {
   }
 
   /// Get pending friend requests (received)
-  static Future<List<Map<String, dynamic>>> getPendingFriendRequests({
+  @override
+  Future<List<Map<String, dynamic>>> getPendingFriendRequests({
     int limit = 20,
     int offset = 0,
   }) async {
@@ -160,7 +154,8 @@ class FriendService {
   }
 
   /// Get sent friend requests
-  static Future<List<Map<String, dynamic>>> getSentFriendRequests({
+  @override
+  Future<List<Map<String, dynamic>>> getSentFriendRequests({
     int limit = 20,
     int offset = 0,
   }) async {
@@ -197,7 +192,8 @@ class FriendService {
   }
 
   /// Respond to friend request
-  static Future<Map<String, dynamic>> respondToFriendRequest({
+  @override
+  Future<Map<String, dynamic>> respondToFriendRequest({
     required String requestId,
     required bool accept,
   }) async {
@@ -263,7 +259,8 @@ class FriendService {
   }
 
   /// Cancel friend request
-  static Future<void> cancelFriendRequest(String requestId) async {
+  @override
+  Future<void> cancelFriendRequest(String requestId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -312,7 +309,8 @@ class FriendService {
   // ===============================
 
   /// Get user's friends
-  static Future<List<Map<String, dynamic>>> getFriends({
+  @override
+  Future<List<Map<String, dynamic>>> getFriends({
     String? userId,
     String? searchQuery,
     String? sortBy, // 'newest', 'alphabetical', 'mutual'
@@ -393,7 +391,8 @@ class FriendService {
   }
 
   /// Get mutual friends
-  static Future<List<Map<String, dynamic>>> getMutualFriends({
+  @override
+  Future<List<Map<String, dynamic>>> getMutualFriends({
     required String userId1,
     required String userId2,
     int limit = 20,
@@ -420,7 +419,8 @@ class FriendService {
   }
 
   /// Get mutual friends count
-  static Future<int> getMutualFriendsCount(String userId1, String userId2) async {
+  @override
+  Future<int> getMutualFriendsCount(String userId1, String userId2) async {
     try {
       final mutualFriends = await getMutualFriends(
         userId1: userId1,
@@ -435,7 +435,8 @@ class FriendService {
   }
 
   /// Remove friend
-  static Future<void> removeFriend(String friendId) async {
+  @override
+  Future<void> removeFriend(String friendId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -473,7 +474,8 @@ class FriendService {
   // ===============================
 
   /// Get friend suggestions
-  static Future<List<Map<String, dynamic>>> getFriendSuggestions({
+  @override
+  Future<List<Map<String, dynamic>>> getFriendSuggestions({
     int limit = 20,
   }) async {
     try {
@@ -512,7 +514,8 @@ class FriendService {
   }
 
   /// Dismiss friend suggestion
-  static Future<void> dismissFriendSuggestion(String suggestedUserId) async {
+  @override
+  Future<void> dismissFriendSuggestion(String suggestedUserId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -544,7 +547,8 @@ class FriendService {
   // ===============================
 
   /// Block user
-  static Future<Map<String, dynamic>> blockUser({
+  @override
+  Future<Map<String, dynamic>> blockUser({
     required String targetUserId,
     String? reason,
   }) async {
@@ -606,7 +610,8 @@ class FriendService {
   }
 
   /// Unblock user
-  static Future<void> unblockUser(String targetUserId) async {
+  @override
+  Future<void> unblockUser(String targetUserId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -639,7 +644,8 @@ class FriendService {
   }
 
   /// Get blocked users
-  static Future<List<Map<String, dynamic>>> getBlockedUsers({
+  @override
+  Future<List<Map<String, dynamic>>> getBlockedUsers({
     int limit = 50,
   }) async {
     try {
@@ -675,7 +681,8 @@ class FriendService {
   }
 
   /// Check if user is blocked
-  static Future<bool> isUserBlocked(String targetUserId) async {
+  @override
+  Future<bool> isUserBlocked(String targetUserId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) return false;
@@ -693,7 +700,8 @@ class FriendService {
   // ===============================
 
   /// Get friendship status between two users
-  static Future<Map<String, dynamic>> getFriendshipStatus({
+  @override
+  Future<Map<String, dynamic>> getFriendshipStatus({
     required String targetUserId,
   }) async {
     try {
@@ -761,11 +769,89 @@ class FriendService {
   }
 
   // ===============================
+  // USER SEARCH
+  // ===============================
+
+  /// Search users by query
+  @override
+  Future<List<Map<String, dynamic>>> searchUsers({
+    required String query,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final userId = SupabaseConfig.userId;
+      if (userId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      AppLogger.debug(_tag, 'Searching users with query: $query');
+
+      // This would normally search in a users table
+      // For now, we'll simulate search results based on the query
+      final searchResults = <Map<String, dynamic>>[];
+
+      // Generate mock search results based on query
+      final queries = query.toLowerCase().split(' ');
+      
+      for (int i = 0; i < limit; i++) {
+        final mockUserId = 'search_user_$i';
+        
+        // Skip current user
+        if (mockUserId == userId) continue;
+        
+        // Check if user is already a friend or blocked
+        final friendship = await _getFriendship(userId, mockUserId);
+        final isBlocked = await _isUserBlocked(userId, mockUserId) || 
+                          await _isUserBlocked(mockUserId, userId);
+        
+        if (friendship == null && !isBlocked) {
+          final userData = {
+            'id': mockUserId,
+            'uid': mockUserId,
+            'email': '${queries.first}user$i@example.com',
+            'display_name': '${_capitalize(queries.first)} User $i',
+            'name': '${_capitalize(queries.first)} User $i',
+            'username': '${queries.first}user$i',
+            'photo_url': null,
+            'bio': 'Travel enthusiast from Indonesia',
+            'interests': ['travel', 'photography', 'culture'],
+            'languages': ['Indonesian', 'English'],
+            'is_guide': i % 3 == 0,
+            'is_verified': i % 5 == 0,
+            'rating': 4.0 + (i % 6) * 0.1,
+            'review_count': i * 3,
+            'created_at': DateTime.now().subtract(Duration(days: i * 30)).toIso8601String(),
+            'updated_at': DateTime.now().subtract(Duration(hours: i)).toIso8601String(),
+            'location': i % 2 == 0 ? 'Jakarta, Indonesia' : 'Bali, Indonesia',
+            'latitude': -6.2 + (i * 0.1),
+            'longitude': 106.8 + (i * 0.1),
+            'mutual_friends_count': await getMutualFriendsCount(userId, mockUserId),
+            'relevance_score': 1.0 - (i * 0.1),
+          };
+          
+          searchResults.add(userData);
+        }
+      }
+
+      // Sort by relevance score
+      searchResults.sort((a, b) => 
+        (b['relevance_score'] as double).compareTo(a['relevance_score'] as double));
+
+      AppLogger.success(_tag, 'Found ${searchResults.length} users for query: $query');
+      return searchResults.skip(offset).take(limit).toList();
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to search users', e, stackTrace);
+      rethrow;
+    }
+  }
+
+  // ===============================
   // PRIVATE HELPER METHODS
   // ===============================
 
   /// Get user data
-  static Future<Map<String, dynamic>> _getUserData(String userId) async {
+  Future<Map<String, dynamic>> _getUserData(String userId) async {
     try {
       // This would normally fetch from user service
       return {
@@ -788,7 +874,7 @@ class FriendService {
   }
 
   /// Get friendship between two users
-  static Future<Map<String, dynamic>?> _getFriendship(String userId1, String userId2) async {
+  Future<Map<String, dynamic>?> _getFriendship(String userId1, String userId2) async {
     try {
       final friendships = await SupabaseDatabaseService.select(
         table: _friendshipsTable,
@@ -810,7 +896,7 @@ class FriendService {
   }
 
   /// Get existing friend request
-  static Future<Map<String, dynamic>?> _getExistingRequest(String senderId, String receiverId) async {
+  Future<Map<String, dynamic>?> _getExistingRequest(String senderId, String receiverId) async {
     try {
       final requests = await SupabaseDatabaseService.select(
         table: _friendRequestsTable,
@@ -830,7 +916,7 @@ class FriendService {
   }
 
   /// Create friendship
-  static Future<Map<String, dynamic>> _createFriendship(String userId1, String userId2) async {
+  Future<Map<String, dynamic>> _createFriendship(String userId1, String userId2) async {
     final friendshipData = {
       'user1_id': userId1,
       'user2_id': userId2,
@@ -846,7 +932,7 @@ class FriendService {
   }
 
   /// Get blocked user record
-  static Future<Map<String, dynamic>?> _getBlockedUser(String blockerId, String blockedId) async {
+  Future<Map<String, dynamic>?> _getBlockedUser(String blockerId, String blockedId) async {
     try {
       final blocks = await SupabaseDatabaseService.select(
         table: _blockedUsersTable,
@@ -864,7 +950,7 @@ class FriendService {
   }
 
   /// Check if user is blocked
-  static Future<bool> _isUserBlocked(String blockerId, String blockedId) async {
+  Future<bool> _isUserBlocked(String blockerId, String blockedId) async {
     try {
       final block = await _getBlockedUser(blockerId, blockedId);
       return block != null;
@@ -874,7 +960,7 @@ class FriendService {
   }
 
   /// Cancel pending requests between users
-  static Future<void> _cancelPendingRequests(String userId1, String userId2) async {
+  Future<void> _cancelPendingRequests(String userId1, String userId2) async {
     try {
       // Get pending requests in both directions
       final requests = await SupabaseDatabaseService.select(
@@ -902,7 +988,7 @@ class FriendService {
   }
 
   /// Get mutual friends suggestions
-  static Future<List<Map<String, dynamic>>> _getMutualFriendsSuggestions(
+  Future<List<Map<String, dynamic>>> _getMutualFriendsSuggestions(
     String userId,
     int limit,
   ) async {
@@ -947,7 +1033,7 @@ class FriendService {
   }
 
   /// Get other friend suggestions
-  static Future<List<Map<String, dynamic>>> _getOtherSuggestions(
+  Future<List<Map<String, dynamic>>> _getOtherSuggestions(
     String userId,
     int limit,
   ) async {
@@ -963,7 +1049,7 @@ class FriendService {
   }
 
   /// Sort friends list
-  static void _sortFriends(List<Map<String, dynamic>> friends, String? sortBy) {
+  void _sortFriends(List<Map<String, dynamic>> friends, String? sortBy) {
     switch (sortBy) {
       case 'alphabetical':
         friends.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
@@ -981,7 +1067,7 @@ class FriendService {
   }
 
   /// Send friend request notification
-  static Future<void> _sendFriendRequestNotification(
+  Future<void> _sendFriendRequestNotification(
     String senderId,
     String receiverId,
     String? message,
@@ -989,7 +1075,8 @@ class FriendService {
     try {
       final senderData = await _getUserData(senderId);
       
-      await NotificationService.sendNotificationToUser(
+      final notificationService = NotificationService.instance;
+      await notificationService.sendNotificationToUser(
         userId: receiverId,
         title: 'New Friend Request',
         message: '${senderData['name']} sent you a friend request',
@@ -1006,14 +1093,15 @@ class FriendService {
   }
 
   /// Send friend request accepted notification
-  static Future<void> _sendFriendRequestAcceptedNotification(
+  Future<void> _sendFriendRequestAcceptedNotification(
     String accepterId,
     String senderId,
   ) async {
     try {
       final accepterData = await _getUserData(accepterId);
       
-      await NotificationService.sendNotificationToUser(
+      final notificationService = NotificationService.instance;
+      await notificationService.sendNotificationToUser(
         userId: senderId,
         title: 'Friend Request Accepted',
         message: '${accepterData['name']} accepted your friend request',
@@ -1026,5 +1114,11 @@ class FriendService {
     } catch (e) {
       AppLogger.warning(_tag, 'Failed to send acceptance notification', e);
     }
+  }
+
+  /// Capitalize first letter of a string
+  String _capitalize(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1);
   }
 }

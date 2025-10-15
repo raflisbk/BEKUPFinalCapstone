@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../core/interfaces/i_messaging_service.dart';
+import '../core/config/service_locator.dart';
 import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
@@ -6,25 +8,20 @@ import 'chat_service.dart';
 
 /// Messaging Service
 /// Handles high-level messaging operations, message templates, and automated messaging
-class MessagingService {
+class MessagingService implements IMessagingService {
   static const String _tag = 'MessagingService';
   static const String _templatesTable = 'message_templates';
   static const String _scheduledMessagesTable = 'scheduled_messages';
   static const String _messageThreadsTable = 'message_threads';
   static const String _messageReactionsTable = 'message_reactions';
 
-  // Singleton pattern
-  static MessagingService? _instance;
-  static MessagingService get instance => _instance ??= MessagingService._internal();
-  
-  MessagingService._internal();
-
   // ===============================
   // MESSAGE TEMPLATES
   // ===============================
 
   /// Create message template
-  static Future<Map<String, dynamic>> createMessageTemplate({
+  @override
+  Future<Map<String, dynamic>> createMessageTemplate({
     required String name,
     required String content,
     String? category,
@@ -65,7 +62,8 @@ class MessagingService {
   }
 
   /// Get message templates
-  static Future<List<Map<String, dynamic>>> getMessageTemplates({
+  @override
+  Future<List<Map<String, dynamic>>> getMessageTemplates({
     String? category,
     bool? isActive,
     String? userId,
@@ -96,7 +94,8 @@ class MessagingService {
   }
 
   /// Use message template
-  static Future<String> renderMessageTemplate({
+  @override
+  Future<String> renderMessageTemplate({
     required String templateId,
     Map<String, dynamic>? variables,
   }) async {
@@ -146,7 +145,8 @@ class MessagingService {
   // ===============================
 
   /// Schedule message
-  static Future<Map<String, dynamic>> scheduleMessage({
+  @override
+  Future<Map<String, dynamic>> scheduleMessage({
     required String conversationId,
     required String content,
     required DateTime scheduledAt,
@@ -190,7 +190,8 @@ class MessagingService {
   }
 
   /// Get scheduled messages
-  static Future<List<Map<String, dynamic>>> getScheduledMessages({
+  @override
+  Future<List<Map<String, dynamic>>> getScheduledMessages({
     String? conversationId,
     String? status,
     int limit = 50,
@@ -223,7 +224,8 @@ class MessagingService {
   }
 
   /// Cancel scheduled message
-  static Future<void> cancelScheduledMessage(String messageId) async {
+  @override
+  Future<void> cancelScheduledMessage(String messageId) async {
     try {
       AppLogger.warning(_tag, 'Canceling scheduled message: $messageId');
 
@@ -244,7 +246,8 @@ class MessagingService {
   }
 
   /// Process pending scheduled messages
-  static Future<void> processPendingScheduledMessages() async {
+  @override
+  Future<void> processPendingScheduledMessages() async {
     try {
       AppLogger.debug(_tag, 'Processing pending scheduled messages');
 
@@ -310,7 +313,8 @@ class MessagingService {
   // ===============================
 
   /// Create message thread
-  static Future<Map<String, dynamic>> createMessageThread({
+  @override
+  Future<Map<String, dynamic>> createMessageThread({
     required String originalMessageId,
     required String title,
     String? description,
@@ -347,7 +351,8 @@ class MessagingService {
   }
 
   /// Get message threads
-  static Future<List<Map<String, dynamic>>> getMessageThreads({
+  @override
+  Future<List<Map<String, dynamic>>> getMessageThreads({
     String? originalMessageId,
     int limit = 20,
   }) async {
@@ -380,7 +385,8 @@ class MessagingService {
   // ===============================
 
   /// Add reaction to message
-  static Future<Map<String, dynamic>> addMessageReaction({
+  @override
+  Future<Map<String, dynamic>> addMessageReaction({
     required String messageId,
     required String emoji,
   }) async {
@@ -426,7 +432,8 @@ class MessagingService {
   }
 
   /// Remove reaction from message
-  static Future<void> removeMessageReaction({
+  @override
+  Future<void> removeMessageReaction({
     required String messageId,
     required String emoji,
   }) async {
@@ -462,7 +469,8 @@ class MessagingService {
   }
 
   /// Get message reactions
-  static Future<List<Map<String, dynamic>>> getMessageReactions(String messageId) async {
+  @override
+  Future<List<Map<String, dynamic>>> getMessageReactions(String messageId) async {
     try {
       AppLogger.debug(_tag, 'Getting reactions for message: $messageId');
 
@@ -505,7 +513,8 @@ class MessagingService {
   // ===============================
 
   /// Send bulk message to multiple conversations
-  static Future<List<Map<String, dynamic>>> sendBulkMessage({
+  @override
+  Future<List<Map<String, dynamic>>> sendBulkMessage({
     required List<String> conversationIds,
     required String content,
     String? messageType,
@@ -558,7 +567,8 @@ class MessagingService {
   }
 
   /// Send message to all user conversations
-  static Future<List<Map<String, dynamic>>> broadcastMessage({
+  @override
+  Future<List<Map<String, dynamic>>> broadcastMessage({
     required String content,
     String? messageType,
     Map<String, dynamic>? attachments,
@@ -597,7 +607,8 @@ class MessagingService {
   // ===============================
 
   /// Get messaging statistics
-  static Future<Map<String, dynamic>> getMessagingStatistics({
+  @override
+  Future<Map<String, dynamic>> getMessagingStatistics({
     String? userId,
     DateTime? startDate,
     DateTime? endDate,
@@ -654,7 +665,8 @@ class MessagingService {
   // ===============================
 
   /// Create next recurring message
-  static Future<void> _createNextRecurringMessage(Map<String, dynamic> originalMessage) async {
+  @override
+  Future<void> _createNextRecurringMessage(Map<String, dynamic> originalMessage) async {
     try {
       final recurringSettings = originalMessage['recurring_settings'] as Map<String, dynamic>? ?? {};
       final interval = recurringSettings['interval'] as String?;

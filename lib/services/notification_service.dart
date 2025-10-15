@@ -110,7 +110,8 @@ class NotificationService {
       final validUserIds = <String>[];
 
       for (final userId in userIds) {
-        final playerIds = await _getUserPlayerIds(userId);
+        final notificationService = NotificationService.instance;
+        final playerIds = await notificationService._getUserPlayerIds(userId);
         if (playerIds.isNotEmpty) {
           allPlayerIds.addAll(playerIds);
           validUserIds.add(userId);
@@ -601,7 +602,7 @@ class NotificationService {
         throw Exception('Unknown trip update type: $updateType');
       }
 
-      return await sendNotificationToUser(
+      return await NotificationService.instance.sendNotificationToUser(
         userId: userId,
         title: template['title']!,
         message: template['message']!,
@@ -651,7 +652,7 @@ class NotificationService {
         throw Exception('Unknown social action type: $actionType');
       }
 
-      return await sendNotificationToUser(
+      return await NotificationService.instance.sendNotificationToUser(
         userId: userId,
         title: template['title']!,
         message: template['message']!,

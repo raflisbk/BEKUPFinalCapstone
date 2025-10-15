@@ -1,12 +1,13 @@
 import 'dart:async';
 import '../core/utils/logger.dart';
+import '../core/interfaces/i_gallery_service.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 import 'media_service.dart';
 
 /// Gallery Service
 /// Handles photo galleries, albums, and photo organization
-class GalleryService {
+class GalleryService implements IGalleryService {
   static const String _tag = 'GalleryService';
   static const String _galleriesTable = 'photo_galleries';
   static const String _albumsTable = 'photo_albums';
@@ -14,18 +15,13 @@ class GalleryService {
   static const String _likesTable = 'photo_likes';
   static const String _commentsTable = 'photo_comments';
 
-  // Singleton pattern
-  static GalleryService? _instance;
-  static GalleryService get instance => _instance ??= GalleryService._internal();
-  
-  GalleryService._internal();
-
   // ===============================
   // GALLERY MANAGEMENT
   // ===============================
 
   /// Create photo gallery
-  static Future<Map<String, dynamic>> createGallery({
+  @override
+  Future<Map<String, dynamic>> createGallery({
     required String title,
     String? description,
     String? tripId,
@@ -71,7 +67,8 @@ class GalleryService {
   }
 
   /// Get gallery by ID
-  static Future<Map<String, dynamic>?> getGallery(String galleryId) async {
+  @override
+  Future<Map<String, dynamic>?> getGallery(String galleryId) async {
     try {
       AppLogger.debug(_tag, 'Getting gallery: $galleryId');
 
@@ -105,7 +102,8 @@ class GalleryService {
   }
 
   /// Get user galleries
-  static Future<List<Map<String, dynamic>>> getUserGalleries({
+  @override
+  Future<List<Map<String, dynamic>>> getUserGalleries({
     String? userId,
     bool? isPublic,
     String? tripId,
@@ -161,7 +159,8 @@ class GalleryService {
   }
 
   /// Update gallery
-  static Future<Map<String, dynamic>> updateGallery({
+  @override
+  Future<Map<String, dynamic>> updateGallery({
     required String galleryId,
     String? title,
     String? description,
@@ -201,7 +200,8 @@ class GalleryService {
   }
 
   /// Delete gallery
-  static Future<void> deleteGallery(String galleryId) async {
+  @override
+  Future<void> deleteGallery(String galleryId) async {
     try {
       AppLogger.warning(_tag, 'Deleting gallery: $galleryId');
 
@@ -235,7 +235,8 @@ class GalleryService {
   // ===============================
 
   /// Create album within gallery
-  static Future<Map<String, dynamic>> createAlbum({
+  @override
+  Future<Map<String, dynamic>> createAlbum({
     required String galleryId,
     required String title,
     String? description,
@@ -276,7 +277,8 @@ class GalleryService {
   }
 
   /// Get gallery albums
-  static Future<List<Map<String, dynamic>>> getGalleryAlbums(String galleryId) async {
+  @override
+  Future<List<Map<String, dynamic>>> getGalleryAlbums(String galleryId) async {
     try {
       AppLogger.debug(_tag, 'Getting albums for gallery: $galleryId');
 
@@ -314,7 +316,8 @@ class GalleryService {
   }
 
   /// Delete album
-  static Future<void> deleteAlbum(String albumId) async {
+  @override
+  Future<void> deleteAlbum(String albumId) async {
     try {
       AppLogger.warning(_tag, 'Deleting album: $albumId');
 
@@ -346,7 +349,8 @@ class GalleryService {
   // ===============================
 
   /// Add photo to gallery
-  static Future<Map<String, dynamic>> addPhotoToGallery({
+  @override
+  Future<Map<String, dynamic>> addPhotoToGallery({
     required String galleryId,
     required String cloudinaryPublicId,
     required String originalUrl,
@@ -413,7 +417,8 @@ class GalleryService {
   }
 
   /// Get gallery photos
-  static Future<List<Map<String, dynamic>>> getGalleryPhotos({
+  @override
+  Future<List<Map<String, dynamic>>> getGalleryPhotos({
     required String galleryId,
     String? albumId,
     int limit = 50,
@@ -454,7 +459,8 @@ class GalleryService {
   }
 
   /// Update photo
-  static Future<Map<String, dynamic>> updatePhoto({
+  @override
+  Future<Map<String, dynamic>> updatePhoto({
     required String photoId,
     String? title,
     String? description,
@@ -494,7 +500,8 @@ class GalleryService {
   }
 
   /// Delete photo
-  static Future<void> deletePhoto(String photoId) async {
+  @override
+  Future<void> deletePhoto(String photoId) async {
     try {
       AppLogger.warning(_tag, 'Deleting photo: $photoId');
 
@@ -544,7 +551,8 @@ class GalleryService {
   // ===============================
 
   /// Like photo
-  static Future<Map<String, dynamic>> likePhoto(String photoId) async {
+  @override
+  Future<Map<String, dynamic>> likePhoto(String photoId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -586,7 +594,8 @@ class GalleryService {
   }
 
   /// Unlike photo
-  static Future<void> unlikePhoto(String photoId) async {
+  @override
+  Future<void> unlikePhoto(String photoId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -621,7 +630,8 @@ class GalleryService {
   }
 
   /// Add comment to photo
-  static Future<Map<String, dynamic>> addPhotoComment({
+  @override
+  Future<Map<String, dynamic>> addPhotoComment({
     required String photoId,
     required String comment,
   }) async {
@@ -657,7 +667,8 @@ class GalleryService {
   }
 
   /// Get photo comments
-  static Future<List<Map<String, dynamic>>> getPhotoComments({
+  @override
+  Future<List<Map<String, dynamic>>> getPhotoComments({
     required String photoId,
     int limit = 20,
   }) async {
@@ -685,7 +696,8 @@ class GalleryService {
   // ===============================
 
   /// Search public galleries
-  static Future<List<Map<String, dynamic>>> searchPublicGalleries({
+  @override
+  Future<List<Map<String, dynamic>>> searchPublicGalleries({
     String? query,
     List<String>? tags,
     String? destinationId,
@@ -758,7 +770,8 @@ class GalleryService {
   }
 
   /// Get popular galleries
-  static Future<List<Map<String, dynamic>>> getPopularGalleries({
+  @override
+  Future<List<Map<String, dynamic>>> getPopularGalleries({
     int limit = 10,
     int days = 7,
   }) async {
@@ -805,7 +818,7 @@ class GalleryService {
   // ===============================
 
   /// Update gallery photo count
-  static Future<void> _updateGalleryPhotoCount(String galleryId) async {
+  Future<void> _updateGalleryPhotoCount(String galleryId) async {
     try {
       final photos = await SupabaseDatabaseService.select(
         table: _photosTable,
@@ -823,7 +836,7 @@ class GalleryService {
   }
 
   /// Update album photo count
-  static Future<void> _updateAlbumPhotoCount(String albumId) async {
+  Future<void> _updateAlbumPhotoCount(String albumId) async {
     try {
       final photos = await SupabaseDatabaseService.select(
         table: _photosTable,
@@ -841,7 +854,7 @@ class GalleryService {
   }
 
   /// Update photo like count
-  static Future<void> _updatePhotoLikeCount(String photoId) async {
+  Future<void> _updatePhotoLikeCount(String photoId) async {
     try {
       final likes = await SupabaseDatabaseService.select(
         table: _likesTable,
@@ -859,7 +872,7 @@ class GalleryService {
   }
 
   /// Update photo comment count
-  static Future<void> _updatePhotoCommentCount(String photoId) async {
+  Future<void> _updatePhotoCommentCount(String photoId) async {
     try {
       final comments = await SupabaseDatabaseService.select(
         table: _commentsTable,
@@ -877,7 +890,7 @@ class GalleryService {
   }
 
   /// Increment gallery view count
-  static Future<void> _incrementViewCount(String galleryId) async {
+  Future<void> _incrementViewCount(String galleryId) async {
     try {
       final galleries = await SupabaseDatabaseService.select(
         table: _galleriesTable,
@@ -898,7 +911,7 @@ class GalleryService {
   }
 
   /// Delete photo comments
-  static Future<void> _deletePhotoComments(String photoId) async {
+  Future<void> _deletePhotoComments(String photoId) async {
     try {
       final comments = await SupabaseDatabaseService.select(
         table: _commentsTable,
@@ -917,7 +930,7 @@ class GalleryService {
   }
 
   /// Delete photo likes
-  static Future<void> _deletePhotoLikes(String photoId) async {
+  Future<void> _deletePhotoLikes(String photoId) async {
     try {
       final likes = await SupabaseDatabaseService.select(
         table: _likesTable,

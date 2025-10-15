@@ -1,18 +1,22 @@
 import 'package:flutter/foundation.dart';
 import '../utils/logger.dart';
-import '../../services/weather_service.dart';
+import '../interfaces/i_weather_service.dart';
+import '../utils/service_locator.dart';
 
 /// Provider for Weather data
 class WeatherProvider with ChangeNotifier {
   static const String _tag = 'WeatherProvider';
 
-  // Service instance
-  final WeatherService _weatherService = WeatherService.instance;
+  // Service instance with ServiceLocator
+  final IWeatherService _weatherService = ServiceLocator.instance.get<IWeatherService>();
 
   Map<String, dynamic>? _currentWeather;
   List<Map<String, dynamic>> _forecast = [];
   bool _isLoading = false;
   String? _error;
+
+  // Constructor with ServiceLocator
+  WeatherProvider();
 
   // Getters
   Map<String, dynamic>? get currentWeather => _currentWeather;

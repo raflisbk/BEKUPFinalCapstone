@@ -3,10 +3,11 @@ import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 import 'cache_service.dart';
+import 'interfaces/i_analytics_service.dart';
 
 /// Analytics Service
 /// Handles user analytics, tracking, and insights for app usage
-class AnalyticsService {
+class AnalyticsService implements IAnalyticsService {
   static const String _tag = 'AnalyticsService';
   static const String _eventsTable = 'analytics_events';
   static const String _sessionTable = 'user_sessions';
@@ -36,16 +37,18 @@ class AnalyticsService {
   static const String eventButtonClick = 'button_click';
   static const String eventError = 'error_occurred';
 
-  static String? _sessionId;
-  static DateTime? _sessionStartTime;
-  static int _eventCount = 0;
+  // Instance fields
+  String? _sessionId;
+  DateTime? _sessionStartTime;
+  int _eventCount = 0;
 
   // ===============================
   // SESSION MANAGEMENT
   // ===============================
 
   /// Start analytics session
-  static Future<void> startSession() async {
+  @override
+  Future<void> startSession() async {
     try {
       final userId = SupabaseConfig.userId;
       
@@ -84,7 +87,8 @@ class AnalyticsService {
   }
 
   /// End analytics session
-  static Future<void> endSession() async {
+  @override
+  Future<void> endSession() async {
     try {
       if (_sessionId == null || _sessionStartTime == null) {
         return;
@@ -136,7 +140,8 @@ class AnalyticsService {
   // ===============================
 
   /// Track an event
-  static Future<void> trackEvent(
+  @override
+  Future<void> trackEvent(
     String eventName,
     Map<String, dynamic>? properties, {
     String? category,
@@ -172,7 +177,8 @@ class AnalyticsService {
   }
 
   /// Track screen view
-  static Future<void> trackScreenView(
+  @override
+  Future<void> trackScreenView(
     String screenName, {
     Map<String, dynamic>? properties,
   }) async {
@@ -187,7 +193,8 @@ class AnalyticsService {
   }
 
   /// Track user action
-  static Future<void> trackUserAction(
+  @override
+  Future<void> trackUserAction(
     String action,
     String target, {
     Map<String, dynamic>? properties,
@@ -204,7 +211,8 @@ class AnalyticsService {
   }
 
   /// Track content interaction
-  static Future<void> trackContentInteraction(
+  @override
+  Future<void> trackContentInteraction(
     String contentType,
     String contentId,
     String interaction, {
@@ -223,7 +231,8 @@ class AnalyticsService {
   }
 
   /// Track search
-  static Future<void> trackSearch(
+  @override
+  Future<void> trackSearch(
     String query,
     String category,
     int resultCount, {
@@ -243,7 +252,8 @@ class AnalyticsService {
   }
 
   /// Track booking flow
-  static Future<void> trackBookingStep(
+  @override
+  Future<void> trackBookingStep(
     String step,
     String bookingId, {
     Map<String, dynamic>? properties,
@@ -260,7 +270,8 @@ class AnalyticsService {
   }
 
   /// Track error
-  static Future<void> trackError(
+  @override
+  Future<void> trackError(
     String errorType,
     String errorMessage, {
     String? stackTrace,
@@ -279,7 +290,8 @@ class AnalyticsService {
   }
 
   /// Track performance metric
-  static Future<void> trackPerformance(
+  @override
+  Future<void> trackPerformance(
     String metric,
     double value, {
     String? unit,
@@ -302,7 +314,8 @@ class AnalyticsService {
   // ===============================
 
   /// Get event analytics
-  static Future<Map<String, dynamic>> getEventAnalytics({
+  @override
+  Future<Map<String, dynamic>> getEventAnalytics({
     String? eventName,
     String? category,
     String? userId,
@@ -357,7 +370,8 @@ class AnalyticsService {
   }
 
   /// Get user analytics
-  static Future<Map<String, dynamic>> getUserAnalytics({
+  @override
+  Future<Map<String, dynamic>> getUserAnalytics({
     String? userId,
     DateTime? startDate,
     DateTime? endDate,
@@ -426,7 +440,8 @@ class AnalyticsService {
   }
 
   /// Get app performance metrics
-  static Future<Map<String, dynamic>> getPerformanceMetrics({
+  @override
+  Future<Map<String, dynamic>> getPerformanceMetrics({
     Duration period = const Duration(days: 7),
   }) async {
     try {
@@ -447,8 +462,8 @@ class AnalyticsService {
       final metrics = {
         'average_load_time': _calculateAverageMetric(events, 'load_time'),
         'average_response_time': _calculateAverageMetric(events, 'response_time'),
-        'error_rate': _calculateErrorRate(startDate),
-        'crash_rate': _calculateCrashRate(startDate),
+        'error_rate': await _calculateErrorRate(startDate),
+        'crash_rate': await _calculateCrashRate(startDate),
         'performance_trends': _getPerformanceTrends(events),
       };
 
@@ -465,7 +480,8 @@ class AnalyticsService {
   // ===============================
 
   /// Update user metrics
-  static Future<void> updateUserMetrics({
+  @override
+  Future<void> updateUserMetrics({
     String? userId,
     Map<String, dynamic>? metrics,
   }) async {
@@ -512,7 +528,8 @@ class AnalyticsService {
   }
 
   /// Get user engagement score
-  static Future<double> getUserEngagementScore([String? userId]) async {
+  @override
+  Future<double> getUserEngagementScore([String? userId]) async {
     try {
       final targetUserId = userId ?? SupabaseConfig.userId;
       if (targetUserId == null) return 0.0;
@@ -537,7 +554,8 @@ class AnalyticsService {
   // ===============================
 
   /// Track multiple events in batch
-  static Future<void> trackEventsBatch(List<Map<String, dynamic>> events) async {
+  @override
+  Future<void> trackEventsBatch(List<Map<String, dynamic>> events) async {
     try {
       AppLogger.debug(_tag, 'Tracking ${events.length} events in batch');
 
@@ -575,7 +593,8 @@ class AnalyticsService {
   // ===============================
 
   /// Get cached analytics
-  static Future<Map<String, dynamic>?> getCachedAnalytics(String key) async {
+  @override
+  Future<Map<String, dynamic>?> getCachedAnalytics(String key) async {
     try {
       return await CacheService.get<Map<String, dynamic>>(key);
     } catch (e) {
@@ -584,7 +603,8 @@ class AnalyticsService {
   }
 
   /// Cache analytics data
-  static Future<void> cacheAnalytics(
+  @override
+  Future<void> cacheAnalytics(
     String key,
     Map<String, dynamic> data, {
     Duration duration = const Duration(hours: 1),
@@ -601,24 +621,24 @@ class AnalyticsService {
   // ===============================
 
   /// Generate session ID
-  static String _generateSessionId() {
+  String _generateSessionId() {
     return 'session_${DateTime.now().millisecondsSinceEpoch}_${(DateTime.now().microsecond % 1000)}';
   }
 
   /// Get platform
-  static String _getPlatform() {
+  String _getPlatform() {
     // This would detect the actual platform
     return 'mobile'; // flutter, android, ios, web
   }
 
   /// Get app version
-  static String _getAppVersion() {
+  String _getAppVersion() {
     // This would get the actual app version
     return '1.0.0';
   }
 
   /// Get device info
-  static Future<Map<String, dynamic>> _getDeviceInfo() async {
+  Future<Map<String, dynamic>> _getDeviceInfo() async {
     // This would get actual device information
     return {
       'platform': _getPlatform(),
@@ -629,7 +649,7 @@ class AnalyticsService {
   }
 
   /// Categorize event
-  static String _categorizeEvent(String eventName) {
+  String _categorizeEvent(String eventName) {
     if (eventName.contains('user') || eventName.contains('login') || eventName.contains('signup')) {
       return categoryUser;
     } else if (eventName.contains('view') || eventName.contains('like') || eventName.contains('share')) {
@@ -651,7 +671,7 @@ class AnalyticsService {
   }
 
   /// Group events by period
-  static Map<String, int> _groupEventsByPeriod(List<Map<String, dynamic>> events, String groupBy) {
+  Map<String, int> _groupEventsByPeriod(List<Map<String, dynamic>> events, String groupBy) {
     final grouped = <String, int>{};
 
     for (final event in events) {
@@ -683,7 +703,7 @@ class AnalyticsService {
   }
 
   /// Get unique users from events
-  static int _getUniqueUsers(List<Map<String, dynamic>> events) {
+  int _getUniqueUsers(List<Map<String, dynamic>> events) {
     final userIds = events
         .map((event) => event['user_id'] as String?)
         .where((userId) => userId != null)
@@ -692,7 +712,7 @@ class AnalyticsService {
   }
 
   /// Get top events
-  static List<Map<String, dynamic>> _getTopEvents(List<Map<String, dynamic>> events) {
+  List<Map<String, dynamic>> _getTopEvents(List<Map<String, dynamic>> events) {
     final eventCounts = <String, int>{};
     
     for (final event in events) {
@@ -710,7 +730,7 @@ class AnalyticsService {
   }
 
   /// Get event categories
-  static Map<String, int> _getEventCategories(List<Map<String, dynamic>> events) {
+  Map<String, int> _getEventCategories(List<Map<String, dynamic>> events) {
     final categories = <String, int>{};
     
     for (final event in events) {
@@ -722,7 +742,7 @@ class AnalyticsService {
   }
 
   /// Calculate average session duration
-  static double _calculateAverageSessionDuration(List<Map<String, dynamic>> sessions) {
+  double _calculateAverageSessionDuration(List<Map<String, dynamic>> sessions) {
     if (sessions.isEmpty) return 0.0;
 
     var totalDuration = 0;
@@ -740,7 +760,7 @@ class AnalyticsService {
   }
 
   /// Get most active day
-  static String _getMostActiveDay(List<Map<String, dynamic>> events) {
+  String _getMostActiveDay(List<Map<String, dynamic>> events) {
     final dayGroups = _groupEventsByPeriod(events, 'day');
     if (dayGroups.isEmpty) return 'N/A';
 
@@ -749,12 +769,12 @@ class AnalyticsService {
   }
 
   /// Get top user actions
-  static List<Map<String, dynamic>> _getTopUserActions(List<Map<String, dynamic>> events) {
+  List<Map<String, dynamic>> _getTopUserActions(List<Map<String, dynamic>> events) {
     return _getTopEvents(events);
   }
 
   /// Get user activity timeline
-  static List<Map<String, dynamic>> _getUserActivityTimeline(List<Map<String, dynamic>> events) {
+  List<Map<String, dynamic>> _getUserActivityTimeline(List<Map<String, dynamic>> events) {
     final timeline = <String, dynamic>{};
     
     for (final event in events) {
@@ -774,7 +794,7 @@ class AnalyticsService {
   }
 
   /// Calculate engagement score
-  static double _calculateEngagementScore(
+  double _calculateEngagementScore(
     List<Map<String, dynamic>> events,
     List<Map<String, dynamic>> sessions,
   ) {
@@ -788,7 +808,7 @@ class AnalyticsService {
   }
 
   /// Calculate average metric
-  static double _calculateAverageMetric(List<Map<String, dynamic>> events, String metricName) {
+  double _calculateAverageMetric(List<Map<String, dynamic>> events, String metricName) {
     final values = events
         .map((event) => (event['properties'] as Map<String, dynamic>?)?[metricName] as double?)
         .where((value) => value != null)
@@ -800,7 +820,7 @@ class AnalyticsService {
   }
 
   /// Calculate error rate
-  static Future<double> _calculateErrorRate(DateTime startDate) async {
+  Future<double> _calculateErrorRate(DateTime startDate) async {
     try {
       final allEvents = await SupabaseDatabaseService.select(
         table: _eventsTable,
@@ -816,7 +836,7 @@ class AnalyticsService {
   }
 
   /// Calculate crash rate
-  static Future<double> _calculateCrashRate(DateTime startDate) async {
+  Future<double> _calculateCrashRate(DateTime startDate) async {
     try {
       final errorEvents = await SupabaseDatabaseService.select(
         table: _eventsTable,
@@ -841,7 +861,7 @@ class AnalyticsService {
   }
 
   /// Get performance trends
-  static Map<String, List<double>> _getPerformanceTrends(List<Map<String, dynamic>> events) {
+  Map<String, List<double>> _getPerformanceTrends(List<Map<String, dynamic>> events) {
     final trends = <String, List<double>>{};
     
     for (final event in events) {

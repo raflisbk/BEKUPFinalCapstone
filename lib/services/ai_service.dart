@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../core/interfaces/i_ai_service.dart';
 import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
 
 /// AI Service
 /// Handles Gemini AI integration for content generation, analysis, and AI-powered features
-class AIService {
+class AIService implements IAIService {
   static const String _tag = 'AIService';
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
   static const String _aiRequestsTable = 'ai_requests';
@@ -18,12 +19,6 @@ class AIService {
   // AI Models
   static const String _geminiProModel = 'gemini-1.5-pro-latest';
   static const String _geminiFlashModel = 'gemini-1.5-flash-latest';
-
-  // Singleton pattern
-  static AIService? _instance;
-  static AIService get instance => _instance ??= AIService._internal();
-  
-  AIService._internal();
 
   // Rate limiting (instance variables)
   int _requestCount = 0;
@@ -85,6 +80,7 @@ class AIService {
   // ===============================
 
   /// Generate text content using Gemini AI
+  @override
   Future<String> generateText({
     required String prompt,
     String? model,
@@ -201,6 +197,7 @@ class AIService {
   }
 
   /// Generate travel itinerary
+  @override
   Future<String> generateTravelItinerary({
     required String destination,
     required int days,
@@ -255,6 +252,7 @@ Format the response in a clear, day-by-day structure with practical details.
   }
 
   /// Generate destination description
+  @override
   Future<String> generateDestinationDescription({
     required String destinationName,
     required String location,
@@ -300,6 +298,7 @@ Keep it engaging, informative, and around 300-400 words. Focus on what would int
   }
 
   /// Generate travel tips
+  @override
   Future<String> generateTravelTips({
     required String destination,
     required String travelType, // 'solo', 'family', 'business', 'adventure'
@@ -349,6 +348,7 @@ Make it practical, specific to the destination, and actionable.
   // ===============================
 
   /// Analyze content sentiment
+  @override
   Future<Map<String, dynamic>> analyzeSentiment(String text) async {
     try {
       AppLogger.debug(_tag, 'Analyzing sentiment');
@@ -401,6 +401,7 @@ Please respond in JSON format with:
   }
 
   /// Extract key information from text
+  @override
   Future<Map<String, dynamic>> extractInformation(String text) async {
     try {
       AppLogger.debug(_tag, 'Extracting information from text');
@@ -462,6 +463,7 @@ Please respond in JSON format with:
   // ===============================
 
   /// Chat with AI assistant
+  @override
   Future<String> chatWithAssistant({
     required String message,
     List<Map<String, String>>? conversationHistory,
@@ -582,6 +584,7 @@ ${context != null ? '\nContext: $context' : ''}
   }
 
   /// Get AI usage statistics
+  @override
   Future<Map<String, dynamic>> getUsageStatistics({
     String? userId,
     DateTime? startDate,

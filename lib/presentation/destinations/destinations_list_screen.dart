@@ -4,8 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/models/destination_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/destinations_list_ui_provider.dart';
-import '../../core/config/service_locator.dart';
-import '../../services/interfaces/i_destination_service.dart';
+import '../../services/destination_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/haptic_helper.dart';
 import '../../core/widgets/skeleton_loader.dart';
@@ -20,45 +19,8 @@ class DestinationsListScreen extends StatefulWidget {
 }
 
 class _DestinationsListScreenState extends State<DestinationsListScreen> {
-  late final IDestinationService _destinationService;
+  final DestinationService _destinationService = DestinationService();
   final TextEditingController _searchController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _destinationService = ServiceLocator.destinationService;
-  }
-
-  Future<List<Map<String, dynamic>>> _getDestinations(DestinationsListUIProvider listUIProvider) async {
-    try {
-      return await _destinationService.searchDestinations(
-        query: listUIProvider.filter.searchQuery?.isNotEmpty == true ? listUIProvider.filter.searchQuery : null,
-        category: listUIProvider.filter.category,
-        location: null, // Add location filter if needed
-        minRating: listUIProvider.filter.minRating,
-        maxPrice: listUIProvider.filter.maxPriceRange,
-        sortBy: _getSortByString(listUIProvider.filter.sortBy),
-        ascending: true,
-        limit: 50, // Default limit
-        offset: 0,
-      );
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  String _getSortByString(DestinationSort sortBy) {
-    switch (sortBy) {
-      case DestinationSort.rating:
-        return 'rating';
-      case DestinationSort.newest:
-        return 'createdAt';
-      case DestinationSort.name:
-        return 'name';
-      case DestinationSort.priceRange:
-        return 'priceRange';
-    }
-  }
 
   @override
   void dispose() {
@@ -151,8 +113,10 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
 
               // Destinations list
               Expanded(
-                child: FutureBuilder<List<Map<String, dynamic>>>(
-                  future: _getDestinations(listUIProvider),
+                child: StreamBuilder<List<Destination>>(
+                  stream: _destinationService.getDestinationsStream(
+                    filter: listUIProvider.filter,
+                  ),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return _buildLoadingState();
@@ -162,8 +126,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                       return _buildErrorState(snapshot.error.toString());
                     }
 
-                    final destinationsData = snapshot.data ?? [];
-                    final destinations = destinationsData.map((data) => Destination.fromMap(data)).toList();
+                    final destinations = snapshot.data ?? [];
 
                     if (destinations.isEmpty) {
                       return _buildEmptyState(listUIProvider);
@@ -172,7 +135,7 @@ class _DestinationsListScreenState extends State<DestinationsListScreen> {
                     return RefreshIndicator(
                       onRefresh: () async {
                         await HapticHelper.lightImpact();
-                        setState(() {}); // Trigger rebuild
+                        // Force rebuild by returning a completed future
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.all(16),

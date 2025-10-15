@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../core/interfaces/i_community_service.dart';
 import '../core/utils/logger.dart';
 import 'supabase_config.dart';
 import 'supabase_database_service.dart';
@@ -7,7 +8,7 @@ import 'notification_service.dart';
 
 /// Community Service
 /// Handles community features like groups, forums, events, and community management
-class CommunityService {
+class CommunityService implements ICommunityService {
   static const String _tag = 'CommunityService';
   static const String _communitiesTable = 'communities';
   static const String _communityMembersTable = 'community_members';
@@ -50,16 +51,15 @@ class CommunityService {
   // ===============================
 
   /// Create new community
-  static Future<Map<String, dynamic>> createCommunity({
+  @override
+  Future<Map<String, dynamic>> createCommunity({
     required String name,
     required String description,
     required String category,
-    String? type,
-    String? imageUrl,
+    String? visibility,
     String? coverImageUrl,
     List<String>? tags,
     Map<String, dynamic>? settings,
-    List<String>? rules,
   }) async {
     try {
       final userId = SupabaseConfig.userId;
@@ -70,7 +70,8 @@ class CommunityService {
       AppLogger.debug(_tag, 'Creating community: $name');
 
       // Moderate community content
-      final moderationResult = await ContentModerationService.moderateTextContent(
+      final moderationService = ContentModerationService.instance;
+      final moderationResult = await moderationService.moderateTextContent(
         content: '$name\n$description',
         contentType: 'community',
         userId: userId,
@@ -85,8 +86,8 @@ class CommunityService {
         'name': name,
         'description': description,
         'category': category,
-        'type': type ?? typePublic,
-        'image_url': imageUrl,
+        'type': visibility ?? 'public',
+        'image_url': null,
         'cover_image_url': coverImageUrl,
         'tags': tags ?? [],
         'settings': settings ?? {},
@@ -106,13 +107,6 @@ class CommunityService {
       // Add creator as owner
       await _addMember(community['id'], userId, roleOwner);
 
-      // Add default rules if provided
-      if (rules != null && rules.isNotEmpty) {
-        for (int i = 0; i < rules.length; i++) {
-          await _addCommunityRule(community['id'], rules[i], i + 1);
-        }
-      }
-
       AppLogger.success(_tag, 'Community created: ${community['id']}');
       return community;
     } catch (e, stackTrace) {
@@ -122,12 +116,11 @@ class CommunityService {
   }
 
   /// Get communities
-  static Future<List<Map<String, dynamic>>> getCommunities({
+  @override
+  Future<List<Map<String, dynamic>>> getCommunities({
     String? category,
-    String? type,
-    String? searchQuery,
-    List<String>? tags,
-    String? sortBy, // 'newest', 'popular', 'active'
+    String? visibility,
+    String? search,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -136,36 +129,26 @@ class CommunityService {
 
       final filters = <String, dynamic>{'is_active': true};
       if (category != null) filters['category'] = category;
-      if (type != null) filters['type'] = type;
+      if (visibility != null) filters['type'] = visibility;
 
       var communities = await SupabaseDatabaseService.select(
         table: _communitiesTable,
         filters: filters,
-        orderBy: _getCommunitySortField(sortBy),
+        orderBy: 'created_at',
         ascending: false,
-        limit: limit * 2, // Get more for filtering
+        limit: limit,
+        offset: offset,
       );
 
       // Apply search filter
-      if (searchQuery != null && searchQuery.isNotEmpty) {
+      if (search != null && search.isNotEmpty) {
         communities = communities.where((community) {
           final name = (community['name'] as String).toLowerCase();
           final description = (community['description'] as String).toLowerCase();
-          final query = searchQuery.toLowerCase();
+          final query = search.toLowerCase();
           return name.contains(query) || description.contains(query);
         }).toList();
       }
-
-      // Apply tags filter
-      if (tags != null && tags.isNotEmpty) {
-        communities = communities.where((community) {
-          final communityTags = List<String>.from(community['tags'] ?? []);
-          return tags.any((tag) => communityTags.contains(tag));
-        }).toList();
-      }
-
-      // Apply offset and limit
-      communities = communities.skip(offset).take(limit).toList();
 
       // Enrich with additional data
       for (final community in communities) {
@@ -181,7 +164,8 @@ class CommunityService {
   }
 
   /// Get community by ID
-  static Future<Map<String, dynamic>?> getCommunity(String communityId) async {
+  @override
+  Future<Map<String, dynamic>?> getCommunity(String communityId) async {
     try {
       AppLogger.debug(_tag, 'Getting community: $communityId');
 
@@ -222,12 +206,13 @@ class CommunityService {
   }
 
   /// Update community
-  static Future<Map<String, dynamic>> updateCommunity({
+  @override
+  Future<Map<String, dynamic>> updateCommunity({
     required String communityId,
     String? name,
     String? description,
     String? category,
-    String? imageUrl,
+    String? visibility,
     String? coverImageUrl,
     List<String>? tags,
     Map<String, dynamic>? settings,
@@ -252,7 +237,7 @@ class CommunityService {
       if (name != null) updateData['name'] = name;
       if (description != null) updateData['description'] = description;
       if (category != null) updateData['category'] = category;
-      if (imageUrl != null) updateData['image_url'] = imageUrl;
+      if (visibility != null) updateData['type'] = visibility;
       if (coverImageUrl != null) updateData['cover_image_url'] = coverImageUrl;
       if (tags != null) updateData['tags'] = tags;
       if (settings != null) updateData['settings'] = settings;
@@ -266,7 +251,8 @@ class CommunityService {
         final community = await getCommunity(communityId);
         if (community != null) {
           final contentToModerate = '${name ?? community['name']}\n${description ?? community['description']}';
-          final moderationResult = await ContentModerationService.moderateTextContent(
+          final moderationService = ContentModerationService.instance;
+          final moderationResult = await moderationService.moderateTextContent(
             content: contentToModerate,
             contentType: 'community',
             contentId: communityId,
@@ -300,7 +286,8 @@ class CommunityService {
   // ===============================
 
   /// Join community
-  static Future<Map<String, dynamic>> joinCommunity(String communityId) async {
+  @override
+  Future<Map<String, dynamic>> joinCommunity(String communityId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -325,12 +312,14 @@ class CommunityService {
 
       if (communityType == typePrivate) {
         // Create join request for private communities
-        return await _createJoinRequest(communityId, userId);
+        final result = await _createJoinRequest(communityId, userId);
+        return result ?? {};
       } else if (communityType == typeSecret) {
         throw Exception('Cannot join secret communities without invitation');
       } else {
         // Direct join for public communities
-        return await _addMember(communityId, userId, roleMember);
+        final result = await _addMember(communityId, userId, roleMember);
+        return result ?? {};
       }
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to join community', e, stackTrace);
@@ -339,7 +328,8 @@ class CommunityService {
   }
 
   /// Leave community
-  static Future<void> leaveCommunity(String communityId) async {
+  @override
+  Future<void> leaveCommunity(String communityId) async {
     try {
       final userId = SupabaseConfig.userId;
       if (userId == null) {
@@ -380,10 +370,12 @@ class CommunityService {
   }
 
   /// Get community members
-  static Future<List<Map<String, dynamic>>> getCommunityMembers({
+  @override
+  Future<List<Map<String, dynamic>>> getCommunityMembers({
     required String communityId,
     String? role,
     int limit = 50,
+    int offset = 0,
   }) async {
     try {
       AppLogger.debug(_tag, 'Getting members for community: $communityId');
@@ -400,6 +392,7 @@ class CommunityService {
         filters: filters,
         orderBy: 'joined_at',
         limit: limit,
+        offset: offset,
       );
 
       // Enrich with user data
@@ -416,10 +409,11 @@ class CommunityService {
   }
 
   /// Get user communities
-  static Future<List<Map<String, dynamic>>> getUserCommunities({
+  @override
+  Future<List<Map<String, dynamic>>> getUserCommunities({
     String? userId,
-    String? role,
     int limit = 20,
+    int offset = 0,
   }) async {
     try {
       final targetUserId = userId ?? SupabaseConfig.userId;
@@ -434,14 +428,13 @@ class CommunityService {
         'is_active': true,
       };
 
-      if (role != null) filters['role'] = role;
-
       final memberships = await SupabaseDatabaseService.select(
         table: _communityMembersTable,
         filters: filters,
         orderBy: 'joined_at',
         ascending: false,
         limit: limit,
+        offset: offset,
       );
 
       final communities = <Map<String, dynamic>>[];
@@ -464,10 +457,11 @@ class CommunityService {
   }
 
   /// Update member role
-  static Future<Map<String, dynamic>> updateMemberRole({
+  @override
+  Future<Map<String, dynamic>> updateMemberRole({
     required String communityId,
     required String userId,
-    required String newRole,
+    required String role,
   }) async {
     try {
       final currentUserId = SupabaseConfig.userId;
@@ -499,7 +493,7 @@ class CommunityService {
         table: _communityMembersTable,
         id: membership['id'],
         data: {
-          'role': newRole,
+          'role': role,
           'role_updated_by': currentUserId,
           'role_updated_at': DateTime.now().toIso8601String(),
         },
@@ -518,14 +512,14 @@ class CommunityService {
   // ===============================
 
   /// Create community post
-  static Future<Map<String, dynamic>> createCommunityPost({
+  @override
+  Future<Map<String, dynamic>> createCommunityPost({
     required String communityId,
-    required String title,
+    String? title,
     required String content,
-    String? postType,
     List<String>? imageUrls,
     List<String>? tags,
-    bool isPinned = false,
+    Map<String, dynamic>? metadata,
   }) async {
     try {
       final userId = SupabaseConfig.userId;
@@ -542,11 +536,12 @@ class CommunityService {
       }
 
       // Moderate content
-      final moderationResult = await ContentModerationService.moderateTextContent(
-        content: '$title\n$content',
+      final moderationService = ContentModerationService.instance;
+      final moderationResult = await moderationService.moderateTextContent(
+        content: '${title ?? ''}\n$content',
         contentType: 'community_post',
         userId: userId,
-        metadata: {'community_id': communityId},
+        metadata: {'community_id': communityId, ...?metadata},
       );
 
       String status = 'active';
@@ -560,13 +555,13 @@ class CommunityService {
       final postData = {
         'community_id': communityId,
         'user_id': userId,
-        'title': title,
+        if (title != null) 'title': title,
         'content': content,
-        'post_type': postType ?? 'discussion',
+        'post_type': metadata?['post_type'] ?? 'discussion',
         'image_urls': imageUrls ?? [],
         'tags': tags ?? [],
         'status': status,
-        'is_pinned': isPinned && await _hasModeratorPermission(communityId, userId),
+        'is_pinned': metadata?['is_pinned'] == true && await _hasModeratorPermission(communityId, userId),
         'like_count': 0,
         'comment_count': 0,
         'view_count': 0,
@@ -589,10 +584,10 @@ class CommunityService {
   }
 
   /// Get community posts
-  static Future<List<Map<String, dynamic>>> getCommunityPosts({
+  @override
+  Future<List<Map<String, dynamic>>> getCommunityPosts({
     required String communityId,
-    String? postType,
-    String? sortBy, // 'newest', 'popular', 'pinned'
+    String? userId,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -604,28 +599,27 @@ class CommunityService {
         'status': 'active',
       };
 
-      if (postType != null) filters['post_type'] = postType;
+      if (userId != null) filters['user_id'] = userId;
 
       var posts = await SupabaseDatabaseService.select(
         table: _communityPostsTable,
         filters: filters,
-        orderBy: _getPostSortField(sortBy),
+        orderBy: 'created_at',
         ascending: false,
-        limit: limit + offset,
+        limit: limit,
+        offset: offset,
       );
 
       // Handle pinned posts
-      if (sortBy == 'pinned' || sortBy == null) {
-        // Separate pinned and regular posts
-        final pinnedPosts = posts.where((p) => p['is_pinned'] == true).toList();
-        final regularPosts = posts.where((p) => p['is_pinned'] != true).toList();
+      // Separate pinned and regular posts
+      final pinnedPosts = posts.where((p) => p['is_pinned'] == true).toList();
+      final regularPosts = posts.where((p) => p['is_pinned'] != true).toList();
         
-        // Sort regular posts by creation time
-        regularPosts.sort((a, b) => DateTime.parse(b['created_at']).compareTo(DateTime.parse(a['created_at'])));
+      // Sort regular posts by creation time
+      regularPosts.sort((a, b) => DateTime.parse(b['created_at']).compareTo(DateTime.parse(a['created_at'])));
         
-        // Combine with pinned posts first
-        posts = [...pinnedPosts, ...regularPosts];
-      }
+      // Combine with pinned posts first
+      posts = [...pinnedPosts, ...regularPosts];
 
       // Apply offset and limit
       posts = posts.skip(offset).take(limit).toList();
@@ -649,17 +643,18 @@ class CommunityService {
   // ===============================
 
   /// Create community event
-  static Future<Map<String, dynamic>> createCommunityEvent({
+  @override
+  Future<Map<String, dynamic>> createCommunityEvent({
     required String communityId,
     required String title,
     required String description,
     required DateTime startDate,
     DateTime? endDate,
     String? location,
-    String? eventType,
+    String? coverImageUrl,
+    String? locationLat,
+    String? locationLng,
     int? maxAttendees,
-    bool requiresApproval = false,
-    Map<String, dynamic>? metadata,
   }) async {
     try {
       final userId = SupabaseConfig.userId;
@@ -681,13 +676,16 @@ class CommunityService {
         'created_by': userId,
         'title': title,
         'description': description,
-        'event_type': eventType ?? eventTypeMeetup,
+        'event_type': 'meetup',
         'start_date': startDate.toIso8601String(),
         'end_date': endDate?.toIso8601String(),
         'location': location,
+        if (coverImageUrl != null) 'cover_image_url': coverImageUrl,
+        if (locationLat != null) 'location_lat': locationLat,
+        if (locationLng != null) 'location_lng': locationLng,
         'max_attendees': maxAttendees,
-        'requires_approval': requiresApproval,
-        'metadata': metadata ?? {},
+        'requires_approval': false,
+        'metadata': {},
         'attendee_count': 0,
         'is_active': true,
       };
@@ -721,11 +719,12 @@ class CommunityService {
   }
 
   /// Get community events
-  static Future<List<Map<String, dynamic>>> getCommunityEvents({
+  @override
+  Future<List<Map<String, dynamic>>> getCommunityEvents({
     required String communityId,
-    String? eventType,
     bool upcomingOnly = true,
     int limit = 20,
+    int offset = 0,
   }) async {
     try {
       AppLogger.debug(_tag, 'Getting events for community: $communityId');
@@ -735,13 +734,12 @@ class CommunityService {
         'is_active': true,
       };
 
-      if (eventType != null) filters['event_type'] = eventType;
-
       var events = await SupabaseDatabaseService.select(
         table: _communityEventsTable,
         filters: filters,
         orderBy: 'start_date',
         limit: limit,
+        offset: offset,
       );
 
       // Filter upcoming events
@@ -772,10 +770,11 @@ class CommunityService {
   // ===============================
 
   /// Add community rule
-  static Future<Map<String, dynamic>> addCommunityRule({
+  @override
+  Future<Map<String, dynamic>> addCommunityRule({
     required String communityId,
-    required String rule,
-    String? description,
+    required String title,
+    required String description,
     int? order,
   }) async {
     try {
@@ -792,7 +791,7 @@ class CommunityService {
         throw Exception('Only admins can manage community rules');
       }
 
-      return await _addCommunityRule(communityId, rule, order, description);
+      return await _addCommunityRule(communityId, title, order, description);
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to add community rule', e, stackTrace);
       rethrow;
@@ -800,7 +799,8 @@ class CommunityService {
   }
 
   /// Get community rules
-  static Future<List<Map<String, dynamic>>> getCommunityRules(String communityId) async {
+  @override
+  Future<List<Map<String, dynamic>>> getCommunityRules(String communityId) async {
     try {
       AppLogger.debug(_tag, 'Getting rules for community: $communityId');
 
@@ -822,34 +822,8 @@ class CommunityService {
   // PRIVATE HELPER METHODS
   // ===============================
 
-  /// Get community sort field
-  static String _getCommunitySortField(String? sortBy) {
-    switch (sortBy) {
-      case 'popular':
-        return 'member_count';
-      case 'active':
-        return 'post_count';
-      case 'newest':
-      default:
-        return 'created_at';
-    }
-  }
-
-  /// Get post sort field
-  static String _getPostSortField(String? sortBy) {
-    switch (sortBy) {
-      case 'popular':
-        return 'like_count';
-      case 'pinned':
-        return 'is_pinned';
-      case 'newest':
-      default:
-        return 'created_at';
-    }
-  }
-
   /// Enrich community data
-  static Future<void> _enrichCommunityData(Map<String, dynamic> community) async {
+  Future<void> _enrichCommunityData(Map<String, dynamic> community) async {
     try {
       final currentUserId = SupabaseConfig.userId;
       
@@ -868,7 +842,7 @@ class CommunityService {
   }
 
   /// Get user data
-  static Future<Map<String, dynamic>> _getUserData(String userId) async {
+  Future<Map<String, dynamic>?> _getUserData(String userId) async {
     try {
       // This would normally fetch from user service
       return {
@@ -888,7 +862,7 @@ class CommunityService {
   }
 
   /// Get community basic data
-  static Future<Map<String, dynamic>> _getCommunityBasicData(String communityId) async {
+  Future<Map<String, dynamic>?> _getCommunityBasicData(String communityId) async {
     try {
       final communities = await SupabaseDatabaseService.select(
         table: _communitiesTable,
@@ -912,7 +886,7 @@ class CommunityService {
   }
 
   /// Get membership
-  static Future<Map<String, dynamic>?> _getMembership(String communityId, String userId) async {
+  Future<Map<String, dynamic>?> _getMembership(String communityId, String userId) async {
     try {
       final memberships = await SupabaseDatabaseService.select(
         table: _communityMembersTable,
@@ -930,7 +904,7 @@ class CommunityService {
   }
 
   /// Add member to community
-  static Future<Map<String, dynamic>> _addMember(String communityId, String userId, String role) async {
+  Future<Map<String, dynamic>?> _addMember(String communityId, String userId, String role) async {
     final memberData = {
       'community_id': communityId,
       'user_id': userId,
@@ -951,7 +925,7 @@ class CommunityService {
   }
 
   /// Create join request
-  static Future<Map<String, dynamic>> _createJoinRequest(String communityId, String userId) async {
+  Future<Map<String, dynamic>?> _createJoinRequest(String communityId, String userId) async {
     final requestData = {
       'community_id': communityId,
       'user_id': userId,
@@ -966,7 +940,7 @@ class CommunityService {
   }
 
   /// Check if user has owner permission
-  static Future<bool> _hasOwnerPermission(String communityId, String userId) async {
+  Future<bool> _hasOwnerPermission(String communityId, String userId) async {
     try {
       final membership = await _getMembership(communityId, userId);
       return membership?['role'] == roleOwner;
@@ -976,7 +950,7 @@ class CommunityService {
   }
 
   /// Check if user has admin permission
-  static Future<bool> _hasAdminPermission(String communityId, String userId) async {
+  Future<bool> _hasAdminPermission(String communityId, String userId) async {
     try {
       final membership = await _getMembership(communityId, userId);
       final role = membership?['role'] as String?;
@@ -987,7 +961,7 @@ class CommunityService {
   }
 
   /// Check if user has moderator permission
-  static Future<bool> _hasModeratorPermission(String communityId, String userId) async {
+  Future<bool> _hasModeratorPermission(String communityId, String userId) async {
     try {
       final membership = await _getMembership(communityId, userId);
       final role = membership?['role'] as String?;
@@ -998,7 +972,7 @@ class CommunityService {
   }
 
   /// Update member count
-  static Future<void> _updateMemberCount(String communityId) async {
+  Future<void> _updateMemberCount(String communityId) async {
     try {
       final members = await SupabaseDatabaseService.select(
         table: _communityMembersTable,
@@ -1016,7 +990,7 @@ class CommunityService {
   }
 
   /// Update post count
-  static Future<void> _updatePostCount(String communityId) async {
+  Future<void> _updatePostCount(String communityId) async {
     try {
       final posts = await SupabaseDatabaseService.select(
         table: _communityPostsTable,
@@ -1034,7 +1008,7 @@ class CommunityService {
   }
 
   /// Update event count
-  static Future<void> _updateEventCount(String communityId) async {
+  Future<void> _updateEventCount(String communityId) async {
     try {
       final events = await SupabaseDatabaseService.select(
         table: _communityEventsTable,
@@ -1052,7 +1026,7 @@ class CommunityService {
   }
 
   /// Add community rule
-  static Future<Map<String, dynamic>> _addCommunityRule(
+  Future<Map<String, dynamic>> _addCommunityRule(
     String communityId,
     String rule, [
     int? order,
@@ -1079,7 +1053,7 @@ class CommunityService {
   }
 
   /// Notify community members
-  static Future<void> _notifyCommunityMembers(
+  Future<void> _notifyCommunityMembers(
     String communityId,
     String title,
     String message,

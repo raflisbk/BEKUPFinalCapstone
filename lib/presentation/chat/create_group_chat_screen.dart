@@ -3,8 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/user_model.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/providers/user_provider.dart';
-import '../../core/config/service_locator.dart';
-import '../../services/interfaces/i_chat_service.dart';
+import '../../services/chat_service.dart';
 import '../../services/social_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
@@ -22,9 +21,6 @@ class CreateGroupChatScreen extends StatefulWidget {
 class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   static const String _tag = 'CreateGroupChatScreen';
 
-  // Services
-  late final IChatService _chatService;
-
   final TextEditingController _groupNameController = TextEditingController();
 
   List<UserModel> _followingUsers = [];
@@ -35,7 +31,6 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chatService = ServiceLocator.chatServiceInterface;
     _loadFollowingUsers();
   }
 
@@ -155,7 +150,7 @@ class _CreateGroupChatScreenState extends State<CreateGroupChatScreen> {
         };
       }
 
-      final conversation = await _chatService.createConversation(
+      final conversation = await ChatService.createConversation(
         participantIds: participantIds,
         title: groupName,
         type: 'group',

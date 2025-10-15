@@ -148,10 +148,16 @@ class AuthProvider extends ChangeNotifier {
 
       // Create a guest user
       _currentUser = UserModel(
-        id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
+        uid: 'guest_${DateTime.now().millisecondsSinceEpoch}',
         email: 'guest@relink.app',
         displayName: 'Guest User',
-        isGuest: true,
+        bio: 'Temporary guest user',
+        interests: [],
+        languages: ['en'],
+        isGuide: false,
+        isVerified: false,
+        rating: 0.0,
+        reviewCount: 0,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
