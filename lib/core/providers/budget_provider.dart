@@ -10,6 +10,7 @@ class BudgetProvider with ChangeNotifier {
   // Service instance from dependency injection
   final IBudgetService _budgetService;
 
+  // ignore: prefer_final_fields - List is modified throughout the provider lifecycle
   List<Map<String, dynamic>> _budgets = [];
   List<Map<String, dynamic>> _expenses = [];
   Map<String, dynamic>? _selectedBudget;
