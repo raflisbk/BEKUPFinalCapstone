@@ -39,7 +39,7 @@ class ImageService {
           image,
           width: image.width > maxWidth ? maxWidth : null,
           height: image.height > maxHeight ? maxHeight : null,
-          maintainAspect: true,
+          interpolation: img.Interpolation.linear,
         );
       }
 
@@ -75,7 +75,7 @@ class ImageService {
       }
 
       // Create square thumbnail
-      final thumbnail = img.copyResizeCropSquare(image, size: size);
+      final thumbnail = img.copyResize(image, width: size, height: size);
       final thumbnailBytes = img.encodeJpg(thumbnail, quality: quality);
 
       AppLogger.success(_tag, 'Thumbnail generated successfully');
@@ -164,13 +164,15 @@ class ImageService {
           filteredImage = img.sepia(image);
           break;
         case 'brighten':
-          filteredImage = img.brightness(image, (128 * intensity).round());
+          final brightened = img.brightness(image, (128 * intensity).round());
+          if (brightened != null) filteredImage = brightened;
           break;
         case 'contrast':
-          filteredImage = img.contrast(image, (128 * intensity).round());
+          final contrasted = img.contrast(image, (128 * intensity).round());
+          if (contrasted != null) filteredImage = contrasted;
           break;
         case 'blur':
-          filteredImage = img.gaussianBlur(image, radius: (5 * intensity).round());
+          filteredImage = img.gaussianBlur(image, (5 * intensity).round());
           break;
         default:
           AppLogger.warning(_tag, 'Unknown filter type: $filterType');
