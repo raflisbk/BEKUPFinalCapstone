@@ -10,6 +10,7 @@ class MessagingProvider with ChangeNotifier {
   ChatService get _chatService => ServiceLocator.instance.get<ChatService>();
 
   List<ChatConversation> _conversations = [];
+  // ignore: prefer_final_fields - Map is modified throughout the provider lifecycle
   Map<String, List<ChatMessage>> _conversationMessages = {};
   bool _isLoading = false;
   String? _error;
