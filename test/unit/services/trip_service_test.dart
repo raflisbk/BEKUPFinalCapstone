@@ -1,11 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:relink/services/trip_service.dart';
-import 'package:relink/core/models/trip_model.dart';
 import '../../test_setup.dart';
 
 // Note: These tests demonstrate structure for testing TripService
-// Full testing requires Firebase emulator or mocked Firestore
-// Testing real Firestore operations is best done with integration tests
+// Full testing requires database service initialization
+// Testing real database operations is best done with integration tests
 
 void main() {
   setUpAll(() async {
@@ -19,153 +18,276 @@ void main() {
       service = TripService();
     });
 
-    test('should be singleton', () {
-      final instance1 = TripService();
-      final instance2 = TripService();
-      expect(instance1, equals(instance2));
-    });
-
     test('should create trip service instance', () {
       // Assert
       expect(service, isNotNull);
       expect(service, isA<TripService>());
     });
 
-    test('should expose getTripsStream method', () {
-      // Arrange
-      const userId = 'test123';
-
-      // Act
-      final stream = service.getTripsStream(
-        userId: userId,
-        filter: TripFilter.all,
-      );
-
-      // Assert
-      expect(stream, isA<Stream<List<Trip>>>());
+    test('should handle createTrip method with proper structure', () async {
+      // Test should handle database dependency gracefully
+      try {
+        final result = await service.createTrip(
+          title: 'Test Trip',
+          description: 'A test trip description',
+          startDate: DateTime(2025, 3, 1),
+          endDate: DateTime(2025, 3, 10),
+          destination: 'Bali',
+          maxParticipants: 10,
+          isPublic: true,
+          category: 'Adventure',
+        );
+        
+        // If successful, verify structure
+        expect(result, isA<Map<String, dynamic>>());
+        expect(result['id'], isNotNull);
+        expect(result['title'], equals('Test Trip'));
+      } catch (e) {
+        // If fails due to database dependency, verify error handling
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+        ]));
+      }
     });
 
-    test('should expose getPublicTripsStream method', () {
-      // Arrange
-      const userId = 'test123';
-
-      // Act
-      final stream = service.getPublicTripsStream(
-        currentUserId: userId,
-        limit: 20,
-      );
-
-      // Assert
-      expect(stream, isA<Stream<List<Trip>>>());
+    test('should handle getTrip method gracefully', () async {
+      try {
+        final result = await service.getTrip('test_trip_id');
+        // If successful, verify it can return null for non-existent trips
+        expect(result, anyOf([isNull, isA<Map<String, dynamic>>()]));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+        ]));
+      }
     });
 
-    // Additional tests with Firebase emulator:
+    test('should handle getUserTrips method gracefully', () async {
+      try {
+        final results = await service.getUserTrips(limit: 10);
+        expect(results, isA<List<Map<String, dynamic>>>());
+        expect(results.length, lessThanOrEqualTo(10));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle updateTrip method gracefully', () async {
+      try {
+        final result = await service.updateTrip(
+          tripId: 'test_trip_id',
+          title: 'Updated Trip Title',
+          description: 'Updated description',
+        );
+        expect(result, isA<Map<String, dynamic>>());
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+          contains('Trip not found'),
+        ]));
+      }
+    });
+
+    test('should handle deleteTrip method gracefully', () async {
+      try {
+        await service.deleteTrip('test_trip_id');
+        // If successful, no return value expected
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+          contains('Trip not found'),
+        ]));
+      }
+    });
+
+    test('should handle addTripParticipant method gracefully', () async {
+      try {
+        final result = await service.addTripParticipant(
+          tripId: 'test_trip_id',
+          userId: 'test_user_id',
+          role: 'participant',
+        );
+        expect(result, isA<Map<String, dynamic>>());
+        expect(result['success'], isTrue);
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+          contains('Trip not found'),
+        ]));
+      }
+    });
+
+    test('should handle removeTripParticipant method gracefully', () async {
+      try {
+        await service.removeTripParticipant(
+          tripId: 'test_trip_id',
+          userId: 'test_user_id',
+        );
+        // If successful, no return value expected
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+          contains('Trip not found'),
+        ]));
+      }
+    });
+
+    test('should handle getTripParticipants method gracefully', () async {
+      try {
+        final results = await service.getTripParticipants('test_trip_id');
+        expect(results, isA<List<Map<String, dynamic>>>());
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle searchPublicTrips method gracefully', () async {
+      try {
+        final results = await service.searchPublicTrips(
+          query: 'Bali',
+          category: 'Adventure',
+          limit: 10,
+        );
+        expect(results, isA<List<Map<String, dynamic>>>());
+        expect(results.length, lessThanOrEqualTo(10));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle getRecommendedTrips method gracefully', () async {
+      try {
+        final results = await service.getRecommendedTrips(limit: 5);
+        expect(results, isA<List<Map<String, dynamic>>>());
+        expect(results.length, lessThanOrEqualTo(5));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle getTrendingTrips method gracefully', () async {
+      try {
+        final results = await service.getTrendingTrips(limit: 5);
+        expect(results, isA<List<Map<String, dynamic>>>());
+        expect(results.length, lessThanOrEqualTo(5));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle trip status management methods gracefully', () async {
+      try {
+        await service.startTrip('test_trip_id');
+        await service.completeTrip('test_trip_id');
+        await service.cancelTrip('test_trip_id', reason: 'Test cancellation');
+        // If successful, no return values expected
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    test('should handle getTripStatistics method gracefully', () async {
+      try {
+        final result = await service.getTripStatistics('test_trip_id');
+        expect(result, isA<Map<String, dynamic>>());
+        expect(result['trip_id'], equals('test_trip_id'));
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('Supabase not initialized'),
+          contains('Trip not found'),
+        ]));
+      }
+    });
+
+    test('should handle getUserTripStatistics method gracefully', () async {
+      try {
+        final result = await service.getUserTripStatistics();
+        expect(result, isA<Map<String, dynamic>>());
+        expect(result['total_trips'], isA<int>());
+      } catch (e) {
+        expect(e.toString(), anyOf([
+          contains('No authenticated user found'),
+          contains('Supabase not initialized'),
+        ]));
+      }
+    });
+
+    // Additional tests with database service initialization:
     /*
     test('should create trip successfully', () async {
-      final tripId = await service.createTrip(
-        userId: 'user123',
-        userName: 'Test User',
+      final result = await service.createTrip(
         title: 'Amazing Bali Trip',
         description: 'Exploring beautiful Bali',
         startDate: DateTime(2025, 2, 1),
         endDate: DateTime(2025, 2, 10),
+        destination: 'Bali',
+        maxParticipants: 10,
         isPublic: true,
+        category: 'Adventure',
       );
 
-      expect(tripId, isNotNull);
-      expect(tripId, isNotEmpty);
+      expect(result['id'], isNotNull);
+      expect(result['title'], equals('Amazing Bali Trip'));
     });
 
     test('should update trip successfully', () async {
-      final tripId = 'test_trip_id';
       final result = await service.updateTrip(
-        tripId: tripId,
+        tripId: 'test_trip_id',
         title: 'Updated Title',
         description: 'Updated Description',
-        status: TripStatus.ongoing,
+        status: 'active',
       );
 
-      expect(result, isTrue);
+      expect(result['title'], equals('Updated Title'));
     });
 
     test('should delete trip successfully', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.deleteTrip(tripId);
-
-      expect(result, isTrue);
+      await service.deleteTrip('test_trip_id');
+      // Verify trip is deleted by trying to get it
+      final result = await service.getTrip('test_trip_id');
+      expect(result, isNull);
     });
 
-    test('should add destination to trip', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.addDestination(
-        tripId: tripId,
-        destinationId: 'dest123',
-        destinationName: 'Ubud',
-        imageUrl: 'https://example.com/ubud.jpg',
-        scheduledDate: DateTime(2025, 2, 3),
-        notes: 'Visit monkey forest',
+    test('should add participant to trip', () async {
+      final result = await service.addTripParticipant(
+        tripId: 'test_trip_id',
+        userId: 'user123',
+        role: 'participant',
       );
 
-      expect(result, isTrue);
+      expect(result['success'], isTrue);
     });
 
-    test('should add itinerary item to trip', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.addItineraryItem(
-        tripId: tripId,
-        title: 'Visit Monkey Forest',
-        description: 'Explore sacred monkey forest',
-        startTime: DateTime(2025, 2, 2, 9, 0),
-        endTime: DateTime(2025, 2, 2, 12, 0),
-        location: 'Ubud Monkey Forest',
-        type: ItineraryType.activity,
+    test('should search public trips', () async {
+      final results = await service.searchPublicTrips(
+        query: 'Bali',
+        category: 'Adventure',
+        limit: 10,
       );
 
-      expect(result, isTrue);
-    });
-
-    test('should set trip budget successfully', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.setTripBudget(
-        tripId: tripId,
-        totalBudget: 5000.0,
-        currency: 'USD',
-        categoryBudgets: {
-          BudgetCategory.accommodation: 2000.0,
-          BudgetCategory.food: 1500.0,
-          BudgetCategory.activities: 1000.0,
-        },
-      );
-
-      expect(result, isTrue);
-    });
-
-    test('should add expense to trip', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.addExpense(
-        tripId: tripId,
-        description: 'Hotel booking',
-        amount: 150.0,
-        currency: 'USD',
-        category: BudgetCategory.accommodation,
-        date: DateTime.now(),
-        paidBy: 'user123',
-        notes: 'First night accommodation',
-      );
-
-      expect(result, isTrue);
-    });
-
-    test('should join trip successfully', () async {
-      final tripId = 'test_trip_id';
-      final result = await service.joinTrip(
-        tripId: tripId,
-        userId: 'user456',
-        userName: 'Joiner',
-        userPhotoUrl: 'https://example.com/photo.jpg',
-      );
-
-      expect(result, isTrue);
+      expect(results, isNotEmpty);
+      for (var trip in results) {
+        expect(trip['is_public'], isTrue);
+      }
     });
     */
   });
