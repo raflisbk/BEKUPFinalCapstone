@@ -1,4 +1,4 @@
-/// Models for Indonesia Tourism functionality
+// Models for Indonesia Tourism functionality
 import 'package:flutter/foundation.dart';
 
 /// Indonesian Province model
