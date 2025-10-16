@@ -68,8 +68,6 @@ class MessagingService implements IMessagingService {
   Future<List<Map<String, dynamic>>> getMessageTemplates({
     String? category,
     bool? isActive,
-    String? userId,
-    int limit = 50,
   }) async {
     try {
       AppLogger.debug(_tag, 'Getting message templates');
@@ -77,14 +75,13 @@ class MessagingService implements IMessagingService {
       final filters = <String, dynamic>{};
       if (category != null) filters['category'] = category;
       if (isActive != null) filters['is_active'] = isActive;
-      if (userId != null) filters['created_by'] = userId;
 
       final templates = await SupabaseDatabaseService.select(
         table: _templatesTable,
         filters: filters,
         orderBy: 'usage_count',
         ascending: false,
-        limit: limit,
+        limit: 50,
       );
 
       AppLogger.success(_tag, 'Retrieved ${templates.length} message templates');
@@ -99,7 +96,7 @@ class MessagingService implements IMessagingService {
   @override
   Future<String> renderMessageTemplate({
     required String templateId,
-    Map<String, dynamic>? variables,
+    required Map<String, dynamic> variables,
   }) async {
     try {
       AppLogger.debug(_tag, 'Rendering message template: $templateId');
@@ -118,11 +115,9 @@ class MessagingService implements IMessagingService {
       var content = template['content'] as String;
 
       // Replace variables
-      if (variables != null) {
-        variables.forEach((key, value) {
-          content = content.replaceAll('{{$key}}', value.toString());
-        });
-      }
+      variables.forEach((key, value) {
+        content = content.replaceAll('{{$key}}', value.toString());
+      });
 
       // Update usage count
       await SupabaseDatabaseService.update(
@@ -209,12 +204,22 @@ class MessagingService implements IMessagingService {
       final filters = <String, dynamic>{'sender_id': userId};
       if (status != null) filters['status'] = status;
 
-      final messages = await SupabaseDatabaseService.select(
+      var messages = await SupabaseDatabaseService.select(
         table: _scheduledMessagesTable,
         filters: filters,
         orderBy: 'scheduled_at',
         limit: 50,
       );
+
+      // Filter by date range if provided
+      if (fromDate != null || toDate != null) {
+        messages = messages.where((message) {
+          final scheduledAt = DateTime.parse(message['scheduled_at']);
+          if (fromDate != null && scheduledAt.isBefore(fromDate)) return false;
+          if (toDate != null && scheduledAt.isAfter(toDate)) return false;
+          return true;
+        }).toList();
+      }
 
       AppLogger.success(_tag, 'Retrieved ${messages.length} scheduled messages');
       return messages;
@@ -268,7 +273,6 @@ class MessagingService implements IMessagingService {
             await _chatService.sendMessage(
               conversationId: message['conversation_id'],
               content: message['content'],
-              metadata: message['metadata'],
             );
 
             // Update status
@@ -331,9 +335,9 @@ class MessagingService implements IMessagingService {
       final threadData = {
         'title': title,
         'description': description,
-        'created_by': userId,
         'participant_ids': participantIds,
         'metadata': metadata ?? {},
+        'created_by': userId,
         'message_count': 0,
         'participant_count': participantIds.length,
         'is_active': true,
@@ -363,9 +367,7 @@ class MessagingService implements IMessagingService {
       AppLogger.debug(_tag, 'Getting message threads');
 
       final filters = <String, dynamic>{};
-      if (isActive != null) {
-        filters['is_active'] = isActive;
-      }
+      if (isActive != null) filters['is_active'] = isActive;
 
       final threads = await SupabaseDatabaseService.select(
         table: _messageThreadsTable,
@@ -516,7 +518,7 @@ class MessagingService implements IMessagingService {
   // BULK MESSAGING
   // ===============================
 
-  /// Send bulk message to multiple recipients
+  /// Send bulk message to multiple conversations
   @override
   Future<List<Map<String, dynamic>>> sendBulkMessage({
     required List<String> recipientIds,
@@ -536,20 +538,9 @@ class MessagingService implements IMessagingService {
 
       for (final recipientId in recipientIds) {
         try {
-          String messageContent = content;
-          
-          // Use template if provided
-          if (templateId != null) {
-            messageContent = await renderMessageTemplate(
-              templateId: templateId,
-              variables: metadata ?? {},
-            );
-          }
-
           final message = await _chatService.sendMessage(
-            conversationId: recipientId, // This would need proper conversation lookup in real implementation
-            content: messageContent,
-            metadata: metadata,
+            conversationId: recipientId, // Simplified for now
+            content: content,
           );
 
           results.add({
@@ -566,7 +557,7 @@ class MessagingService implements IMessagingService {
         }
       }
 
-      AppLogger.success(_tag, 'Bulk message sent to ${results.length} recipients');
+      AppLogger.success(_tag, 'Bulk message sent to ${results.length} conversations');
       return results;
     } catch (e, stackTrace) {
       AppLogger.error(_tag, 'Failed to send bulk message', e, stackTrace);
@@ -595,13 +586,10 @@ class MessagingService implements IMessagingService {
         userId: userId,
       );
 
-      final recipientIds = conversations
-          .map((c) => c['id'] as String)
-          .where((id) => excludeUserIds?.contains(id) != true)
-          .toList();
+      final conversationIds = conversations.map((c) => c['id'] as String).toList();
 
       return await sendBulkMessage(
-        recipientIds: recipientIds,
+        recipientIds: conversationIds,
         content: content,
         metadata: metadata,
       );
@@ -630,7 +618,7 @@ class MessagingService implements IMessagingService {
 
       AppLogger.debug(_tag, 'Getting messaging statistics');
 
-      // Get user's conversations
+      // Get user conversations
       final conversations = await _chatService.getUserConversations(userId: currentUserId);
       final conversationIds = conversations.map((c) => c['id'] as String).toList();
 
@@ -676,38 +664,58 @@ class MessagingService implements IMessagingService {
   /// Create next recurring message
   Future<void> _createNextRecurringMessage(Map<String, dynamic> originalMessage) async {
     try {
-      final recurringPattern = originalMessage['recurring_pattern'] as String?;
-      
-      if (recurringPattern == null) return;
+      final recurringSettings = originalMessage['metadata'] as Map<String, dynamic>? ?? {};
+      final interval = recurringSettings['interval'] as String?;
+      final intervalValue = recurringSettings['interval_value'] as int? ?? 1;
+
+      if (interval == null) return;
 
       final lastScheduledAt = DateTime.parse(originalMessage['scheduled_at']);
       DateTime nextScheduledAt;
 
-      // Simple recurring pattern parsing
-      if (recurringPattern.contains('daily')) {
-        nextScheduledAt = lastScheduledAt.add(const Duration(days: 1));
-      } else if (recurringPattern.contains('weekly')) {
-        nextScheduledAt = lastScheduledAt.add(const Duration(days: 7));
-      } else if (recurringPattern.contains('monthly')) {
-        nextScheduledAt = DateTime(
-          lastScheduledAt.year,
-          lastScheduledAt.month + 1,
-          lastScheduledAt.day,
-          lastScheduledAt.hour,
-          lastScheduledAt.minute,
-        );
-      } else {
-        return;
+      switch (interval) {
+        case 'minutes':
+          nextScheduledAt = lastScheduledAt.add(Duration(minutes: intervalValue));
+          break;
+        case 'hours':
+          nextScheduledAt = lastScheduledAt.add(Duration(hours: intervalValue));
+          break;
+        case 'days':
+          nextScheduledAt = lastScheduledAt.add(Duration(days: intervalValue));
+          break;
+        case 'weeks':
+          nextScheduledAt = lastScheduledAt.add(Duration(days: intervalValue * 7));
+          break;
+        case 'months':
+          nextScheduledAt = DateTime(
+            lastScheduledAt.year,
+            lastScheduledAt.month + intervalValue,
+            lastScheduledAt.day,
+            lastScheduledAt.hour,
+            lastScheduledAt.minute,
+          );
+          break;
+        default:
+          return;
+      }
+
+      // Check if we should continue recurring
+      final endDate = recurringSettings['end_date'] as String?;
+      if (endDate != null) {
+        final endDateTime = DateTime.parse(endDate);
+        if (nextScheduledAt.isAfter(endDateTime)) {
+          return;
+        }
       }
 
       // Create next recurring message
       await scheduleMessage(
-        recipientId: originalMessage['recipient_id'],
+        recipientId: originalMessage['recipient_id'] ?? '',
         conversationId: originalMessage['conversation_id'],
         content: originalMessage['content'],
         scheduledTime: nextScheduledAt,
         isRecurring: true,
-        recurringPattern: recurringPattern,
+        recurringPattern: originalMessage['recurring_pattern'],
         metadata: originalMessage['metadata'],
       );
     } catch (e) {
