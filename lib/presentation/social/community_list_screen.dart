@@ -22,7 +22,7 @@ class CommunityListScreen extends StatefulWidget {
 class _CommunityListScreenState extends State<CommunityListScreen> {
   static const String _tag = 'CommunityListScreen';
   
-  final ICommunityService _communityService = ServiceLocator.iCommunityService;
+  late final ICommunityService _communityService;
   final TextEditingController _searchController = TextEditingController();
   
   List<Map<String, dynamic>> _communities = [];
@@ -46,6 +46,17 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
   void initState() {
     super.initState();
     AppLogger.debug(_tag, 'Community list screen initialized');
+    
+    // Initialize service
+    try {
+      _communityService = ServiceLocator.get<ICommunityService>();
+      AppLogger.debug(_tag, 'Community service initialized successfully');
+    } catch (e) {
+      AppLogger.error(_tag, 'Failed to initialize community service', e);
+      // Create a fallback or handle the error
+      rethrow;
+    }
+    
     _loadCommunities();
   }
 

@@ -7,6 +7,7 @@ import '../destinations/destination_detail_screen.dart';
 import '../destinations/destinations_list_screen.dart';
 import '../search/search_screen.dart';
 import '../social/activity_feed_screen.dart';
+import '../ai/ai_features_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -42,6 +43,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (context) => const DestinationsListScreen()),
+        );
+        break;
+      case 'AI Assistant':
+        AppLogger.navigation(_tag, '/ai-features');
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const AIFeaturesScreen()),
         );
         break;
       default:
@@ -212,9 +220,29 @@ class _HomeScreenState extends State<HomeScreen> {
                           SizedBox(width: 16),
                           Expanded(
                             child: _QuickActionCard(
+                              icon: Icons.auto_awesome,
+                              title: 'AI\nAssistant',
+                              actionName: 'AI Assistant',
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _QuickActionCard(
                               icon: Icons.explore_outlined,
                               title: 'Local\nGuides',
                               actionName: 'Local Guides',
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: _QuickActionCard(
+                              icon: Icons.chat_outlined,
+                              title: 'Chat\nSupport',
+                              actionName: 'Chat Support',
                             ),
                           ),
                         ],
