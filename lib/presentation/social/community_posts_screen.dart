@@ -77,16 +77,15 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
       );
       
       _postController.clear();
-      FocusScope.of(context).unfocus();
       
       if (mounted) {
-          HapticHelper.heavyImpact();
+        FocusScope.of(context).unfocus();
+        HapticHelper.heavyImpact();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Post created!')),
         );
+        _loadPosts(); // Reload posts
       }
-      
-      _loadPosts(); // Reload posts
     } catch (e) {
       AppLogger.error(_tag, 'Failed to create post', e);
       if (mounted) {
@@ -222,7 +221,7 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.article_outlined,
               size: 80,
               color: AppColors.grey300,
@@ -275,7 +274,7 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
             : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -291,7 +290,7 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.1),
                   child: Text(
                     (userData?['display_name'] ?? 'U')[0].toUpperCase(),
                     style: AppTextStyles.titleSmall.copyWith(
@@ -315,7 +314,7 @@ class _CommunityPostsScreenState extends State<CommunityPostsScreen> {
                           ),
                           if (isPinned) ...[
                             const SizedBox(width: 8),
-                            Icon(
+                            const Icon(
                               Icons.push_pin,
                               size: 16,
                               color: AppColors.primary,
