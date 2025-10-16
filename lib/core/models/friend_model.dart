@@ -1,5 +1,101 @@
 /// Friend-related models for social functionality
 
+/// Friend request status enum
+enum FriendRequestStatus {
+  pending,
+  accepted,
+  declined,
+}
+
+/// Friend request status helper
+class FriendRequestStatusHelper {
+  static String getLabel(FriendRequestStatus status) {
+    switch (status) {
+      case FriendRequestStatus.pending:
+        return 'Pending';
+      case FriendRequestStatus.accepted:
+        return 'Accepted';
+      case FriendRequestStatus.declined:
+        return 'Declined';
+    }
+  }
+
+  static String getValue(FriendRequestStatus status) {
+    return status.toString().split('.').last;
+  }
+
+  static FriendRequestStatus fromString(String value) {
+    return FriendRequestStatus.values.firstWhere(
+      (status) => getValue(status) == value,
+      orElse: () => FriendRequestStatus.pending,
+    );
+  }
+}
+
+/// Friend activity type enum
+enum FriendActivityType {
+  photoUpload,
+  tripCreated,
+  destinationVisited,
+  reviewPosted,
+  tripCompleted,
+  friendAdded,
+  statusUpdate,
+  other,
+}
+
+/// Friend activity type helper
+class FriendActivityTypeHelper {
+  static String getLabel(FriendActivityType type) {
+    switch (type) {
+      case FriendActivityType.photoUpload:
+        return 'Photo Upload';
+      case FriendActivityType.tripCreated:
+        return 'Trip Created';
+      case FriendActivityType.destinationVisited:
+        return 'Destination Visited';
+      case FriendActivityType.reviewPosted:
+        return 'Review Posted';
+      case FriendActivityType.tripCompleted:
+        return 'Trip Completed';
+      case FriendActivityType.friendAdded:
+        return 'Friend Added';
+      case FriendActivityType.statusUpdate:
+        return 'Status Update';
+      case FriendActivityType.other:
+        return 'Other';
+    }
+  }
+
+  static String getValue(FriendActivityType type) {
+    switch (type) {
+      case FriendActivityType.photoUpload:
+        return 'photo_upload';
+      case FriendActivityType.tripCreated:
+        return 'trip_created';
+      case FriendActivityType.destinationVisited:
+        return 'destination_visited';
+      case FriendActivityType.reviewPosted:
+        return 'review_posted';
+      case FriendActivityType.tripCompleted:
+        return 'trip_completed';
+      case FriendActivityType.friendAdded:
+        return 'friend_added';
+      case FriendActivityType.statusUpdate:
+        return 'status_update';
+      case FriendActivityType.other:
+        return 'other';
+    }
+  }
+
+  static FriendActivityType fromString(String value) {
+    return FriendActivityType.values.firstWhere(
+      (type) => getValue(type) == value,
+      orElse: () => FriendActivityType.other,
+    );
+  }
+}
+
 /// Friend request model
 class FriendRequest {
   final String id;
@@ -60,6 +156,32 @@ class FriendRequest {
       respondedAt: respondedAt ?? this.respondedAt,
     );
   }
+
+  /// Get status enum
+  FriendRequestStatus get statusEnum => FriendRequestStatusHelper.fromString(status);
+
+  /// Check if request is pending
+  bool get isPending => status == 'pending';
+
+  /// Check if request is accepted
+  bool get isAccepted => status == 'accepted';
+
+  /// Check if request is declined
+  bool get isDeclined => status == 'declined';
+
+  @override
+  String toString() {
+    return 'FriendRequest(id: $id, senderId: $senderId, receiverId: $receiverId, status: $status)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FriendRequest && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 /// Friendship model
@@ -103,6 +225,35 @@ class Friendship {
       'blocked_by': blockedBy,
     };
   }
+
+  /// Get the other user's ID in the friendship
+  String getOtherUserId(String currentUserId) {
+    return currentUserId == userId1 ? userId2 : userId1;
+  }
+
+  /// Check if a specific user blocked the friendship
+  bool isBlockedBy(String userId) {
+    return isBlocked && blockedBy == userId;
+  }
+
+  /// Check if friendship involves a specific user
+  bool involvesUser(String userId) {
+    return userId1 == userId || userId2 == userId;
+  }
+
+  @override
+  String toString() {
+    return 'Friendship(id: $id, userId1: $userId1, userId2: $userId2, isBlocked: $isBlocked)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Friendship && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 /// Friend activity model
@@ -158,4 +309,42 @@ class FriendActivity {
       'created_at': createdAt.toIso8601String(),
     };
   }
+
+  /// Get activity type enum
+  FriendActivityType get activityTypeEnum => FriendActivityTypeHelper.fromString(activityType);
+
+  /// Get formatted time ago string
+  String get timeAgo {
+    final now = DateTime.now();
+    final difference = now.difference(createdAt);
+
+    if (difference.inDays > 7) {
+      return '${difference.inDays} days ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  /// Check if activity has metadata
+  bool get hasMetadata => metadata != null && metadata!.isNotEmpty;
+
+  @override
+  String toString() {
+    return 'FriendActivity(id: $id, userId: $userId, activityType: $activityType, title: $title)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is FriendActivity && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
