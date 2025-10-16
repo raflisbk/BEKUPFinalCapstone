@@ -21,7 +21,7 @@ class ContentModerationService {
   ContentModerationService._internal();
 
   // AI Service instance
-  late final AIService _aiService = AIService.instance;
+  final AIService _aiService = AIService();
 
   // Moderation actions
   static const String actionApprove = 'approve';
