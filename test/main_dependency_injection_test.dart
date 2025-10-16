@@ -1,18 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../lib/core/config/service_locator.dart';
-import '../lib/core/providers/user_provider.dart';
-import '../lib/core/providers/trip_provider.dart';
-import '../lib/core/providers/budget_provider.dart';
-import '../lib/core/providers/destination_provider.dart';
-import '../lib/core/interfaces/budget_service_interface.dart';
-import '../lib/core/interfaces/trip_service_interface.dart';
-import '../lib/core/interfaces/user_service_interface.dart';
-import '../lib/core/interfaces/destination_service_interface.dart';
-import '../lib/core/interfaces/community_service_interface.dart';
-import '../lib/services/supabase_database_service.dart';
-import '../lib/services/notification_service.dart';
+import 'package:relink/core/config/service_locator.dart';
+import 'package:relink/core/providers/user_provider.dart';
+import 'package:relink/core/providers/trip_provider.dart';
+import 'package:relink/core/providers/budget_provider.dart';
+import 'package:relink/core/providers/destination_provider.dart';
+import 'package:relink/core/interfaces/budget_service_interface.dart';
+import 'package:relink/core/interfaces/trip_service_interface.dart';
+import 'package:relink/services/interfaces/i_user_service.dart';
+import 'package:relink/services/interfaces/i_destination_service.dart';
+import 'package:relink/services/supabase_database_service.dart';
+import 'package:relink/services/notification_service.dart';
 
 /// Test untuk memverifikasi bahwa dependency injection di main.dart berfungsi dengan benar
 void main() {
@@ -23,7 +22,7 @@ void main() {
         await ServiceLocator.setup();
       } catch (e) {
         // Skip test jika setup gagal
-        print('ServiceLocator setup failed: $e');
+        // ServiceLocator setup failed - test skipped
       }
     });
 
@@ -48,7 +47,7 @@ void main() {
         MultiProvider(
           providers: [
             ChangeNotifierProvider(
-              create: (_) => UserProvider(ServiceLocator.userService),
+              create: (_) => UserProvider(),
             ),
             ChangeNotifierProvider(
               create: (_) => TripProvider(ServiceLocator.tripService),
@@ -57,7 +56,7 @@ void main() {
               create: (_) => BudgetProvider(budgetService: ServiceLocator.budgetService),
             ),
             ChangeNotifierProvider(
-              create: (_) => DestinationProvider(destinationService: ServiceLocator.destinationService),
+              create: (_) => DestinationProvider(),
             ),
           ],
           child: MaterialApp(
