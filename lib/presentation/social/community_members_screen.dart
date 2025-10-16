@@ -285,7 +285,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -300,7 +300,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
           children: [
             CircleAvatar(
               radius: 24,
-              backgroundColor: roleColor.withOpacity(0.1),
+              backgroundColor: roleColor.withValues(alpha: 0.1),
               child: Text(
                 (userData?['display_name'] ?? 'U')[0].toUpperCase(),
                 style: AppTextStyles.titleMedium.copyWith(
@@ -358,7 +358,7 @@ class _CommunityMembersScreenState extends State<CommunityMembersScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: roleColor.withOpacity(0.1),
+                color: roleColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
