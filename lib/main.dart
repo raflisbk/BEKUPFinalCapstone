@@ -181,7 +181,7 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) {
             try {
-              return UserProvider(ServiceLocator.userService);
+              return UserProvider();
             } catch (e) {
               AppLogger.warning('Main', 'UserProvider DI failed, using fallback: $e');
               // TODO: Implement fallback UserProvider without DI
@@ -217,7 +217,7 @@ class RelinkApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) {
             try {
-              return DestinationProvider(destinationService: ServiceLocator.destinationService);
+              return DestinationProvider();
             } catch (e) {
               AppLogger.warning('Main', 'DestinationProvider DI failed, using fallback: $e');
               // TODO: Implement fallback DestinationProvider without DI
