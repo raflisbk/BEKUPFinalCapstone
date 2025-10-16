@@ -28,6 +28,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   String? _session;
+  // ignore: prefer_final_fields - List reserved for future message storage implementation
   List<Map<String, dynamic>> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
