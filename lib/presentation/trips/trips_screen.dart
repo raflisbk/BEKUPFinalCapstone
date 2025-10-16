@@ -8,13 +8,38 @@ import '../../services/trip_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text_styles.dart';
 import '../../core/utils/logger.dart';
-import 'create_trip_screen.dart';
+import 'create_edit_trip_screen.dart';
 import 'trip_detail_screen.dart';
 
 class TripsScreen extends StatelessWidget {
   const TripsScreen({super.key});
 
   static const String _tag = 'TripsScreen';
+
+  List<Trip> _filterTrips(List<Trip> trips, TripFilter filter) {
+    final now = DateTime.now();
+    
+    switch (filter) {
+      case TripFilter.all:
+        return trips;
+      case TripFilter.upcoming:
+        return trips.where((trip) => 
+          (trip.status == TripStatus.planning || trip.status == TripStatus.confirmed) && 
+          trip.startDate.isAfter(now)
+        ).toList();
+      case TripFilter.ongoing:
+        return trips.where((trip) => trip.status == TripStatus.ongoing).toList();
+      case TripFilter.past:
+        return trips.where((trip) => 
+          trip.status == TripStatus.completed || 
+          (trip.endDate.isBefore(now) && trip.status != TripStatus.cancelled)
+        ).toList();
+      case TripFilter.myTrips:
+        return trips;  // All trips are user's trips in this context
+      case TripFilter.joined:
+        return trips;  // This would need userId comparison for joined vs owned trips
+    }
+  }
 
   void _navigateToCreateTrip(BuildContext context) {
     Navigator.push(
@@ -277,11 +302,8 @@ class TripsScreen extends StatelessWidget {
                       );
                     }
 
-                    return StreamBuilder<List<Trip>>(
-                      stream: tripService.getTripsStream(
-                        userId: userId,
-                        filter: uiProvider.selectedFilter,
-                      ),
+                    return FutureBuilder<List<Map<String, dynamic>>>(
+                      future: tripService.getUserTrips(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -305,9 +327,15 @@ class TripsScreen extends StatelessWidget {
                           );
                         }
 
-                        final trips = snapshot.data ?? [];
+                        final tripsData = snapshot.data ?? [];
+                        
+                        // Convert Map data to Trip objects
+                        final trips = tripsData.map((tripData) => Trip.fromMap(tripData)).toList();
+                        
+                        // Apply filter
+                        final filteredTrips = _filterTrips(trips, uiProvider.selectedFilter);
 
-                        if (trips.isEmpty) {
+                        if (filteredTrips.isEmpty) {
                           return Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
@@ -352,9 +380,9 @@ class TripsScreen extends StatelessWidget {
 
                         return ListView.builder(
                           padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount: trips.length,
+                          itemCount: filteredTrips.length,
                           itemBuilder: (context, index) {
-                            return _buildTripCard(context, trips[index]);
+                            return _buildTripCard(context, filteredTrips[index]);
                           },
                         );
                       },
