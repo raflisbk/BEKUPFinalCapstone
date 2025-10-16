@@ -1,25 +1,32 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/core/stubs/firebase_stubs.dart';
+import 'package:relink/core/stubs/firebase_stubs.dart';
 import 'package:mockito/mockito.dart';
 import 'package:relink/core/models/review_model.dart';
 import '../../test_setup.dart';
 
-// ignore: subtype_of_sealed_class
-class MockDocumentSnapshot extends Mock
-    implements DocumentSnapshot<Map<String, dynamic>> {}
+class MockDocumentSnapshot extends Mock implements DocumentSnapshot {
+  @override
+  String get id => super.noSuchMethod(Invocation.getter(#id), returnValue: '');
+  
+  @override
+  Map<String, dynamic>? data() => super.noSuchMethod(
+    Invocation.method(#data, []),
+    returnValue: <String, dynamic>{},
+  );
+}
 
 void main() {
   setUpAll(() async {
     await setupTestEnvironment();
   });
 
-  group('DestinationReview Model', () {
-    late DestinationReview review;
+  group('Review Model', () {
+    late Review review;
     late DateTime now;
 
     setUp(() {
       now = DateTime.now();
-      review = DestinationReview(
+      review = Review(
         id: 'review123',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -41,7 +48,7 @@ void main() {
     });
 
     test('should create review with rating and text', () {
-      final simpleReview = DestinationReview(
+      final simpleReview = Review(
         id: 'review124',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -60,7 +67,7 @@ void main() {
     });
 
     test('should validate rating range - minimum', () {
-      final lowRating = DestinationReview(
+      final lowRating = Review(
         id: 'review125',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -78,7 +85,7 @@ void main() {
     });
 
     test('should validate rating range - maximum', () {
-      final highRating = DestinationReview(
+      final highRating = Review(
         id: 'review126',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -96,7 +103,7 @@ void main() {
     });
 
     test('should validate rating range - mid range', () {
-      final midRating = DestinationReview(
+      final midRating = Review(
         id: 'review127',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -121,7 +128,7 @@ void main() {
     });
 
     test('should create review without photos', () {
-      final reviewWithoutPhotos = DestinationReview(
+      final reviewWithoutPhotos = Review(
         id: 'review128',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -148,49 +155,47 @@ void main() {
       expect(review.isMarkedHelpfulBy('user999'), isFalse);
     });
 
-    test('should convert to Firestore document correctly', () {
-      final firestoreMap = review.toFirestore();
+    test('should convert to Supabase correctly', () {
+      final supabaseMap = review.toSupabase();
 
-      expect(firestoreMap['destinationId'], equals('dest123'));
-      expect(firestoreMap['destinationName'], equals('Bali Beach'));
-      expect(firestoreMap['userId'], equals('user123'));
-      expect(firestoreMap['userName'], equals('Test User'));
-      expect(firestoreMap['rating'], equals(4.5));
-      expect(firestoreMap['title'], equals('Amazing Experience'));
-      expect(firestoreMap['content'], contains('wonderful'));
-      expect(firestoreMap['photoUrls'], isA<List>());
-      expect(firestoreMap['helpfulCount'], equals(10));
-      expect(firestoreMap['createdAt'], isA<Timestamp>());
-      expect(firestoreMap['updatedAt'], isA<Timestamp>());
+      expect(supabaseMap['destination_id'], equals('dest123'));
+      expect(supabaseMap['destination_name'], equals('Bali Beach'));
+      expect(supabaseMap['user_id'], equals('user123'));
+      expect(supabaseMap['user_name'], equals('Test User'));
+      expect(supabaseMap['rating'], equals(4.5));
+      expect(supabaseMap['title'], equals('Amazing Experience'));
+      expect(supabaseMap['content'], contains('wonderful'));
+      expect(supabaseMap['photo_urls'], isA<List>());
+      expect(supabaseMap['helpful_count'], equals(10));
+      expect(supabaseMap['created_at'], isA<String>());
+      expect(supabaseMap['updated_at'], isA<String>());
     });
 
-    test('should create from Firestore document correctly', () {
-      final firestoreMap = {
-        'destinationId': 'dest456',
-        'destinationName': 'Mountain Resort',
-        'userId': 'user456',
-        'userName': 'Another User',
-        'userPhotoUrl': 'https://example.com/user456.jpg',
+    test('should create from Supabase correctly', () {
+      final supabaseMap = {
+        'id': 'review456',
+        'destination_id': 'dest456',
+        'destination_name': 'Mountain Resort',
+        'user_id': 'user456',
+        'user_name': 'Another User',
+        'user_photo_url': 'https://example.com/user456.jpg',
         'rating': 3.5,
         'title': 'Nice Stay',
         'content': 'Enjoyed my time here',
-        'photoUrls': ['https://example.com/photo3.jpg'],
-        'createdAt': Timestamp.fromDate(now),
-        'updatedAt': Timestamp.fromDate(now),
-        'helpfulCount': 5,
-        'helpfulUserIds': ['user123'],
+        'photo_urls': ['https://example.com/photo3.jpg'],
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+        'helpful_count': 5,
+        'helpful_user_ids': ['user123'],
       };
 
-      final mockDoc = MockDocumentSnapshot();
-      when(mockDoc.id).thenReturn('review456');
-      when(mockDoc.data()).thenReturn(firestoreMap);
-      final fromFirestore = DestinationReview.fromFirestore(mockDoc);
+      final fromSupabase = Review.fromSupabase(supabaseMap);
 
-      expect(fromFirestore.id, equals('review456'));
-      expect(fromFirestore.destinationId, equals('dest456'));
-      expect(fromFirestore.rating, equals(3.5));
-      expect(fromFirestore.title, equals('Nice Stay'));
-      expect(fromFirestore.helpfulCount, equals(5));
+      expect(fromSupabase.id, equals('review456'));
+      expect(fromSupabase.destinationId, equals('dest456'));
+      expect(fromSupabase.rating, equals(3.5));
+      expect(fromSupabase.title, equals('Nice Stay'));
+      expect(fromSupabase.helpfulCount, equals(5));
     });
 
     test('should convert to Map for offline cache correctly', () {
@@ -221,7 +226,7 @@ void main() {
         'helpfulUserIds': ['user123', 'user456'],
       };
 
-      final fromMap = DestinationReview.fromMap(map);
+      final fromMap = Review.fromMap(map);
 
       expect(fromMap.id, equals('review789'));
       expect(fromMap.destinationId, equals('dest789'));
@@ -247,7 +252,7 @@ void main() {
     });
 
     test('should handle review without user photo', () {
-      final reviewWithoutPhoto = DestinationReview(
+      final reviewWithoutPhoto = Review(
         id: 'review129',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -264,7 +269,7 @@ void main() {
     });
 
     test('should handle empty helpful users list', () {
-      final reviewWithNoHelpful = DestinationReview(
+      final reviewWithNoHelpful = Review(
         id: 'review130',
         destinationId: 'dest123',
         destinationName: 'Bali Beach',
@@ -331,13 +336,28 @@ void main() {
       expect(emptySummary.getPercentage(1), equals(0.0));
     });
 
-    test('should convert to Firestore document correctly', () {
-      final firestoreMap = summary.toFirestore();
+    test('should convert to Supabase correctly', () {
+      final supabaseMap = summary.toSupabase();
 
-      expect(firestoreMap['averageRating'], equals(4.2));
-      expect(firestoreMap['totalReviews'], equals(100));
-      expect(firestoreMap['ratingDistribution'], isA<Map>());
-      expect(firestoreMap['updatedAt'], isA<Timestamp>());
+      expect(supabaseMap['average_rating'], equals(4.2));
+      expect(supabaseMap['total_reviews'], equals(100));
+      expect(supabaseMap['rating_distribution'], isA<Map>());
+      expect(supabaseMap['updated_at'], isA<String>());
+    });
+
+    test('should create from Supabase correctly', () {
+      final supabaseMap = {
+        'destination_id': 'dest123',
+        'average_rating': 4.2,
+        'total_reviews': 100,
+        'rating_distribution': {1: 5, 2: 10, 3: 15, 4: 30, 5: 40},
+      };
+
+      final fromSupabase = RatingSummary.fromSupabase(supabaseMap);
+
+      expect(fromSupabase.destinationId, equals('dest123'));
+      expect(fromSupabase.averageRating, equals(4.2));
+      expect(fromSupabase.totalReviews, equals(100));
     });
   });
 
