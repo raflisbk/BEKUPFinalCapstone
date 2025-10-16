@@ -566,7 +566,7 @@ void main() {
         userName: 'Test User',
         activityType: 'photo_upload',
         title: 'Test activity',
-        createdAt: DateTime.now().subtract(Duration(minutes: 30)),
+        createdAt: DateTime.now().subtract(const Duration(minutes: 30)),
       );
 
       expect(recent.timeAgo, contains('30m ago'));
