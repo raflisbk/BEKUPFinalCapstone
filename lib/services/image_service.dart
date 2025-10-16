@@ -124,7 +124,7 @@ class ImageService {
       // Check file size (max 10MB)
       final fileSize = await imageFile.length();
       if (fileSize > 10 * 1024 * 1024) {
-        AppLogger.warning(_tag, 'Image file too large: ${fileSize} bytes');
+        AppLogger.warning(_tag, 'Image file too large: $fileSize bytes');
         return false;
       }
 
