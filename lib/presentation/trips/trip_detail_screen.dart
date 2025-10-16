@@ -33,10 +33,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     String userName,
     String? photoUrl,
   ) async {
-    AppLogger.debug(_tag, 'Joining trip', {'tripId': widget.trip.id});
-
     try {
-      final result = await _tripService.addTripParticipant(
+      AppLogger.debug(_tag, 'Joining trip', {'tripId': widget.trip.id});
+
+      await _tripService.addTripParticipant(
         tripId: widget.trip.id,
         userId: userId,
       );
@@ -44,14 +44,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.isNotEmpty ? 'Joined trip successfully!' : 'Failed to join trip',
-          ),
-          backgroundColor: result.isNotEmpty ? AppColors.success : AppColors.error,
+        const SnackBar(
+          content: Text('Joined trip successfully!'),
+          backgroundColor: AppColors.success,
         ),
       );
     } catch (e) {
+      AppLogger.error(_tag, 'Failed to join trip', e);
+      
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,8 +60,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           backgroundColor: AppColors.error,
         ),
       );
-      
-      AppLogger.error(_tag, 'Error joining trip', e);
     }
   }
 
@@ -88,9 +86,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     if (confirmed != true) return;
 
-    AppLogger.debug(_tag, 'Leaving trip', {'tripId': widget.trip.id});
-
     try {
+      AppLogger.debug(_tag, 'Leaving trip', {'tripId': widget.trip.id});
+
       await _tripService.removeTripParticipant(
         tripId: widget.trip.id,
         userId: userId,
@@ -106,6 +104,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
         ),
       );
     } catch (e) {
+      AppLogger.error(_tag, 'Failed to leave trip', e);
+      
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,8 +114,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
           backgroundColor: AppColors.error,
         ),
       );
-      
-      AppLogger.error(_tag, 'Error leaving trip', e);
     }
   }
 
@@ -151,9 +149,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
 
     if (confirmed != true) return;
 
-    AppLogger.debug(_tag, 'Deleting trip', {'tripId': widget.trip.id});
-
     try {
+      AppLogger.debug(_tag, 'Deleting trip', {'tripId': widget.trip.id});
+
       await _tripService.deleteTrip(widget.trip.id);
 
       if (!mounted) return;
