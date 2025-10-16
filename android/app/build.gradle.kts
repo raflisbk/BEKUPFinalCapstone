@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     // START: FlutterFire Configuration
-    id("com.google.gms.google-services")
+    // id("com.google.gms.google-services") // Temporarily disabled
     // END: FlutterFire Configuration
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -50,16 +50,16 @@ flutter {
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
-    // Import the Firebase BoM
-    implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
+    // Import the Firebase BoM - Temporarily disabled
+    // implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
 
-    // Firebase products (versions managed by BoM)
-    implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-auth")
-    implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
-    implementation("com.google.firebase:firebase-messaging")
+    // Firebase products (versions managed by BoM) - Temporarily disabled
+    // implementation("com.google.firebase:firebase-analytics")
+    // implementation("com.google.firebase:firebase-auth")
+    // implementation("com.google.firebase:firebase-firestore")
+    // implementation("com.google.firebase:firebase-storage")
+    // implementation("com.google.firebase:firebase-messaging")
 
-    // Google Play Services
+    // Google Play Services - Keep this for basic functionality
     implementation("com.google.android.gms:play-services-auth:21.0.0")
 }

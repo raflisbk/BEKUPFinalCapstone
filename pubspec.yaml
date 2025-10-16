@@ -47,7 +47,7 @@ dependencies:
   google_sign_in: ^6.2.1
 
   # Maps & Location - Mapbox FREE tier (50K map loads + 100K directions/month)
-  mapbox_gl: ^0.16.0           # Mapbox Maps SDK (replaces google_maps_flutter)
+  # mapbox_gl: ^0.16.0           # Mapbox Maps SDK (replaces google_maps_flutter) - Temporarily disabled for build
   geolocator: ^12.0.0          # Location services (keep existing)
   # geocoding: ^3.0.0          # REMOVED - replaced by Mapbox Geocoding API
 
