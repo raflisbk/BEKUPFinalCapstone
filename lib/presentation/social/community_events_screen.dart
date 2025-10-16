@@ -168,7 +168,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.event_outlined,
               size: 80,
               color: AppColors.grey300,
@@ -219,7 +219,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -242,7 +242,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
                   width: 60,
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
@@ -293,7 +293,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
                     // Time
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.access_time,
                           size: 16,
                           color: AppColors.textSecondary,
@@ -319,7 +319,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
                     if (event['location'] != null)
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.location_on_outlined,
                             size: 16,
                             color: AppColors.textSecondary,
@@ -342,7 +342,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
                     // Attendees & RSVP
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.people_outline,
                           size: 16,
                           color: AppColors.textSecondary,
@@ -368,7 +368,7 @@ class _CommunityEventsScreenState extends State<CommunityEventsScreen> {
                               vertical: 8,
                             ),
                             minimumSize: Size.zero,
-                            side: BorderSide(color: AppColors.primary),
+                            side: const BorderSide(color: AppColors.primary),
                           ),
                           child: Text(
                             'RSVP',
