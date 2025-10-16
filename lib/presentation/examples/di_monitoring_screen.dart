@@ -173,7 +173,7 @@ class _DIMonitoringScreenState extends State<DIMonitoringScreen> {
                     final isHealthy = _serviceStatus[serviceName] ?? false;
                     final message = _serviceMessages[serviceName] ?? '';
                     return _buildServiceCard(serviceName, isHealthy, message);
-                  }).toList(),
+                  }),
                 ],
               ),
             ),
@@ -193,11 +193,11 @@ class _DIMonitoringScreenState extends State<DIMonitoringScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.analytics, size: 32, color: Colors.blue),
-                const SizedBox(width: 12),
-                const Text(
+                Icon(Icons.analytics, size: 32, color: Colors.blue),
+                SizedBox(width: 12),
+                Text(
                   'Service Health',
                   style: TextStyle(
                     fontSize: 20,
