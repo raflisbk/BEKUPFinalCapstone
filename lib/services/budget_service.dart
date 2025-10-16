@@ -542,11 +542,9 @@ class BudgetService implements IBudgetService {
 
       if (splitType == 'equal') {
         final splitAmount = totalAmount / participantIds.length;
-        splits = Map.fromIterable(
-          participantIds,
-          key: (id) => id.toString(),
-          value: (_) => splitAmount,
-        );
+        splits = {
+          for (final id in participantIds) id.toString(): splitAmount,
+        };
       } else if (splitType == 'custom' && customSplits != null) {
         splits = customSplits;
       } else {
