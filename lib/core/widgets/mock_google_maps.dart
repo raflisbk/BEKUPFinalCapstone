@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// Placeholder widget for disabled Google Maps functionality
-/// TODO: Replace with Mapbox implementation
+// Placeholder widget for disabled Google Maps functionality
+// NOTE: Mock implementation providing Google Maps API compatibility during migration
+// Allows legacy Google Maps code to compile while transitioning to Mapbox
 class DisabledMapPlaceholder extends StatelessWidget {
   final String title;
   final String message;
