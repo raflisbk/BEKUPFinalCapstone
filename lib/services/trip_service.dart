@@ -21,25 +21,6 @@ class TripService implements ITripService {
     return 'trip_${random.nextInt(999999999).toString().padLeft(9, '0')}';
   }
 
-  /// Helper method for deleting records with multiple filter criteria
-  Future<void> _deleteWithFilters({
-    required String table,
-    required Map<String, dynamic> filters,
-  }) async {
-    AppLogger.debug(_tag, 'Deleting from $table with filters: $filters');
-    
-    var query = SupabaseConfig.client.from(table).delete();
-    
-    filters.forEach((key, value) {
-      if (value != null) {
-        query = query.eq(key, value);
-      }
-    });
-    
-    await query;
-    AppLogger.success(_tag, 'Successfully deleted from $table');
-  }
-
   // ===============================
   // TRIP CRUD OPERATIONS
   // ===============================
@@ -264,11 +245,8 @@ class TripService implements ITripService {
         throw Exception('Unauthorized to delete trip');
       }
 
-      // Delete participants first
-      await _deleteWithFilters(
-        table: _participantsTable,
-        filters: {'trip_id': tripId},
-      );
+      // Use helper method for deletion with filters
+      await _deleteWithFilters(_participantsTable, {'trip_id': tripId});
 
       // Delete trip
       await SupabaseDatabaseService.delete(
@@ -367,13 +345,10 @@ class TripService implements ITripService {
       }
 
       // Remove participant
-      await _deleteWithFilters(
-        table: _participantsTable,
-        filters: {
-          'trip_id': tripId,
-          'user_id': userId,
-        },
-      );
+      await _deleteWithFilters(_participantsTable, {
+        'trip_id': tripId,
+        'user_id': userId,
+      });
 
       await _updateTripParticipantCount(tripId);
 
@@ -438,19 +413,21 @@ class TripService implements ITripService {
         filters['max_participants'] = maxParticipants;
       }
 
-      String orderByField;
-      bool orderAscending = ascending;
+      String orderBy = 'created_at';
+      bool orderAscending = true;
+      
       if (sortBy != null) {
-        orderByField = sortBy;
+        orderBy = sortBy;
+        orderAscending = ascending;
       } else {
-        orderByField = 'created_at';
-        orderAscending = false; // desc for created_at by default
+        orderBy = 'created_at';
+        orderAscending = false;
       }
 
       List<Map<String, dynamic>> trips = await SupabaseDatabaseService.select(
         table: _tripsTable,
         filters: filters,
-        orderBy: orderByField,
+        orderBy: orderBy,
         ascending: orderAscending,
         limit: limit,
         offset: offset,
@@ -803,5 +780,25 @@ class TripService implements ITripService {
     }
     if (destinationCounts.isEmpty) return null;
     return destinationCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+  }
+
+  /// Helper method for deleting records with filters
+  Future<void> _deleteWithFilters(String table, Map<String, dynamic> filters) async {
+    try {
+      final records = await SupabaseDatabaseService.select(
+        table: table,
+        filters: filters,
+      );
+      
+      for (final record in records) {
+        await SupabaseDatabaseService.delete(
+          table: table,
+          id: record['id'],
+        );
+      }
+    } catch (e, stackTrace) {
+      AppLogger.error(_tag, 'Failed to delete with filters', e, stackTrace);
+      rethrow;
+    }
   }
 }
