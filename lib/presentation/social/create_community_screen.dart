@@ -156,15 +156,15 @@ class _CreateCommunityScreenState extends State<CreateCommunityScreen> {
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.grey300),
+                  borderSide: const BorderSide(color: AppColors.grey300),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.grey300),
+                  borderSide: const BorderSide(color: AppColors.grey300),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
                 ),
               ),
               validator: (value) {
@@ -192,15 +192,15 @@ class _CreateCommunityScreenState extends State<CreateCommunityScreen> {
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.grey300),
+                  borderSide: const BorderSide(color: AppColors.grey300),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.grey300),
+                  borderSide: const BorderSide(color: AppColors.grey300),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
+                  borderSide: const BorderSide(color: AppColors.primary, width: 2),
                 ),
               ),
               validator: (value) {
@@ -435,7 +435,7 @@ class _CreateCommunityScreenState extends State<CreateCommunityScreen> {
             });
           },
           backgroundColor: Colors.white,
-          selectedColor: AppColors.primary.withOpacity(0.1),
+          selectedColor: AppColors.primary.withValues(alpha: 0.1),
           labelStyle: AppTextStyles.bodySmall.copyWith(
             color: isSelected ? AppColors.primary : AppColors.textPrimary,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
