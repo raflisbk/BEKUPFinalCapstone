@@ -1,12 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
-import '../lib/core/stubs/firebase_stubs.dart';
+import 'package:relink/core/stubs/firebase_stubs.dart';
 import 'package:mockito/mockito.dart';
 import 'package:relink/core/models/itinerary_model.dart';
 import '../../test_setup.dart';
 
-// ignore: subtype_of_sealed_class
-class MockDocumentSnapshot extends Mock
-    implements DocumentSnapshot<Map<String, dynamic>> {}
+class MockDocumentSnapshot extends Mock implements DocumentSnapshot {
+  @override
+  String get id => super.noSuchMethod(Invocation.getter(#id), returnValue: '');
+  
+  @override
+  Map<String, dynamic>? data() => super.noSuchMethod(
+    Invocation.method(#data, []),
+    returnValue: <String, dynamic>{},
+  );
+}
 
 void main() {
   setUpAll(() async {
