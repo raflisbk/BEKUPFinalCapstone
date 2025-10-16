@@ -296,7 +296,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
+            const Icon(
               Icons.groups_outlined,
               size: 80,
               color: AppColors.grey300,
@@ -355,7 +355,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -375,8 +375,8 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      AppColors.primary.withOpacity(0.7),
-                      AppColors.secondary.withOpacity(0.7),
+                      AppColors.primary.withValues(alpha: 0.7),
+                      AppColors.secondary.withValues(alpha: 0.7),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -392,7 +392,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
                         child: Icon(
                           Icons.groups,
                           size: 48,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                         ),
                       ),
               ),
@@ -412,7 +412,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -440,7 +440,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
                     // Stats
                     Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.people,
                           size: 14,
                           color: AppColors.textSecondary,
@@ -453,7 +453,7 @@ class _CommunityListScreenState extends State<CommunityListScreen> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Icon(
+                        const Icon(
                           Icons.article,
                           size: 14,
                           color: AppColors.textSecondary,
