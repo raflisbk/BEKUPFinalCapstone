@@ -1,4 +1,4 @@
-/// Friend-related models for social functionality
+// Friend-related models for social functionality
 
 /// Friend request status enum
 enum FriendRequestStatus {
