@@ -14,6 +14,9 @@ class SearchService {
   static const String _searchAnalyticsTable = 'search_analytics';
   static const String _searchSuggestionsTable = 'search_suggestions';
 
+  // Analytics service instance
+  static final AnalyticsService _analyticsService = AnalyticsService();
+
   // Search categories
   static const String categoryAll = 'all';
   static const String categoryDestinations = 'destinations';
@@ -903,7 +906,7 @@ class SearchService {
       }
 
       // Track in analytics
-      await AnalyticsService.trackEvent('search_performed', {
+      await _analyticsService.trackEvent('search_performed', {
         'query': query,
         'category': category,
         'has_filters': filters != null && filters.isNotEmpty,
@@ -917,7 +920,7 @@ class SearchService {
   /// Track search results
   static Future<void> _trackSearchResults(String query, int resultCount, String? userId) async {
     try {
-      await AnalyticsService.trackEvent('search_results', {
+      await _analyticsService.trackEvent('search_results', {
         'query': query,
         'result_count': resultCount,
         'user_id': userId,
