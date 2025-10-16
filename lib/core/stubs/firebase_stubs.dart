@@ -1,5 +1,6 @@
-/// Firebase compatibility layer - Stub implementations to allow compilation
-/// TODO: Replace with full Supabase implementations
+// Firebase compatibility layer - Stub implementations to allow compilation
+// NOTE: These stubs provide Firebase API compatibility while using Supabase backend
+// They allow legacy Firebase-dependent code to compile without requiring full migration
 library firebase_stubs;
 
 /// Mock FirebaseFirestore
