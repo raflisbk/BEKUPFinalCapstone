@@ -180,49 +180,29 @@ class RelinkApp extends StatelessWidget {
         // User Provider with DI
         ChangeNotifierProvider(
           create: (_) {
-            try {
-              return UserProvider();
-            } catch (e) {
-              AppLogger.warning('Main', 'UserProvider DI failed, using fallback: $e');
-              // TODO: Implement fallback UserProvider without DI
-              throw Exception('UserProvider requires ServiceLocator to be initialized');
-            }
+            // UserProvider will handle ServiceLocator failures internally
+            return UserProvider();
           },
         ),
         // Trip Provider with DI
         ChangeNotifierProvider(
           create: (_) {
-            try {
-              return TripProvider(ServiceLocator.tripService);
-            } catch (e) {
-              AppLogger.warning('Main', 'TripProvider DI failed, using fallback: $e');
-              // TODO: Implement fallback TripProvider without DI
-              throw Exception('TripProvider requires ServiceLocator to be initialized');
-            }
+            // TripProvider will handle ServiceLocator failures internally
+            return TripProvider(ServiceLocator.tripService);
           },
         ),
         // Budget Provider with DI
         ChangeNotifierProvider(
           create: (_) {
-            try {
-              return BudgetProvider(budgetService: ServiceLocator.budgetService);
-            } catch (e) {
-              AppLogger.warning('Main', 'BudgetProvider DI failed, using fallback: $e');
-              // TODO: Implement fallback BudgetProvider without DI
-              throw Exception('BudgetProvider requires ServiceLocator to be initialized');
-            }
+            // BudgetProvider will handle ServiceLocator failures internally
+            return BudgetProvider(budgetService: ServiceLocator.budgetService);
           },
         ),
         // Destination Provider with DI
         ChangeNotifierProvider(
           create: (_) {
-            try {
-              return DestinationProvider();
-            } catch (e) {
-              AppLogger.warning('Main', 'DestinationProvider DI failed, using fallback: $e');
-              // TODO: Implement fallback DestinationProvider without DI
-              throw Exception('DestinationProvider requires ServiceLocator to be initialized');
-            }
+            // DestinationProvider will handle ServiceLocator failures internally
+            return DestinationProvider();
           },
         ),
         
