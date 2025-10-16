@@ -149,12 +149,12 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
 
   Widget _buildContent() {
     if (_community == null) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.groups_outlined, size: 80, color: AppColors.grey400),
-            const SizedBox(height: 16),
+            Icon(Icons.groups_outlined, size: 80, color: AppColors.grey400),
+            SizedBox(height: 16),
             Text(
               'Community not found',
               style: AppTextStyles.titleLarge,
@@ -197,7 +197,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.7),
+                          Colors.black.withValues(alpha: 0.7),
                         ],
                       ),
                     ),
@@ -218,7 +218,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.9),
+                            color: Colors.white.withValues(alpha: 0.9),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -344,7 +344,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
 
   Widget _buildDefaultCover() {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           colors: [
             AppColors.primary,
@@ -354,11 +354,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
           end: Alignment.bottomRight,
         ),
       ),
-      child: Center(
+      child: const Center(
         child: Icon(
           Icons.groups,
           size: 80,
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white38,
         ),
       ),
     );
@@ -422,7 +422,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -459,7 +459,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                       width: 24,
                       height: 24,
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
+                        color: AppColors.primary.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
@@ -496,7 +496,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen>
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ],
       ),
