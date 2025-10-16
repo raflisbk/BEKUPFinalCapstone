@@ -114,6 +114,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
     uiProvider.setSubmitting(true);
     await HapticHelper.mediumImpact();
 
+    if (!mounted) return;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.user?.uid;
 
@@ -169,6 +170,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
 
       if (success) {
         await HapticHelper.success();
+        if (!mounted) return;
         Navigator.pop(context, true); // Return true to indicate success
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -183,6 +185,7 @@ class _AddEditExpenseScreenState extends State<AddEditExpenseScreen> {
       } else {
         await HapticHelper.error();
         uiProvider.setSubmitting(false);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
